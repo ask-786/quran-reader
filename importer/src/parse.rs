@@ -229,15 +229,16 @@ pub struct AlquranData {
 #[derive(Debug, Deserialize)]
 pub struct AlquranSurah {
     pub number:                   u32,
-    pub name:                     String,
-    #[serde(rename = "englishName")]
-    pub english_name:             String,
-    #[serde(rename = "englishNameTranslation")]
-    pub english_name_translation: String,
-    #[serde(rename = "numberOfAyahs")]
-    pub number_of_ayahs:          u32,
-    #[serde(rename = "revelationType")]
-    pub revelation_type:          String,
+    #[serde(default)]
+    pub name:                     Option<String>,
+    #[serde(rename = "englishName", default)]
+    pub english_name:             Option<String>,
+    #[serde(rename = "englishNameTranslation", default)]
+    pub english_name_translation: Option<String>,
+    #[serde(rename = "numberOfAyahs", default)]
+    pub number_of_ayahs:          Option<u32>,
+    #[serde(rename = "revelationType", default)]
+    pub revelation_type:          Option<String>,
     pub ayahs:                    Vec<AlquranAyah>,
 }
 
@@ -254,7 +255,8 @@ pub struct AlquranAyah {
     pub hizb_quarter:    u32,
     #[serde(rename = "sajda")]
     pub sajda:           Sajda,
-    pub text:            String,
+    #[serde(default)]
+    pub text:            Option<String>,
 }
 
 #[allow(dead_code)]
@@ -262,7 +264,14 @@ pub struct AlquranAyah {
 #[serde(untagged)]
 pub enum Sajda {
     Bool(bool),
-    Object { id: u32, recommended: bool, obligatory: bool },
+    Object {
+        #[serde(default)]
+        id: Option<u32>,
+        #[serde(default)]
+        recommended: Option<bool>,
+        #[serde(default)]
+        obligatory: Option<bool>,
+    },
 }
 
 impl Sajda {
