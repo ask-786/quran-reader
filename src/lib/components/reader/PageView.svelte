@@ -1,44 +1,75 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
-  import { ChevronRight, ChevronLeft } from 'lucide-svelte';
+  import { tick } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import { getPage } from '$lib/api/db';
-  import type { MushafPage } from '$lib/types/database';
-  import { loadPageFont, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
+  import type { Ayah, MushafPage } from '$lib/types/database';
+  import { loadPageFonts, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
 
   let {
-    page = 1,
-    onPageChange,
+    ayahs,
+    scrollToAyahId,
   }: {
-    page?: number;
-    onPageChange?: (nextPage: number) => void;
+    ayahs: Ayah[];
+    scrollToAyahId?: number;
   } = $props();
 
-  let data = $state<MushafPage | null>(null);
-  let fontFamily = $state<string | null>(null);
+  type LoadedPage = { page: number; data: MushafPage; fontFamily: string | null };
+
+  let pages = $state<LoadedPage[]>([]);
   let basmalaFontFamily = $state<string | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
-  let pageInput = $state(untrack(() => String(page)));
+  let container = $state<HTMLDivElement>();
+
+  const firstPage = $derived(ayahs[0]?.page ?? 1);
+  const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
+
+  // Page -> Juz, derived from this Surah's own Ayahs. Pages that also carry a
+  // neighbouring Surah's content are still keyed off what we know, matching
+  // how ReaderView derives its boundary dividers.
+  const juzByPage = $derived.by(() => {
+    const map = new SvelteMap<number, number>();
+    for (const a of ayahs) if (!map.has(a.page)) map.set(a.page, a.juz);
+    return map;
+  });
 
   $effect(() => {
-    const p = page;
-    pageInput = String(p);
+    const start = firstPage;
+    const end = lastPage;
+    const targetId = scrollToAyahId;
     loading = true;
     error = null;
+    pages = [];
 
     let cancelled = false;
 
     (async () => {
       try {
-        const [pageData, family, basmalaFamily] = await Promise.all([
-          getPage(p),
-          loadPageFont(p),
-          loadBasmalaFont(),
+        const basmalaFamily = await loadBasmalaFont();
+        if (cancelled) return;
+        basmalaFontFamily = basmalaFamily;
+
+        const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+        const [pageData, fontFamilies] = await Promise.all([
+          Promise.all(pageNumbers.map((p) => getPage(p))),
+          loadPageFonts(pageNumbers),
         ]);
         if (cancelled) return;
-        data = pageData;
-        fontFamily = family;
-        basmalaFontFamily = basmalaFamily;
+        pages = pageNumbers.map((p, i) => ({
+          page: p,
+          data: pageData[i],
+          fontFamily: fontFamilies.get(p) ?? null,
+        }));
+
+        await tick();
+        if (cancelled || !container) return;
+        if (targetId) {
+          container
+            .querySelector(`[data-ayah-id="${targetId}"]`)
+            ?.scrollIntoView({ block: 'center' });
+        } else {
+          container.scrollTo({ top: 0 });
+        }
       } catch (err) {
         if (!cancelled) error = err instanceof Error ? err.message : String(err);
       } finally {
@@ -46,94 +77,57 @@
       }
     })();
 
-    // Warm the neighbours so flipping forward/back doesn't stall on a font load.
-    if (p < 604) void loadPageFont(p + 1);
-    if (p > 1) void loadPageFont(p - 1);
-
     return () => {
       cancelled = true;
     };
   });
-
-  function goTo(target: number) {
-    const clamped = Math.min(604, Math.max(1, target));
-    if (clamped !== page) onPageChange?.(clamped);
-  }
-
-  function submitPageInput() {
-    const n = Number(pageInput);
-    if (Number.isInteger(n)) goTo(n);
-    else pageInput = String(page);
-  }
 </script>
 
 <div class="page-view">
-  <div class="page-nav">
-    <button
-      class="nav-btn"
-      onclick={() => goTo(page + 1)}
-      disabled={page >= 604}
-      aria-label="Next page"
-    >
-      <ChevronLeft size={18} />
-    </button>
-
-    <div class="page-indicator">
-      <span>Page</span>
-      <input
-        type="text"
-        inputmode="numeric"
-        bind:value={pageInput}
-        onchange={submitPageInput}
-        aria-label="Go to page"
-      />
-      <span>/ 604</span>
-    </div>
-
-    <button
-      class="nav-btn"
-      onclick={() => goTo(page - 1)}
-      disabled={page <= 1}
-      aria-label="Previous page"
-    >
-      <ChevronRight size={18} />
-    </button>
-  </div>
-
-  <div class="page-surface scrollbar-thin">
+  <div bind:this={container} class="page-surface scrollbar-thin">
     {#if error}
-      <p class="state-message">Couldn't load page {page}: {error}</p>
-    {:else if loading || !data}
+      <p class="state-message">Couldn't load pages: {error}</p>
+    {:else if loading && pages.length === 0}
       <p class="state-message">Loading…</p>
     {:else}
-      <div class="mushaf-page" dir="rtl">
-        {#each data.lines as line (line.line_number)}
-          {#if line.line_type === 'surah_header'}
-            <div class="line surah-header-line">
-              <span class="motif" aria-hidden="true">۞</span>
-              <h3 class="quran-text">{line.text}</h3>
-              <span class="motif" aria-hidden="true">۞</span>
-            </div>
-          {:else if line.line_type === 'basmala'}
-            <div class="line basmala-line" style:font-family={basmalaFontFamily}>
-              {#each line.words as w (w.position)}
-                <span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
-              {/each}
-            </div>
-          {:else}
-            <div class="line text-line" style:font-family={fontFamily}>
-              {#each line.words as w (w.position)}
-                <span
-                  class="word"
-                  data-ayah-id={w.ayah_id}
-                  aria-label={w.uthmani_text}
-                  title={w.uthmani_text}>{w.glyph_v2}</span
-                >
-              {/each}
-            </div>
-          {/if}
-        {/each}
-      </div>
+      {#each pages as p, i (p.page)}
+        {#if i > 0}
+          <div class="boundary-divider">
+            <span
+              >Page {p.page}{#if juzByPage.get(p.page) !== juzByPage.get(pages[i - 1].page)}
+                · Juz {juzByPage.get(p.page)}{/if}</span
+            >
+          </div>
+        {/if}
+        <div class="mushaf-page" dir="rtl">
+          {#each p.data.lines as line (line.line_number)}
+            {#if line.line_type === 'surah_header'}
+              <div class="line surah-header-line">
+                <span class="motif" aria-hidden="true">۞</span>
+                <h3 class="quran-text">{line.text}</h3>
+                <span class="motif" aria-hidden="true">۞</span>
+              </div>
+            {:else if line.line_type === 'basmala'}
+              <div class="line basmala-line" style:font-family={basmalaFontFamily}>
+                {#each line.words as w (w.position)}
+                  <span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
+                {/each}
+              </div>
+            {:else}
+              <div class="line text-line" style:font-family={p.fontFamily}>
+                {#each line.words as w (w.position)}
+                  <span
+                    class="word"
+                    data-ayah-id={w.ayah_id}
+                    aria-label={w.uthmani_text}
+                    title={w.uthmani_text}>{w.glyph_v2}</span
+                  >
+                {/each}
+              </div>
+            {/if}
+          {/each}
+        </div>
+      {/each}
     {/if}
   </div>
 </div>
@@ -146,67 +140,38 @@
     min-height: 0;
   }
 
-  .page-nav {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .nav-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border);
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: var(--transition);
-  }
-
-  .nav-btn:hover:not(:disabled) {
-    background: var(--color-bg-hover);
-    color: var(--color-text);
-  }
-
-  .nav-btn:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-
-  .page-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--color-text-muted);
-  }
-
-  .page-indicator input {
-    width: 44px;
-    padding: 3px 4px;
-    text-align: center;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    color: var(--color-text);
-  }
-
   .page-surface {
     flex: 1;
     overflow-y: auto;
     display: flex;
-    justify-content: center;
-    padding: 24px 16px 40px;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 80px;
   }
 
   .mushaf-page {
     width: min(560px, 100%);
+  }
+
+  .boundary-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: min(560px, 100%);
+    margin: 20px 0;
+    color: var(--color-text-faint);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .boundary-divider::before,
+  .boundary-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
   }
 
   .line {

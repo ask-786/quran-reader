@@ -2,7 +2,7 @@ export type ReadingMode = 'scroll' | 'mushaf';
 
 class UiStore {
   sidebarOpen = $state(true);
-  readingMode = $state<ReadingMode>('scroll');
+  readingMode = $state<ReadingMode>('mushaf');
 
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;

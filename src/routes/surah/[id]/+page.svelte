@@ -19,14 +19,6 @@
         : undefined,
     );
   });
-
-  // Mushaf page view starts on this Surah's opening page; flipping pages
-  // from there is independent of Surah navigation.
-  let mushafPage = $state(untrack(() => data.ayahs[0]?.page ?? 1));
-  $effect(() => {
-    const firstPage = data.ayahs[0]?.page ?? 1;
-    untrack(() => (mushafPage = firstPage));
-  });
 </script>
 
 <svelte:head>
@@ -35,7 +27,7 @@
 
 <div class="surah-page">
   {#if uiStore.readingMode === 'mushaf'}
-    <PageView page={mushafPage} onPageChange={(p) => (mushafPage = p)} />
+    <PageView ayahs={data.ayahs} scrollToAyahId={scrollTarget} />
   {:else}
     <ReaderView
       surah={data.surah}
