@@ -68,6 +68,7 @@
 - [ ] Phase 11 — Tafsir
 - [ ] Phase 12 — Audio
 - [ ] Phase 13 — Release
+- [ ] Phase 14 — Reading Experience Enhancements
 
 ---
 
@@ -555,6 +556,37 @@ Packaging
 - [ ] Linux
 - [ ] Windows
 - [ ] macOS
+
+---
+
+# Phase 14 — Reading Experience Enhancements
+
+## Zoom
+
+- [ ] App-wide zoom (scales entire UI)
+- [ ] Reader-only zoom (scales just the Quran text, on top of app zoom)
+- [ ] Both persist across app relaunch (settings table)
+
+---
+
+## Focus Mode
+
+- [ ] Toggle hides sidebar + toolbar, leaving only the reader
+- [ ] Reader zoom control remains reachable (top-right corner overlay)
+
+---
+
+## Auto-scroll
+
+- [ ] Available in both normal and focus reader views
+- [ ] Right-side vertical handle to adjust scroll speed
+
+---
+
+## Reading Progress Indicator
+
+- [ ] Left-edge vertical bar on the reader
+- [ ] Shows % progress through the current Surah
 
 ---
 

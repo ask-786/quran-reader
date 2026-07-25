@@ -45,6 +45,8 @@
   --reader-max-width: 720px;
   --radius: 10px;
   --transition: 160ms ease;
+
+  --reader-zoom: 1;
 }
 
 :root[data-theme='dark'] {

@@ -1,5 +1,16 @@
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { loadSettings, setSetting } from '$lib/api/db';
 import type { Settings, Theme } from '$lib/types/database';
+
+const APP_ZOOM_MIN = 0.7;
+const APP_ZOOM_MAX = 1.5;
+const READER_ZOOM_MIN = 0.7;
+const READER_ZOOM_MAX = 2.0;
+const ZOOM_STEP = 0.1;
+
+function clampZoom(value: number, min: number, max: number): number {
+  return Math.round(Math.min(max, Math.max(min, value)) * 10) / 10;
+}
 
 function defaultSettings(): Settings {
   return {
@@ -15,6 +26,8 @@ function defaultSettings(): Settings {
     show_transliteration: false,
     show_ayah_numbers: true,
     scroll_position: 0,
+    app_zoom: 1,
+    reader_zoom: 1,
   };
 }
 
@@ -32,6 +45,8 @@ class SettingsStore {
     this.ready = true;
     this.applyTheme();
     this.applyTypography();
+    this.applyAppZoom();
+    this.applyReaderZoom();
   }
 
   applyTheme() {
@@ -48,10 +63,58 @@ class SettingsStore {
     root.setProperty('--reader-max-width', widths[this.current.reader_width] ?? widths.normal);
   }
 
+  applyAppZoom() {
+    if (typeof window === 'undefined') return;
+    getCurrentWebview()
+      .setZoom(this.current.app_zoom)
+      .catch((err) => console.error('Failed to set webview zoom', err));
+  }
+
+  applyReaderZoom() {
+    if (typeof document === 'undefined') return;
+    document.documentElement.style.setProperty('--reader-zoom', `${this.current.reader_zoom}`);
+  }
+
   async setTheme(theme: Theme) {
     this.current.theme = theme;
     this.applyTheme();
     await setSetting('theme', theme);
+  }
+
+  async setAppZoom(zoom: number) {
+    this.current.app_zoom = clampZoom(zoom, APP_ZOOM_MIN, APP_ZOOM_MAX);
+    this.applyAppZoom();
+    await setSetting('app_zoom', String(this.current.app_zoom));
+  }
+
+  async setReaderZoom(zoom: number) {
+    this.current.reader_zoom = clampZoom(zoom, READER_ZOOM_MIN, READER_ZOOM_MAX);
+    this.applyReaderZoom();
+    await setSetting('reader_zoom', String(this.current.reader_zoom));
+  }
+
+  zoomAppIn() {
+    return this.setAppZoom(this.current.app_zoom + ZOOM_STEP);
+  }
+
+  zoomAppOut() {
+    return this.setAppZoom(this.current.app_zoom - ZOOM_STEP);
+  }
+
+  resetAppZoom() {
+    return this.setAppZoom(1);
+  }
+
+  zoomReaderIn() {
+    return this.setReaderZoom(this.current.reader_zoom + ZOOM_STEP);
+  }
+
+  zoomReaderOut() {
+    return this.setReaderZoom(this.current.reader_zoom - ZOOM_STEP);
+  }
+
+  resetReaderZoom() {
+    return this.setReaderZoom(1);
   }
 
   async setLastRead(surahId: number, ayahId: number) {

@@ -246,7 +246,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     ('show_translation',        'true'),
     ('show_transliteration',    'false'),
     ('show_ayah_numbers',       'true'),
-    ('scroll_position',         '0');
+    ('scroll_position',         '0'),
+    ('app_zoom',                '1'),
+    ('reader_zoom',             '1');
 
 -- =============================================================================
 -- FULL-TEXT SEARCH (FTS5)

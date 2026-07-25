@@ -131,6 +131,8 @@ export interface Settings {
   show_transliteration: boolean;
   show_ayah_numbers: boolean;
   scroll_position: number;
+  app_zoom: number;
+  reader_zoom: number;
 }
 
 // =============================================================================

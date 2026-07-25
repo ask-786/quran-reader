@@ -13,9 +13,13 @@
     Square,
     Copy,
     X,
+    ZoomIn,
+    ZoomOut,
+    Focus,
   } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import ReaderZoomControl from '$lib/components/reader/ReaderZoomControl.svelte';
   import type { Theme } from '$lib/types/database';
 
   const THEMES: Theme[] = ['dark', 'light', 'sepia'];
@@ -64,6 +68,35 @@
       {:else}
         <Rows3 size={18} />
       {/if}
+    </button>
+  {/if}
+
+  <div class="zoom-group" title="App zoom">
+    <button class="icon-btn small" onclick={() => settingsStore.zoomAppOut()} aria-label="Zoom out">
+      <ZoomOut size={15} />
+    </button>
+    <button
+      class="zoom-value"
+      onclick={() => settingsStore.resetAppZoom()}
+      aria-label="Reset app zoom"
+    >
+      {Math.round(settingsStore.current.app_zoom * 100)}%
+    </button>
+    <button class="icon-btn small" onclick={() => settingsStore.zoomAppIn()} aria-label="Zoom in">
+      <ZoomIn size={15} />
+    </button>
+  </div>
+
+  {#if surah}
+    <ReaderZoomControl />
+
+    <button
+      class="icon-btn"
+      onclick={() => uiStore.toggleFocusMode()}
+      aria-label="Enter focus mode"
+      title="Focus mode"
+    >
+      <Focus size={18} />
     </button>
   {/if}
 
@@ -137,6 +170,37 @@
   }
 
   .icon-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text);
+  }
+
+  .icon-btn.small {
+    width: 24px;
+    height: 24px;
+  }
+
+  .zoom-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius);
+    background: var(--color-bg);
+  }
+
+  .zoom-value {
+    min-width: 38px;
+    padding: 2px 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+    border-radius: var(--radius);
+  }
+
+  .zoom-value:hover {
     background: var(--color-bg-hover);
     color: var(--color-text);
   }

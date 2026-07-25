@@ -556,6 +556,8 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
         show_transliteration:     map.get("show_transliteration").map(|v| v == "true").unwrap_or(false),
         show_ayah_numbers:        map.get("show_ayah_numbers").map(|v| v == "true").unwrap_or(true),
         scroll_position:          map.get("scroll_position").and_then(|v| v.parse().ok()).unwrap_or(0),
+        app_zoom:                 map.get("app_zoom").and_then(|v| v.parse().ok()).unwrap_or(1.0),
+        reader_zoom:              map.get("reader_zoom").and_then(|v| v.parse().ok()).unwrap_or(1.0),
     };
 
     Ok(s)

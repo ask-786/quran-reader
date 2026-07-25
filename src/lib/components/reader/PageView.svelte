@@ -143,14 +143,19 @@
   .page-surface {
     flex: 1;
     overflow-y: auto;
+    overflow-x: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 24px 16px 80px;
   }
 
+  /* Reader-only zoom: scale the page width and glyph font-sizes together
+     (via calc, not the CSS `zoom` property) so justified lines stay
+     proportional. Plain calc()/font-size keeps normal scroll-height
+     calculation intact — `zoom` broke overflow-y:auto in WebKitGTK. */
   .mushaf-page {
-    width: min(560px, 100%);
+    width: calc(min(560px, 100%) * var(--reader-zoom));
   }
 
   .boundary-divider {
@@ -158,7 +163,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: min(560px, 100%);
+    width: calc(min(560px, 100%) * var(--reader-zoom));
     margin: 20px 0;
     color: var(--color-text-faint);
     font-size: 11px;
@@ -184,7 +189,7 @@
   .basmala-line {
     justify-content: space-between;
     flex-wrap: nowrap;
-    font-size: 27px;
+    font-size: calc(27px * var(--reader-zoom));
     line-height: 2.5;
     color: var(--color-text);
   }
@@ -216,12 +221,12 @@
 
   .surah-header-line h3 {
     margin: 0;
-    font-size: 22px;
+    font-size: calc(22px * var(--reader-zoom));
     white-space: nowrap;
   }
 
   .motif {
-    font-size: 13px;
+    font-size: calc(13px * var(--reader-zoom));
   }
 
   .state-message {
