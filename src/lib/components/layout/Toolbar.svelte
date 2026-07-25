@@ -1,15 +1,41 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { PanelLeft, Moon, Sun, Coffee, BookOpen, Rows3 } from 'lucide-svelte';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import {
+    PanelLeft,
+    Moon,
+    Sun,
+    Coffee,
+    BookOpen,
+    Rows3,
+    Minus,
+    Square,
+    Copy,
+    X,
+  } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import type { Theme } from '$lib/types/database';
 
   const THEMES: Theme[] = ['dark', 'light', 'sepia'];
+  const appWindow = getCurrentWindow();
 
   const surah = $derived(
     $page.data?.surah as { name_en: string; transliteration: string } | undefined,
   );
+
+  let isMaximized = $state(false);
+
+  onMount(() => {
+    appWindow.isMaximized().then((v) => (isMaximized = v));
+    const unlisten = appWindow.onResized(async () => {
+      isMaximized = await appWindow.isMaximized();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  });
 
   function cycleTheme() {
     const i = THEMES.indexOf(settingsStore.current.theme);
@@ -17,7 +43,7 @@
   }
 </script>
 
-<header class="toolbar">
+<header class="toolbar" data-tauri-drag-region>
   <button class="icon-btn" onclick={() => uiStore.toggleSidebar()} aria-label="Toggle sidebar">
     <PanelLeft size={18} />
   </button>
@@ -54,6 +80,26 @@
       <Coffee size={18} />
     {/if}
   </button>
+
+  <div class="window-controls">
+    <button class="icon-btn" onclick={() => appWindow.minimize()} aria-label="Minimize window">
+      <Minus size={16} />
+    </button>
+    <button
+      class="icon-btn"
+      onclick={() => appWindow.toggleMaximize()}
+      aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+    >
+      {#if isMaximized}
+        <Copy size={14} />
+      {:else}
+        <Square size={14} />
+      {/if}
+    </button>
+    <button class="icon-btn close-btn" onclick={() => appWindow.close()} aria-label="Close window">
+      <X size={16} />
+    </button>
+  </div>
 </header>
 
 <style>
@@ -93,5 +139,19 @@
   .icon-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text);
+  }
+
+  .window-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+    padding-left: 10px;
+    border-left: 1px solid var(--color-border);
+  }
+
+  .close-btn:hover {
+    background: #e81123;
+    color: #fff;
   }
 </style>
