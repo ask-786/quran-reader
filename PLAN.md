@@ -57,7 +57,7 @@
 
 - [x] Phase 1 — Research
 - [ ] Phase 2 — Project Setup
-- [ ] Phase 3 — Database Design
+- [x] Phase 3 — Database Design
 - [ ] Phase 4 — Import Quran Data
 - [ ] Phase 5 — Reader MVP
 - [ ] Phase 6 — Navigation
@@ -153,15 +153,15 @@ Choose one primary source.
 
 ## Main Tables
 
-- [ ] Surah
-- [ ] Ayah
-- [ ] Translation
-- [ ] Translation Ayah
-- [ ] Tafsir
-- [ ] Tafsir Ayah
-- [ ] Bookmark
-- [ ] Notes
-- [ ] Settings
+- [x] Surah
+- [x] Ayah
+- [x] Translation
+- [x] Translation Ayah
+- [x] Tafsir
+- [x] Tafsir Ayah
+- [x] Bookmark
+- [x] Notes
+- [x] Settings
 
 ---
 
@@ -169,14 +169,14 @@ Choose one primary source.
 
 Fields
 
-- [ ] id
-- [ ] name_ar
-- [ ] name_en
-- [ ] transliteration
-- [ ] revelation_type
-- [ ] verses_count
-- [ ] order_of_revelation
-- [ ] has_bismillah
+- [x] id
+- [x] name_ar
+- [x] name_en
+- [x] transliteration
+- [x] revelation_type
+- [x] verses_count
+- [x] order_of_revelation
+- [x] has_bismillah
 
 ---
 
@@ -184,18 +184,18 @@ Fields
 
 Fields
 
-- [ ] id
-- [ ] surah_id
-- [ ] ayah_number
-- [ ] uthmani_text
-- [ ] simple_text
-- [ ] juz
-- [ ] hizb
-- [ ] rub_hizb
-- [ ] page
-- [ ] sajdah
-- [ ] ruku
-- [ ] manzil
+- [x] id
+- [x] surah_id
+- [x] ayah_number
+- [x] uthmani_text
+- [x] simple_text
+- [x] juz
+- [x] hizb
+- [x] rub_hizb
+- [x] page
+- [x] sajdah
+- [x] ruku
+- [x] manzil
 
 ---
 
@@ -203,18 +203,18 @@ Fields
 
 Fields
 
-- [ ] id
-- [ ] language
-- [ ] translator
-- [ ] version
+- [x] id
+- [x] language
+- [x] translator
+- [x] version
 
 ---
 
 ## Translation Ayah
 
-- [ ] translation_id
-- [ ] ayah_id
-- [ ] text
+- [x] translation_id
+- [x] ayah_id
+- [x] text
 
 ---
 
@@ -222,46 +222,46 @@ Fields
 
 Fields
 
-- [ ] id
-- [ ] language
-- [ ] author
-- [ ] title
+- [x] id
+- [x] language
+- [x] author
+- [x] title
 
 ---
 
 ## Tafsir Ayah
 
-- [ ] tafsir_id
-- [ ] ayah_id
-- [ ] text
+- [x] tafsir_id
+- [x] ayah_id
+- [x] text
 
 ---
 
 ## Bookmarks
 
-- [ ] id
-- [ ] ayah_id
-- [ ] created_at
+- [x] id
+- [x] ayah_id
+- [x] created_at
 
 ---
 
 ## Notes
 
-- [ ] id
-- [ ] ayah_id
-- [ ] content
-- [ ] created_at
+- [x] id
+- [x] ayah_id
+- [x] content
+- [x] created_at
 
 ---
 
 ## Settings
 
-- [ ] Theme
-- [ ] Font
-- [ ] Font Size
-- [ ] Line Height
-- [ ] Last Read
-- [ ] Preferred Translation
+- [x] Theme
+- [x] Font
+- [x] Font Size
+- [x] Line Height
+- [x] Last Read
+- [x] Preferred Translation
 
 ---
 

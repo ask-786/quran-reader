@@ -1,0 +1,117 @@
+/**
+ * Typed wrappers around Tauri `invoke()` for every backend command.
+ * Import from here instead of calling invoke() directly in components.
+ */
+
+import { invoke } from '@tauri-apps/api/core';
+import type {
+  Surah,
+  Ayah,
+  Translation,
+  Bookmark,
+  Note,
+  Settings,
+  SearchResult,
+  DbStats,
+} from '$lib/types/database';
+
+// =============================================================================
+// DATABASE
+// =============================================================================
+
+export function dbStats(): Promise<DbStats> {
+  return invoke('db_stats');
+}
+
+// =============================================================================
+// SURAH
+// =============================================================================
+
+export function getAllSurahs(): Promise<Surah[]> {
+  return invoke('get_all_surahs');
+}
+
+export function getSurah(surahId: number): Promise<Surah> {
+  return invoke('get_surah', { surahId });
+}
+
+// =============================================================================
+// AYAH
+// =============================================================================
+
+export function getAyahsForSurah(surahId: number): Promise<Ayah[]> {
+  return invoke('get_ayahs_for_surah', { surahId });
+}
+
+export function getAyahsForPage(page: number): Promise<Ayah[]> {
+  return invoke('get_ayahs_for_page', { page });
+}
+
+export function getAyahsForJuz(juz: number): Promise<Ayah[]> {
+  return invoke('get_ayahs_for_juz', { juz });
+}
+
+// =============================================================================
+// SEARCH
+// =============================================================================
+
+export function searchArabic(query: string, limit?: number): Promise<SearchResult[]> {
+  return invoke('search_arabic', { query, limit });
+}
+
+// =============================================================================
+// BOOKMARKS
+// =============================================================================
+
+export function getBookmarks(): Promise<Bookmark[]> {
+  return invoke('get_bookmarks');
+}
+
+/** Returns true if bookmark now exists, false if it was removed. */
+export function toggleBookmark(ayahId: number, label?: string): Promise<boolean> {
+  return invoke('toggle_bookmark', { ayahId, label: label ?? null });
+}
+
+// =============================================================================
+// NOTES
+// =============================================================================
+
+export function getNotesForAyah(ayahId: number): Promise<Note[]> {
+  return invoke('get_notes_for_ayah', { ayahId });
+}
+
+/**
+ * Create a new note (noteId = undefined) or update an existing one.
+ * Returns the note id.
+ */
+export function upsertNote(ayahId: number, content: string, noteId?: number): Promise<number> {
+  return invoke('upsert_note', { noteId: noteId ?? null, ayahId, content });
+}
+
+export function deleteNote(noteId: number): Promise<void> {
+  return invoke('delete_note', { noteId });
+}
+
+// =============================================================================
+// SETTINGS
+// =============================================================================
+
+export function loadSettings(): Promise<Settings> {
+  return invoke('load_settings');
+}
+
+export function getSetting(key: string): Promise<string> {
+  return invoke('get_setting', { key });
+}
+
+export function setSetting(key: string, value: string): Promise<void> {
+  return invoke('set_setting', { key, value });
+}
+
+// =============================================================================
+// TRANSLATIONS
+// =============================================================================
+
+export function getTranslations(): Promise<Translation[]> {
+  return invoke('get_translations');
+}

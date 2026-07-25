@@ -1,0 +1,144 @@
+use rusqlite::Connection;
+use std::path::Path;
+use crate::db::error::{DbError, DbResult};
+
+/// The full SQLite schema applied on first run.
+/// Embedded at compile time from `database/schema.sql`.
+const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
+
+/// Current schema version expected by this build.
+const CURRENT_VERSION: u32 = 1;
+
+/// Open (or create) the SQLite database at the given path and ensure it is
+/// at the expected schema version. Returns a configured [`Connection`].
+///
+/// # WAL mode & pragmas
+/// The schema.sql already contains the PRAGMA statements, but we also set
+/// them in code so they apply to every connection opened by the application.
+pub fn open(path: &Path) -> DbResult<Connection> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let conn = Connection::open(path)?;
+    configure_connection(&conn)?;
+
+    let version = get_schema_version(&conn)?;
+    if version == 0 {
+        // Fresh database — apply the full schema
+        log::info!("Applying initial database schema (v{})", CURRENT_VERSION);
+        conn.execute_batch(SCHEMA_SQL)?;
+    } else if version < CURRENT_VERSION {
+        // Future: run incremental migrations here
+        log::info!(
+            "Database at v{}, upgrading to v{}",
+            version,
+            CURRENT_VERSION
+        );
+        run_migrations(&conn, version)?;
+    } else {
+        log::info!("Database is at current schema v{}", version);
+    }
+
+    Ok(conn)
+}
+
+/// Apply per-connection SQLite pragmas for performance and correctness.
+fn configure_connection(conn: &Connection) -> DbResult<()> {
+    conn.execute_batch("
+        PRAGMA journal_mode = WAL;
+        PRAGMA foreign_keys = ON;
+        PRAGMA synchronous = NORMAL;
+        PRAGMA cache_size = -8000;
+        PRAGMA temp_store = MEMORY;
+        PRAGMA mmap_size = 268435456;
+    ")?;
+    Ok(())
+}
+
+/// Read the recorded schema version (0 = brand new database).
+fn get_schema_version(conn: &Connection) -> DbResult<u32> {
+    // schema_version table may not exist yet on a brand new db
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM sqlite_master
+            WHERE type='table' AND name='schema_version'
+        )",
+        [],
+        |row| row.get(0),
+    )?;
+
+    if !exists {
+        return Ok(0);
+    }
+
+    let version: u32 = conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+        [],
+        |row| row.get(0),
+    )?;
+    Ok(version)
+}
+
+/// Run incremental migrations from `from_version` up to `CURRENT_VERSION`.
+/// Each migration is a separate SQL block; add new arms as the schema evolves.
+fn run_migrations(_conn: &Connection, from_version: u32) -> DbResult<()> {
+    // Example pattern for future migrations:
+    //
+    // if from_version < 2 {
+    //     conn.execute_batch(include_str!("../../../database/migrations/002_add_highlight.sql"))?;
+    //     conn.execute("INSERT INTO schema_version (version) VALUES (2)", [])?;
+    // }
+
+    log::warn!(
+        "No migration path found from v{} to v{}. DB may be ahead of code.",
+        from_version,
+        CURRENT_VERSION
+    );
+    Ok(())
+}
+
+/// Convenience: run VACUUM to compact the database file.
+pub fn vacuum(conn: &Connection) -> DbResult<()> {
+    conn.execute_batch("VACUUM;")?;
+    Ok(())
+}
+
+/// Verify database integrity. Returns `Ok(())` if clean.
+pub fn integrity_check(conn: &Connection) -> DbResult<()> {
+    let result: String = conn.query_row(
+        "PRAGMA integrity_check",
+        [],
+        |row| row.get(0),
+    )?;
+    if result == "ok" {
+        Ok(())
+    } else {
+        Err(DbError::InvalidData(format!("Integrity check failed: {}", result)))
+    }
+}
+
+/// Return basic stats useful for debugging / About screen.
+pub fn stats(conn: &Connection) -> DbResult<DbStats> {
+    let surah_count: u32 = conn.query_row("SELECT COUNT(*) FROM surah", [], |r| r.get(0))?;
+    let ayah_count: u32 = conn.query_row("SELECT COUNT(*) FROM ayah", [], |r| r.get(0))?;
+    let bookmark_count: u32 = conn.query_row("SELECT COUNT(*) FROM bookmark", [], |r| r.get(0))?;
+    let note_count: u32 = conn.query_row("SELECT COUNT(*) FROM note", [], |r| r.get(0))?;
+
+    Ok(DbStats {
+        surah_count,
+        ayah_count,
+        bookmark_count,
+        note_count,
+        schema_version: get_schema_version(conn)?,
+    })
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct DbStats {
+    pub surah_count: u32,
+    pub ayah_count: u32,
+    pub bookmark_count: u32,
+    pub note_count: u32,
+    pub schema_version: u32,
+}
