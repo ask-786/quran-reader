@@ -44,45 +44,26 @@ pub struct Ayah {
 }
 
 // ---------------------------------------------------------------------------
-// Surah metadata from JSON (spa5k/quran_data)
+// Surah metadata — alquran.cloud /v1/surah
+// Response: {"code":200,"status":"OK","data":[{...}, ...]}
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SurahInfo {
-    number:                   u32,
-    name:                     String,
-    english_name:             String,
-    english_name_translation: String,
-    number_of_ayahs:          u32,
-    revelation_type:          String,
+struct AlquranSurahList {
+    data: Vec<AlquranSurahMeta>,
 }
 
-// Alternative JSON schema (some sources use different field names)
+/// One entry from alquran.cloud /v1/surah
 #[derive(Debug, Deserialize)]
-struct SurahInfoAlt {
-    number:               u32,
-    name:                 Option<String>,
-    #[serde(rename = "nameArabic")]
-    name_arabic:          Option<String>,
-    #[serde(rename = "nameEnglish")]
-    name_english:         Option<String>,
-    #[serde(rename = "nameTrans")]
-    name_trans:           Option<String>,
-    transliteration:      Option<String>,
+struct AlquranSurahMeta {
+    number:           u32,
+    name:             String,   // Arabic: "سُورَةُ الْفَاتِحَةِ"
     #[serde(rename = "englishName")]
-    english_name:         Option<String>,
-    #[serde(rename = "revelationType")]
-    revelation_type:      Option<String>,
+    english_name:     String,   // transliteration: "Al-Faatiha"
     #[serde(rename = "numberOfAyahs")]
-    number_of_ayahs:      Option<u32>,
-    #[serde(rename = "versesCount")]
-    verses_count:         Option<u32>,
-    #[serde(rename = "orderOfRevelation")]
-    order_of_revelation:  Option<u32>,
-    #[serde(rename = "revelationOrder")]
-    revelation_order:     Option<u32>,
+    number_of_ayahs:  u32,
+    #[serde(rename = "revelationType")]
+    revelation_type:  String,   // "Meccan" | "Medinan"
 }
 
 // Hardcoded revelation order (standard Uloom al-Quran order) as fallback.
@@ -339,11 +320,11 @@ pub fn parse(raw: &RawData) -> Result<QuranData> {
 // Parse surah metadata JSON
 // ---------------------------------------------------------------------------
 
-fn parse_surah_meta(json: &str) -> Result<Vec<SurahInfoAlt>> {
-    // Try to parse as array of SurahInfoAlt
-    let parsed: Vec<SurahInfoAlt> = serde_json::from_str(json)
-        .context("JSON parse error for surah metadata")?;
-    Ok(parsed)
+fn parse_surah_meta(json: &str) -> Result<Vec<AlquranSurahMeta>> {
+    // alquran.cloud wraps the list in {"code":200,"status":"OK","data":[...]}
+    let wrapper: AlquranSurahList = serde_json::from_str(json)
+        .context("JSON parse error for alquran.cloud /v1/surah")?;
+    Ok(wrapper.data)
 }
 
 // ---------------------------------------------------------------------------
@@ -467,7 +448,7 @@ fn normalize_revelation_type(s: &str) -> String {
 }
 
 fn assemble(
-    surah_meta: Vec<SurahInfoAlt>,
+    surah_meta: Vec<AlquranSurahMeta>,
     uthmani_map: HashMap<(u32, u32), String>,
     simple_map: HashMap<(u32, u32), String>,
     meta_map: MetaMap,
@@ -482,36 +463,21 @@ fn assemble(
     for sm in &sorted_meta {
         let sid = sm.number;
 
-        // Extract fields with fallbacks
-        let name_ar = sm.name_arabic
-            .clone()
-            .or_else(|| sm.name.clone())
-            .unwrap_or_else(|| format!("سورة {sid}"));
+        // alquran.cloud `name` field is the full Arabic name with diacritics,
+        // e.g. "سُورَةُ الْفَاتِحَةِ". We strip the "سُورَةُ " prefix if present
+        // so the DB stores just the surah name (e.g. "الْفَاتِحَةِ").
+        // Alternatively, keep the full form — readers can strip it in the UI.
+        let name_ar = sm.name.clone();
 
-        let name_en = sm.name_english
-            .clone()
-            .or_else(|| sm.english_name.clone())
-            .unwrap_or_else(|| format!("Surah {sid}"));
+        // englishName from alquran.cloud is the transliteration (e.g. "Al-Faatiha"),
+        // not the English meaning. We use it for both name_en and transliteration.
+        let transliteration = sm.english_name.clone();
+        let name_en = transliteration.clone(); // same source; can be refined later
 
-        let transliteration = sm.name_trans
-            .clone()
-            .or_else(|| sm.transliteration.clone())
-            .unwrap_or_else(|| name_en.clone());
-
-        let revelation_type_raw = sm.revelation_type
-            .clone()
-            .unwrap_or_else(|| "Makki".to_string());
-        let revelation_type = normalize_revelation_type(&revelation_type_raw);
-
-        let verses_count = sm.verses_count
-            .or(sm.number_of_ayahs)
-            .unwrap_or(0);
-
-        let order_of_revelation = sm.order_of_revelation
-            .or(sm.revelation_order)
-            .unwrap_or_else(|| revelation_order(sid));
-
-        let has_bismillah = sid != 9; // Surah 9 has no Bismillah
+        let revelation_type = normalize_revelation_type(&sm.revelation_type);
+        let verses_count    = sm.number_of_ayahs;
+        let order_of_revelation = revelation_order(sid);
+        let has_bismillah   = sid != 9;
 
         surahs.push(Surah {
             id: sid,

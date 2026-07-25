@@ -20,10 +20,6 @@ const UTHMANI_URL: &str =
 const SIMPLE_URL: &str =
     "https://tanzil.net/pub/download/index.php?quranType=simple&outType=xml&agree=true";
 
-/// We host surah metadata as a bundled JSON (derived from Tanzil quran-data.js).
-/// The data is small (114 records) and rarely changes.
-const SURAH_META_URL: &str =
-    "https://raw.githubusercontent.com/spa5k/quran_data/main/surahs/surahInfo.json";
 
 /// Fetch all required raw data sources.
 pub fn fetch_all() -> anyhow::Result<RawData> {
@@ -35,8 +31,10 @@ pub fn fetch_all() -> anyhow::Result<RawData> {
     let simple_xml = get(SIMPLE_URL)?;
     log::info!("      {} bytes", simple_xml.len());
 
-    log::info!("  → Downloading Surah metadata JSON …");
-    let surah_meta_json = get(SURAH_META_URL)?;
+    // alquran.cloud /v1/surah returns all 114 surahs with name (Arabic),
+    // englishName, numberOfAyahs, and revelationType — no third-party repo needed.
+    log::info!("  → Downloading Surah metadata (alquran.cloud) …");
+    let surah_meta_json = get("https://api.alquran.cloud/v1/surah")?;
     log::info!("      {} bytes", surah_meta_json.len());
 
     Ok(RawData {
