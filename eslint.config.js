@@ -29,26 +29,23 @@ export default [
       ...ts.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
+      // TypeScript's compiler already catches undefined references; this rule
+      // otherwise false-positives on Svelte 5 rune globals ($state, $derived, ...).
+      'no-undef': 'off',
     },
   },
 
-  // Svelte files
+  // Svelte files (components + `.svelte.ts` rune modules)
+  ...svelte.configs['flat/recommended'],
   {
-    files: ['**/*.svelte'],
+    files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
     languageOptions: {
-      parser: svelte.processor,
       parserOptions: {
         parser: tsParser,
       },
       globals: {
         ...globals.browser,
       },
-    },
-    plugins: {
-      svelte,
-    },
-    rules: {
-      ...svelte.configs.recommended.rules,
     },
   },
 
