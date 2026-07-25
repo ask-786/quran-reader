@@ -74,7 +74,7 @@
   }
 
   .filter-row {
-    padding: 12px;
+    padding: 10px 12px;
     position: sticky;
     top: 0;
     background: var(--color-bg-elevated);
@@ -84,7 +84,7 @@
 
   .filter-input {
     width: 100%;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border-radius: var(--radius);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
@@ -110,7 +110,10 @@
   .surah-list {
     list-style: none;
     margin: 0;
-    padding: 4px;
+    padding: 6px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .surah-item {
