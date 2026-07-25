@@ -132,18 +132,18 @@ Choose one primary source.
 
 ## Create Tauri App
 
-- [ ] Create project
-- [ ] Setup SvelteKit
-- [ ] Setup Rust
-- [ ] Setup TypeScript
-- [ ] Configure linting
-- [ ] Configure formatting
+- [x] Create project
+- [x] Setup SvelteKit
+- [x] Setup Rust
+- [x] Setup TypeScript
+- [x] Configure linting
+- [x] Configure formatting
 
 ---
 
 ## Development
 
-- [ ] Git hooks
+- [x] Git hooks
 - [ ] CI
 - [ ] Release workflow
 
