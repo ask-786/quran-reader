@@ -1,0 +1,7 @@
+# Ignore build artifacts
+build/
+.svelte-kit/
+node_modules/
+
+# Ignore generated files
+src-tauri/target/
