@@ -6,7 +6,7 @@
 /// Glyphs are QCF v2 (King Fahd Complex, Uthman Taha calligraphy); the
 /// matching font files are vendored separately (see scripts/vendor-mushaf-fonts.sh).
 use anyhow::{bail, Context, Result};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -201,10 +201,14 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
     Ok(())
 }
 
-/// Insert exactly one `surah_header` line at the top of the page where each
-/// of the 114 Surahs begins, using our own already-validated Surah/Ayah data
-/// rather than the source dataset's unreliable `surah-header` lines. Existing
-/// lines on that page are shifted down by one to make room.
+/// Insert exactly one `surah_header` line where each of the 114 Surahs
+/// begins, using our own already-validated Surah/Ayah data rather than the
+/// source dataset's unreliable `surah-header` lines. The header is anchored
+/// immediately before that Surah's own opening Basmala (or its opening text
+/// line, for Surahs 1 and 9, which have none) — not unconditionally at the
+/// top of the page — since several pages (short Surahs near the end of the
+/// Mushaf) hold more than one Surah's opening on the same page. Existing
+/// lines from the anchor onward are shifted down by one to make room.
 fn synthesize_surah_headers(tx: &rusqlite::Transaction) -> Result<u32> {
     let mut stmt = tx.prepare(
         "SELECT s.id, s.name_ar, a.page
@@ -217,24 +221,60 @@ fn synthesize_surah_headers(tx: &rusqlite::Transaction) -> Result<u32> {
         .collect::<rusqlite::Result<_>>()?;
 
     for (surah_id, name_ar, page) in &starts {
+        let anchor = header_anchor_line(tx, *page, *surah_id)?;
+
         // Two-step offset avoids transiently colliding with the UNIQUE(page, line_number)
-        // index while every row on the page shifts down by one.
+        // index while lines at/after the anchor shift down by one.
         tx.execute(
-            "UPDATE page_line SET line_number = line_number + 1000 WHERE page = ?1",
-            params![page],
+            "UPDATE page_line SET line_number = line_number + 1000
+             WHERE page = ?1 AND line_number >= ?2",
+            params![page, anchor],
         )?;
         tx.execute(
-            "UPDATE page_line SET line_number = line_number - 999 WHERE page = ?1",
-            params![page],
+            "UPDATE page_line SET line_number = line_number - 999
+             WHERE page = ?1 AND line_number >= ?2 + 1000",
+            params![page, anchor],
         )?;
         tx.execute(
             "INSERT INTO page_line (page, line_number, line_type, surah_id, first_ayah_id, last_ayah_id, text)
-             VALUES (?1, 1, 'surah_header', ?2, NULL, NULL, ?3)",
-            params![page, surah_id, name_ar],
+             VALUES (?1, ?2, 'surah_header', ?3, NULL, NULL, ?4)",
+            params![page, anchor, surah_id, name_ar],
         )?;
     }
 
     Ok(starts.len() as u32)
+}
+
+/// The `line_number` a new header for `surah_id` on `page` should occupy:
+/// right before that Surah's Basmala line if it has one on this page,
+/// otherwise right before its opening text line.
+fn header_anchor_line(tx: &rusqlite::Transaction, page: u32, surah_id: u32) -> Result<u32> {
+    let text_line: u32 = tx
+        .query_row(
+            "SELECT pl.line_number
+             FROM page_line pl
+             JOIN ayah a ON a.surah_id = ?2 AND a.ayah_number = 1
+             WHERE pl.page = ?1 AND pl.line_type = 'text'
+               AND pl.first_ayah_id <= a.id AND pl.last_ayah_id >= a.id
+             ORDER BY pl.line_number ASC LIMIT 1",
+            params![page, surah_id],
+            |r| r.get(0),
+        )
+        .with_context(|| format!("Surah {surah_id}: no opening text line found on page {page}"))?;
+
+    let preceding_basmala: Option<u32> = match text_line.checked_sub(1) {
+        Some(prev) => tx
+            .query_row(
+                "SELECT line_number FROM page_line
+                 WHERE page = ?1 AND line_number = ?2 AND line_type = 'basmala'",
+                params![page, prev],
+                |r| r.get(0),
+            )
+            .optional()?,
+        None => None,
+    };
+
+    Ok(preceding_basmala.unwrap_or(text_line))
 }
 
 /// Every Surah except 1 (Al-Fatihah, whose Basmala IS Ayah 1) and 9 (At-Tawbah,
@@ -263,6 +303,55 @@ fn warn_missing_basmala(tx: &rusqlite::Transaction) -> Result<()> {
         log::warn!("      No basmala glyphs in source data for Surah {surah_id} ({name}), page {page}");
     }
 
+    Ok(())
+}
+
+/// One-off repair for a database built before the header-anchoring fix
+/// above: clears every synthesized `surah_header` line, closes the gaps
+/// their (wrong) insertion left behind, then re-synthesizes them at the
+/// correct anchors. Content lines' relative order on each page was never
+/// disturbed by the original bug — only where headers landed — so this is
+/// safe to run against already-imported data without re-fetching anything.
+pub fn repair_surah_headers(db_path: &Path) -> Result<()> {
+    let conn = Connection::open(db_path).context("Opening database for header repair")?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+    let tx = conn.unchecked_transaction()?;
+
+    let removed = tx.execute("DELETE FROM page_line WHERE line_type = 'surah_header'", [])?;
+    log::info!("      Removed {removed} existing surah_header lines");
+
+    let pages: Vec<u32> = {
+        let mut stmt = tx.prepare("SELECT DISTINCT page FROM page_line ORDER BY page")?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    for page in pages {
+        let ids: Vec<i64> = {
+            let mut stmt =
+                tx.prepare("SELECT id FROM page_line WHERE page = ?1 ORDER BY line_number ASC")?;
+            let rows = stmt.query_map(params![page], |r| r.get(0))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        // Two-step offset dodges the UNIQUE(page, line_number) index while
+        // closing the gaps left by the removed headers.
+        for (i, id) in ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE page_line SET line_number = ?1 + 10000 WHERE id = ?2",
+                params![i as i64 + 1, id],
+            )?;
+        }
+        for id in &ids {
+            tx.execute(
+                "UPDATE page_line SET line_number = line_number - 10000 WHERE id = ?1",
+                params![id],
+            )?;
+        }
+    }
+
+    let header_count = synthesize_surah_headers(&tx)?;
+    log::info!("      Re-synthesized {header_count} surah_header lines");
+
+    tx.commit().context("Committing header repair")?;
     Ok(())
 }
 

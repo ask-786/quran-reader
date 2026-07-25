@@ -35,6 +35,15 @@ fn main() -> Result<()> {
     )
     .init();
 
+    if std::env::args().any(|a| a == "--repair-mushaf-headers") {
+        let db_path = db_output_path();
+        log::info!("=== Repairing Mushaf surah_header anchoring ===");
+        log::info!("Database: {}", db_path.display());
+        mushaf::repair_surah_headers(&db_path).context("Failed to repair surah headers")?;
+        log::info!("=== Repair complete ===");
+        return Ok(());
+    }
+
     log::info!("=== Quran Importer ===");
     log::info!("Phase 4 — Import Pipeline");
     log::info!("");
