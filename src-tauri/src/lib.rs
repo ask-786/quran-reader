@@ -48,6 +48,7 @@ pub fn run() {
             commands::get_ayahs_for_surah,
             commands::get_ayahs_for_page,
             commands::get_ayahs_for_juz,
+            commands::get_page,
             commands::search_arabic,
             commands::get_bookmarks,
             commands::toggle_bookmark,

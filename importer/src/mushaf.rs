@@ -1,0 +1,302 @@
+/// Mushaf page layout — imports the line-by-line Madani print layout so a
+/// page can be rendered with the same line breaks and word placement as the
+/// printed Mushaf.
+///
+/// Data source: zonetecde/mushaf-layout (ISC license), 604 page JSON files.
+/// Glyphs are QCF v2 (King Fahd Complex, Uthman Taha calligraphy); the
+/// matching font files are vendored separately (see scripts/vendor-mushaf-fonts.sh).
+use anyhow::{bail, Context, Result};
+use rusqlite::{params, Connection};
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::path::Path;
+
+const LAYOUT_RAW_BASE: &str = "https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf";
+
+#[derive(Debug, Deserialize)]
+pub struct PageJson {
+    page: u32,
+    lines: Vec<LineJson>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LineJson {
+    line: u32,
+    #[serde(rename = "type")]
+    line_type: String, // "surah-header" | "basmala" | "text"
+    // Note: `surah-header` lines also carry `surah`/`text` fields, but we
+    // don't trust them (see comment at the "surah-header" match arm below)
+    // so they aren't even deserialized here.
+    #[serde(default, rename = "verseRange")]
+    verse_range: Option<String>,
+    #[serde(default, rename = "qpcV2")]
+    qpc_v2: Option<String>, // basmala lines carry the glyph string directly
+    #[serde(default)]
+    words: Option<Vec<WordJson>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WordJson {
+    location: String, // "surah:ayah:word", e.g. "2:255:1"
+    word: String,
+    #[serde(rename = "qpcV2")]
+    qpc_v2: String,
+}
+
+/// Download all 604 page layout files. One request per page — this is a
+/// one-time developer-run step, not something end users' installs do.
+pub fn fetch_all_pages() -> Result<Vec<PageJson>> {
+    let mut pages = Vec::with_capacity(604);
+
+    for n in 1..=604u32 {
+        let url = format!("{LAYOUT_RAW_BASE}/page-{n:03}.json");
+        let body = crate::fetch::get_pub(&url)
+            .with_context(|| format!("Fetching mushaf layout page {n}"))?;
+        let page: PageJson = serde_json::from_str(&body)
+            .with_context(|| format!("Parsing mushaf layout page {n}"))?;
+        pages.push(page);
+
+        if n % 50 == 0 {
+            log::info!("      … layout {n}/604");
+        }
+    }
+
+    Ok(pages)
+}
+
+/// Insert the fetched page layout into an existing database (opened fresh at
+/// `db_path`, after Surahs/Ayahs are already present — needed to resolve
+/// `surah:ayah` references to `ayah.id`).
+pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
+    let conn = Connection::open(db_path).context("Opening database for mushaf layout")?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+
+    // (surah_id, ayah_number) -> ayah.id, built once from the already-inserted Ayahs.
+    let mut ayah_ids: HashMap<(u32, u32), i64> = HashMap::new();
+    {
+        let mut stmt = conn.prepare("SELECT id, surah_id, ayah_number FROM ayah")?;
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, u32>(1)?, r.get::<_, u32>(2)?))
+        })?;
+        for row in rows {
+            let (id, surah_id, ayah_number) = row?;
+            ayah_ids.insert((surah_id, ayah_number), id);
+        }
+    }
+
+    let basmala_text: String = conn.query_row(
+        "SELECT uthmani_text FROM ayah WHERE surah_id = 1 AND ayah_number = 1",
+        [],
+        |r| r.get(0),
+    )?;
+
+    let tx = conn.unchecked_transaction()?;
+    let mut line_count = 0u32;
+    let mut word_count = 0u32;
+
+    {
+        let mut line_stmt = tx.prepare(
+            "INSERT INTO page_line
+             (page, line_number, line_type, surah_id, first_ayah_id, last_ayah_id, text)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        )?;
+        let mut word_stmt = tx.prepare(
+            "INSERT INTO page_line_word
+             (page_line_id, position, ayah_id, word_index, uthmani_text, glyph_v2)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        )?;
+
+        for page in pages {
+            for line in &page.lines {
+                match line.line_type.as_str() {
+                    // The source dataset's own surah-header lines are unreliable: some
+                    // surahs are missing one entirely, and a few carry a stray duplicate
+                    // with the wrong surah attached to a boundary page (spot-checked
+                    // against the actual Mushaf — e.g. a bogus "surah 3" header on page 76,
+                    // the page *after* Aal-Imran already ended). We skip them here and
+                    // synthesize all 114 headers below from our own validated Surah/Ayah
+                    // data instead, which we already trust.
+                    "surah-header" => {}
+
+                    "basmala" => {
+                        let page_line_id = {
+                            line_stmt.execute(params![
+                                page.page,
+                                line.line,
+                                "basmala",
+                                Option::<i64>::None,
+                                Option::<i64>::None,
+                                Option::<i64>::None,
+                                Option::<String>::None,
+                            ])?;
+                            tx.last_insert_rowid()
+                        };
+                        line_count += 1;
+
+                        let glyph = line.qpc_v2.as_deref().with_context(|| {
+                            format!("page {} line {}: basmala missing qpcV2", page.page, line.line)
+                        })?;
+
+                        word_stmt.execute(params![
+                            page_line_id,
+                            0i64,
+                            Option::<i64>::None,
+                            Option::<i64>::None,
+                            basmala_text,
+                            glyph,
+                        ])?;
+                        word_count += 1;
+                    }
+
+                    "text" => {
+                        let (first_ayah_id, last_ayah_id) =
+                            verse_range_bounds(line.verse_range.as_deref(), &ayah_ids)
+                                .with_context(|| format!("page {} line {}", page.page, line.line))?;
+
+                        line_stmt.execute(params![
+                            page.page,
+                            line.line,
+                            "text",
+                            Option::<i64>::None,
+                            first_ayah_id,
+                            last_ayah_id,
+                            Option::<String>::None,
+                        ])?;
+                        let page_line_id = tx.last_insert_rowid();
+                        line_count += 1;
+
+                        for (position, w) in line.words.as_deref().unwrap_or(&[]).iter().enumerate() {
+                            let (surah_id, ayah_number, word_index) = parse_location(&w.location)
+                                .with_context(|| format!("page {} line {}", page.page, line.line))?;
+                            let ayah_id = ayah_ids.get(&(surah_id, ayah_number)).copied();
+
+                            word_stmt.execute(params![
+                                page_line_id,
+                                position as i64,
+                                ayah_id,
+                                word_index,
+                                w.word,
+                                w.qpc_v2,
+                            ])?;
+                            word_count += 1;
+                        }
+                    }
+
+                    other => bail!("page {} line {}: unknown line type `{other}`", page.page, line.line),
+                }
+            }
+        }
+    }
+
+    let header_count = synthesize_surah_headers(&tx)?;
+    line_count += header_count;
+    log::info!("      Synthesized {header_count} surah_header lines from Surah/Ayah data");
+
+    warn_missing_basmala(&tx)?;
+
+    tx.commit().context("Committing mushaf layout transaction")?;
+
+    log::info!("      Inserted {line_count} page lines, {word_count} words");
+
+    Ok(())
+}
+
+/// Insert exactly one `surah_header` line at the top of the page where each
+/// of the 114 Surahs begins, using our own already-validated Surah/Ayah data
+/// rather than the source dataset's unreliable `surah-header` lines. Existing
+/// lines on that page are shifted down by one to make room.
+fn synthesize_surah_headers(tx: &rusqlite::Transaction) -> Result<u32> {
+    let mut stmt = tx.prepare(
+        "SELECT s.id, s.name_ar, a.page
+         FROM surah s
+         JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
+         ORDER BY s.id ASC",
+    )?;
+    let starts: Vec<(u32, String, u32)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+
+    for (surah_id, name_ar, page) in &starts {
+        // Two-step offset avoids transiently colliding with the UNIQUE(page, line_number)
+        // index while every row on the page shifts down by one.
+        tx.execute(
+            "UPDATE page_line SET line_number = line_number + 1000 WHERE page = ?1",
+            params![page],
+        )?;
+        tx.execute(
+            "UPDATE page_line SET line_number = line_number - 999 WHERE page = ?1",
+            params![page],
+        )?;
+        tx.execute(
+            "INSERT INTO page_line (page, line_number, line_type, surah_id, first_ayah_id, last_ayah_id, text)
+             VALUES (?1, 1, 'surah_header', ?2, NULL, NULL, ?3)",
+            params![page, surah_id, name_ar],
+        )?;
+    }
+
+    Ok(starts.len() as u32)
+}
+
+/// Every Surah except 1 (Al-Fatihah, whose Basmala IS Ayah 1) and 9 (At-Tawbah,
+/// which has none) should show a basmala line on its opening page. The source
+/// dataset is missing the glyph string for a couple of these outright — unlike
+/// the header, we can't safely synthesize a replacement (QCF v2 glyph
+/// codepoints are specific to each page's own font file, so borrowing a glyph
+/// string from a different page would render as the wrong shapes). We just
+/// surface the gap loudly instead of silently shipping bad or absent data.
+fn warn_missing_basmala(tx: &rusqlite::Transaction) -> Result<()> {
+    let mut stmt = tx.prepare(
+        "SELECT s.id, s.transliteration, a.page
+         FROM surah s
+         JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
+         WHERE s.id NOT IN (1, 9)
+           AND NOT EXISTS (
+             SELECT 1 FROM page_line pl WHERE pl.page = a.page AND pl.line_type = 'basmala'
+           )
+         ORDER BY s.id ASC",
+    )?;
+    let missing: Vec<(u32, String, u32)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+
+    for (surah_id, name, page) in &missing {
+        log::warn!("      No basmala glyphs in source data for Surah {surah_id} ({name}), page {page}");
+    }
+
+    Ok(())
+}
+
+/// Parse a word `location` field: `"surah:ayah:word"` (all 1-based).
+fn parse_location(loc: &str) -> Result<(u32, u32, u32)> {
+    let parts: Vec<&str> = loc.split(':').collect();
+    let [s, a, w] = parts[..] else {
+        bail!("Malformed word location `{loc}` (expected surah:ayah:word)");
+    };
+    Ok((s.parse()?, a.parse()?, w.parse()?))
+}
+
+/// Resolve a `verseRange` field (`"2:253-2:254"`) to `(first_ayah_id, last_ayah_id)`.
+fn verse_range_bounds(
+    range: Option<&str>,
+    ayah_ids: &HashMap<(u32, u32), i64>,
+) -> Result<(Option<i64>, Option<i64>)> {
+    let Some(range) = range else {
+        return Ok((None, None));
+    };
+    let (a, b) = range
+        .split_once('-')
+        .with_context(|| format!("Malformed verseRange `{range}`"))?;
+    let (sid1, an1) = parse_surah_ayah(a)?;
+    let (sid2, an2) = parse_surah_ayah(b)?;
+    Ok((
+        ayah_ids.get(&(sid1, an1)).copied(),
+        ayah_ids.get(&(sid2, an2)).copied(),
+    ))
+}
+
+fn parse_surah_ayah(s: &str) -> Result<(u32, u32)> {
+    let (a, b) = s
+        .split_once(':')
+        .with_context(|| format!("Malformed surah:ayah `{s}`"))?;
+    Ok((a.parse()?, b.parse()?))
+}

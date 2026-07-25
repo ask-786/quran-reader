@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { PanelLeft, Moon, Sun, Coffee } from 'lucide-svelte';
+  import { PanelLeft, Moon, Sun, Coffee, BookOpen, Rows3 } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import type { Theme } from '$lib/types/database';
@@ -23,6 +23,23 @@
   </button>
 
   <h1 class="title">{surah ? surah.transliteration : 'Quran Reader'}</h1>
+
+  {#if surah}
+    <button
+      class="icon-btn"
+      onclick={() => uiStore.toggleReadingMode()}
+      aria-label={uiStore.readingMode === 'scroll'
+        ? 'Switch to Mushaf page view'
+        : 'Switch to scrolling view'}
+      title={uiStore.readingMode === 'scroll' ? 'Mushaf page view' : 'Scrolling view'}
+    >
+      {#if uiStore.readingMode === 'scroll'}
+        <BookOpen size={18} />
+      {:else}
+        <Rows3 size={18} />
+      {/if}
+    </button>
+  {/if}
 
   <button
     class="icon-btn"

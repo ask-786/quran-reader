@@ -47,6 +47,16 @@ export default [
         ...globals.browser,
       },
     },
+    plugins: {
+      '@typescript-eslint': ts,
+    },
+    rules: {
+      // Base no-unused-vars doesn't understand TS type-only positions (e.g. a
+      // named parameter in a function-type prop), so defer to the TS-aware
+      // version here too — same override as the .ts block above.
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    },
   },
 
   // Global ignores

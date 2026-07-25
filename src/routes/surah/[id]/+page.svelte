@@ -2,7 +2,9 @@
   import { untrack } from 'svelte';
   import type { PageData } from './$types';
   import ReaderView from '$lib/components/reader/ReaderView.svelte';
+  import PageView from '$lib/components/reader/PageView.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -17,6 +19,14 @@
         : undefined,
     );
   });
+
+  // Mushaf page view starts on this Surah's opening page; flipping pages
+  // from there is independent of Surah navigation.
+  let mushafPage = $state(untrack(() => data.ayahs[0]?.page ?? 1));
+  $effect(() => {
+    const firstPage = data.ayahs[0]?.page ?? 1;
+    untrack(() => (mushafPage = firstPage));
+  });
 </script>
 
 <svelte:head>
@@ -24,12 +34,16 @@
 </svelte:head>
 
 <div class="surah-page">
-  <ReaderView
-    surah={data.surah}
-    ayahs={data.ayahs}
-    showAyahNumbers={settingsStore.current.show_ayah_numbers}
-    scrollToAyahId={scrollTarget}
-  />
+  {#if uiStore.readingMode === 'mushaf'}
+    <PageView page={mushafPage} onPageChange={(p) => (mushafPage = p)} />
+  {:else}
+    <ReaderView
+      surah={data.surah}
+      ayahs={data.ayahs}
+      showAyahNumbers={settingsStore.current.show_ayah_numbers}
+      scrollToAyahId={scrollTarget}
+    />
+  {/if}
 </div>
 
 <style>

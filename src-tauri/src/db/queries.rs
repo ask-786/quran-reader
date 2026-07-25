@@ -269,6 +269,66 @@ pub fn get_sajdah_ayahs(conn: &Connection) -> DbResult<Vec<Ayah>> {
 }
 
 // =============================================================================
+// MUSHAF PAGE LAYOUT QUERIES
+// =============================================================================
+
+/// Return the full line-by-line layout for a single Mushaf page (1–604),
+/// including every word's QCF v2 glyph string in print order.
+pub fn get_page(conn: &Connection, page: u32) -> DbResult<MushafPage> {
+    let mut stmt = conn.prepare(
+        "SELECT pl.line_number, pl.line_type, pl.surah_id, pl.first_ayah_id, pl.last_ayah_id, pl.text,
+                plw.position, plw.ayah_id, plw.word_index, plw.uthmani_text, plw.glyph_v2
+         FROM page_line pl
+         LEFT JOIN page_line_word plw ON plw.page_line_id = pl.id
+         WHERE pl.page = ?1
+         ORDER BY pl.line_number ASC, plw.position ASC",
+    )?;
+
+    let mut lines: Vec<PageLine> = Vec::new();
+    let mut rows = stmt.query(params![page])?;
+
+    while let Some(row) = rows.next()? {
+        let line_number: u32 = row.get(0)?;
+
+        let word = match row.get::<_, Option<u32>>(6)? {
+            Some(position) => Some(PageLineWord {
+                position,
+                ayah_id: row.get(7)?,
+                word_index: row.get(8)?,
+                uthmani_text: row.get(9)?,
+                glyph_v2: row.get(10)?,
+            }),
+            None => None,
+        };
+
+        match lines.last_mut() {
+            Some(last) if last.line_number == line_number => {
+                if let Some(w) = word {
+                    last.words.push(w);
+                }
+            }
+            _ => {
+                lines.push(PageLine {
+                    line_number,
+                    line_type: row.get(1)?,
+                    surah_id: row.get(2)?,
+                    first_ayah_id: row.get(3)?,
+                    last_ayah_id: row.get(4)?,
+                    text: row.get(5)?,
+                    words: word.into_iter().collect(),
+                });
+            }
+        }
+    }
+
+    if lines.is_empty() {
+        return Err(DbError::NotFound(format!("Page {}", page)));
+    }
+
+    Ok(MushafPage { page, lines })
+}
+
+// =============================================================================
 // SEARCH QUERIES
 // =============================================================================
 

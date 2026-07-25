@@ -67,6 +67,16 @@ pub fn get_ayahs_for_juz(state: State<AppDb>, juz: u32) -> Result<Vec<Ayah>, Str
 }
 
 // =============================================================================
+// MUSHAF PAGE COMMANDS
+// =============================================================================
+
+#[tauri::command]
+pub fn get_page(state: State<AppDb>, page: u32) -> Result<MushafPage, String> {
+    let conn = db!(state);
+    queries::get_page(&conn, page).map_err(e)
+}
+
+// =============================================================================
 // SEARCH COMMANDS
 // =============================================================================
 

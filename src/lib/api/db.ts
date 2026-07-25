@@ -13,6 +13,7 @@ import type {
   Settings,
   SearchResult,
   DbStats,
+  MushafPage,
 } from '$lib/types/database';
 
 // =============================================================================
@@ -49,6 +50,14 @@ export function getAyahsForPage(page: number): Promise<Ayah[]> {
 
 export function getAyahsForJuz(juz: number): Promise<Ayah[]> {
   return invoke('get_ayahs_for_juz', { juz });
+}
+
+// =============================================================================
+// MUSHAF PAGE
+// =============================================================================
+
+export function getPage(page: number): Promise<MushafPage> {
+  return invoke('get_page', { page });
 }
 
 // =============================================================================

@@ -203,6 +203,45 @@ pub struct SearchResult {
 }
 
 // =============================================================================
+// MUSHAF PAGE LAYOUT
+// Line-by-line Madani print layout (QCF v2 glyphs) for a single Mushaf page.
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageLineWord {
+    pub position: u32,
+    pub ayah_id: Option<u32>,
+    /// 1-based word position within the Ayah.
+    pub word_index: Option<u32>,
+    /// Plain Uthmani text — search/copy/screen-reader fallback.
+    pub uthmani_text: String,
+    /// QCF v2 glyph string. Render with `font-family: 'QCF_P{page:03}'`
+    /// (or `'QCF_BSML'` for a basmala line's single word row).
+    pub glyph_v2: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageLine {
+    pub line_number: u32,
+    /// "surah_header" | "basmala" | "text"
+    pub line_type: String,
+    /// Set for surah_header lines.
+    pub surah_id: Option<u32>,
+    /// Set for text lines (an Ayah can span multiple consecutive lines).
+    pub first_ayah_id: Option<u32>,
+    pub last_ayah_id: Option<u32>,
+    /// surah_header: plain Arabic Surah name, rendered with the QCF header font.
+    pub text: Option<String>,
+    pub words: Vec<PageLineWord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MushafPage {
+    pub page: u32,
+    pub lines: Vec<PageLine>,
+}
+
+// =============================================================================
 // RICH AYAH (joined view for reader rendering)
 // =============================================================================
 

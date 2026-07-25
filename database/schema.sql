@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Quran Reader — Master Database Schema
--- Version: 1
+-- Version: 2
 -- Engine: SQLite 3 with FTS5
 -- =============================================================================
 -- Attribution: Quran text provided by Tanzil Project (tanzil.net) — CC BY 3.0
@@ -173,6 +173,58 @@ BEGIN
 END;
 
 -- =============================================================================
+-- PAGE_LINE / PAGE_LINE_WORD
+-- Line-by-line Mushaf layout (Madani print, King Fahd Complex QCF v2), so a
+-- page can be rendered with the same line breaks and word placement as the
+-- printed Mushaf instead of a reflowed list of Ayahs.
+-- Source: zonetecde/mushaf-layout (ISC) + nuqayah/qpc-fonts (QCF v2 glyphs)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS page_line (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    page            INTEGER NOT NULL CHECK (page BETWEEN 1 AND 604),
+    line_number     INTEGER NOT NULL CHECK (line_number > 0),
+    line_type       TEXT    NOT NULL CHECK (line_type IN ('surah_header', 'basmala', 'text')),
+
+    -- surah_header lines: which Surah the banner announces
+    surah_id        INTEGER REFERENCES surah(id),
+
+    -- text lines: the Ayah range covered by this line (a single Ayah can
+    -- span several consecutive lines, e.g. Ayat al-Kursi)
+    first_ayah_id   INTEGER REFERENCES ayah(id),
+    last_ayah_id    INTEGER REFERENCES ayah(id),
+
+    -- surah_header: plain Arabic Surah name text, rendered with the QCF
+    -- header font. basmala/text lines leave this null — their content lives
+    -- in page_line_word rows instead.
+    text            TEXT,
+
+    UNIQUE (page, line_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_line_page ON page_line(page);
+
+CREATE TABLE IF NOT EXISTS page_line_word (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_line_id    INTEGER NOT NULL REFERENCES page_line(id) ON DELETE CASCADE,
+    position        INTEGER NOT NULL,   -- 0-based order within the line
+
+    -- Set for ordinary words. Null for a basmala line's single glyph row,
+    -- which is a header convention rather than part of Ayah 1 of the Surah.
+    ayah_id         INTEGER REFERENCES ayah(id),
+    word_index      INTEGER,            -- 1-based word position within the Ayah
+
+    uthmani_text    TEXT    NOT NULL,   -- plain Uthmani text (search/copy/screen readers)
+    glyph_v2        TEXT    NOT NULL,   -- QCF v2 glyph string — render with font-family
+                                        -- 'QCF_P{page:03}' (or 'QCF_BSML' for basmala)
+
+    UNIQUE (page_line_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_line_word_line ON page_line_word(page_line_id);
+CREATE INDEX IF NOT EXISTS idx_page_line_word_ayah ON page_line_word(ayah_id);
+
+-- =============================================================================
 -- SETTINGS (Key-value store for all user preferences)
 -- =============================================================================
 
@@ -241,3 +293,4 @@ USING fts5(
 -- =============================================================================
 
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
+INSERT OR IGNORE INTO schema_version (version) VALUES (2);

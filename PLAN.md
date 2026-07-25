@@ -119,6 +119,52 @@ Choose one primary source.
 
 ---
 
+## Mushaf Page Layout (pixel-accurate page rendering)
+
+Goal: render each of the 604 Mushaf pages with the same line breaks and word
+placement as the printed Madani Mushaf, instead of a reflowed list of Ayahs.
+
+Research
+
+- [x] Line-layout data source — zonetecde/mushaf-layout (ISC license), 604
+      page JSON files: surah-header / basmala / text lines, word-level QPC
+      v1 + v2 glyph strings, verse ranges
+- [x] Glyph font generation — chose **QCF v2** (King Fahd Complex, Uthman
+      Taha calligraphy, 604 files) over the newer QCF4 (47 files): official
+      provenance and years of production use in Quran.com/Tarteel outweighed
+      QCF4's smaller file count and unclear release status
+- [x] Font source — nuqayah/qpc-fonts (`mushaf-woff2/`), official King Fahd
+      Complex mirror; fonts are usage-restricted ("Quranic rendering
+      purposes", no commercial redistribution) — standard across the whole
+      Quran-app ecosystem, not a redistributable-as-a-font license
+- [x] Data quality check — the source layout data's own `surah-header` lines
+      are unreliable (17 Surahs missing one, 13 with a stray duplicate from a
+      page-boundary bug); the importer discards them and synthesizes all 114
+      headers from our own validated Surah/Ayah data instead. Two Surahs
+      (81, 85) are missing basmala glyphs in the source with no safe
+      substitute (glyph codepoints are specific to each page's own font) —
+      importer logs this gap rather than guessing.
+
+Decide
+
+- [x] Schema — `page_line` / `page_line_word` tables (database/schema.sql,
+      migration 002)
+- [x] Vendoring — fonts committed under `static/fonts/mushaf/` via
+      `scripts/vendor-mushaf-fonts.sh` (~48MB, 605 files); layout JSON fetched
+      live by the importer (like the existing Tanzil/alquran.cloud sources),
+      not vendored
+- [x] Rendering — per-page `@font-face` loaded lazily via the CSS Font
+      Loading API with a small LRU (`$lib/utils/mushaf-fonts.ts`), not 604
+      eager font-face declarations
+- [x] UI — `PageView.svelte`, toggled against the scrolling `ReaderView` from
+      the toolbar (`uiStore.readingMode`)
+- [ ] Known simplification — line justification uses flexbox
+      `space-between`, not true kashida stretching (browsers don't support
+      the OpenType `jstf` justification tables these fonts were authored
+      for); revisit if it reads as too sparse on short lines
+
+---
+
 # Phase 2 — Project Setup
 
 ## Repository
@@ -341,6 +387,21 @@ Display for every ayah
 - [x] Page (boundary divider on change, not repeated per ayah — avoids clutter)
 - [x] Juz (boundary divider on change, alongside Page)
 - [ ] Hizb (not surfaced yet)
+
+---
+
+## Mushaf Page View (alternate to the scrolling reader)
+
+See "Mushaf Page Layout" under Phase 1 for data sourcing.
+
+- [x] `PageView.svelte` — line-by-line page rendering with QCF v2 glyphs
+- [x] Per-page font lazy-loading with LRU eviction
+- [x] Toggle between scrolling Reader and Mushaf Page view (toolbar)
+- [x] Prev/next page + jump-to-page within the page view
+- [ ] Word-level tap actions (bookmark/note/copy) — only available in the
+      scrolling Reader for now
+- [ ] Deep-linking to a specific page (`/page/[n]` route) — folded into
+      Phase 6 quick navigation instead of duplicated here
 
 ---
 
@@ -583,6 +644,13 @@ quran-reader/
 │   └── quran.db
 │
 ├── importer/
+│
+├── static/
+│   └── fonts/
+│       └── mushaf/        (vendored QCF v2 page fonts — see scripts/)
+│
+├── scripts/
+│   └── vendor-mushaf-fonts.sh
 │
 ├── docs/
 │

@@ -149,6 +149,35 @@ export interface SearchResult {
 }
 
 // =============================================================================
+// MUSHAF PAGE LAYOUT
+// =============================================================================
+
+export type PageLineType = 'surah_header' | 'basmala' | 'text';
+
+export interface PageLineWord {
+  position: number;
+  ayah_id: number | null;
+  word_index: number | null; // 1-based word position within the ayah
+  uthmani_text: string; // plain text — search/copy/screen readers
+  glyph_v2: string; // QCF v2 glyph string — render with the line's font-family
+}
+
+export interface PageLine {
+  line_number: number;
+  line_type: PageLineType;
+  surah_id: number | null; // set for surah_header lines
+  first_ayah_id: number | null; // set for text lines
+  last_ayah_id: number | null;
+  text: string | null; // surah_header: plain Arabic surah name
+  words: PageLineWord[];
+}
+
+export interface MushafPage {
+  page: number; // 1–604
+  lines: PageLine[];
+}
+
+// =============================================================================
 // RICH AYAH VIEW
 // =============================================================================
 

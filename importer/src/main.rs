@@ -2,6 +2,7 @@ mod fetch;
 mod parse;
 mod validate;
 mod insert;
+mod mushaf;
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -41,13 +42,13 @@ fn main() -> Result<()> {
     // -----------------------------------------------------------------------
     // Step 1 — Fetch raw data from Tanzil
     // -----------------------------------------------------------------------
-    log::info!("[1/4] Fetching Tanzil data …");
+    log::info!("[1/6] Fetching Tanzil data …");
     let raw = fetch::fetch_all().context("Failed to fetch Tanzil data")?;
 
     // -----------------------------------------------------------------------
     // Step 2 — Parse
     // -----------------------------------------------------------------------
-    log::info!("[2/4] Parsing XML and metadata …");
+    log::info!("[2/6] Parsing XML and metadata …");
     let quran = parse::parse(&raw).context("Failed to parse Quran data")?;
 
     log::info!(
@@ -59,7 +60,7 @@ fn main() -> Result<()> {
     // -----------------------------------------------------------------------
     // Step 3 — Validate
     // -----------------------------------------------------------------------
-    log::info!("[3/4] Validating …");
+    log::info!("[3/6] Validating …");
     validate::validate(&quran).context("Validation failed")?;
     log::info!("      ✓ 114 Surahs");
     log::info!("      ✓ 6236 Ayahs");
@@ -73,7 +74,7 @@ fn main() -> Result<()> {
     // -----------------------------------------------------------------------
     let db_path = db_output_path();
     let schema_path = schema_path();
-    log::info!("[4/4] Writing database to {} …", db_path.display());
+    log::info!("[4/6] Writing database to {} …", db_path.display());
 
     // Remove stale database so we start clean
     if db_path.exists() {
@@ -84,6 +85,19 @@ fn main() -> Result<()> {
 
     insert::write_db(&db_path, &schema_path, &quran)
         .context("Failed to write database")?;
+
+    // -----------------------------------------------------------------------
+    // Step 5 — Fetch Mushaf page layout (line-by-line, QCF v2 glyphs)
+    // -----------------------------------------------------------------------
+    log::info!("[5/6] Fetching Mushaf page layout (604 pages) …");
+    let pages = mushaf::fetch_all_pages().context("Failed to fetch mushaf layout")?;
+
+    // -----------------------------------------------------------------------
+    // Step 6 — Insert Mushaf page layout
+    // -----------------------------------------------------------------------
+    log::info!("[6/6] Writing Mushaf page layout …");
+    mushaf::write_mushaf_layout(&db_path, &pages)
+        .context("Failed to write mushaf layout")?;
 
     log::info!("");
     log::info!("=== Import complete ===");

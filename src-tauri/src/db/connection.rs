@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 1;
+const CURRENT_VERSION: u32 = 2;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -92,19 +92,20 @@ fn get_schema_version(conn: &Connection) -> DbResult<u32> {
 
 /// Run incremental migrations from `from_version` up to `CURRENT_VERSION`.
 /// Each migration is a separate SQL block; add new arms as the schema evolves.
-fn run_migrations(_conn: &Connection, from_version: u32) -> DbResult<()> {
-    // Example pattern for future migrations:
-    //
-    // if from_version < 2 {
-    //     conn.execute_batch(include_str!("../../../database/migrations/002_add_highlight.sql"))?;
-    //     conn.execute("INSERT INTO schema_version (version) VALUES (2)", [])?;
-    // }
+fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
+    if from_version < 2 {
+        log::info!("  → Applying migration 002: mushaf page layout");
+        conn.execute_batch(include_str!("../../../database/migrations/002_mushaf_layout.sql"))?;
+    }
 
-    log::warn!(
-        "No migration path found from v{} to v{}. DB may be ahead of code.",
-        from_version,
-        CURRENT_VERSION
-    );
+    let version = get_schema_version(conn)?;
+    if version < CURRENT_VERSION {
+        log::warn!(
+            "No migration path found from v{} to v{}. DB may be ahead of code.",
+            version,
+            CURRENT_VERSION
+        );
+    }
     Ok(())
 }
 
