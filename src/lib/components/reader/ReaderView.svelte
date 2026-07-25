@@ -1,24 +1,27 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import type { Ayah } from '$lib/types/database';
+  import type { Ayah, Surah } from '$lib/types/database';
   import AyahRow from './AyahRow.svelte';
+  import SurahHeader from './SurahHeader.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
 
   let {
-    surahId,
+    surah,
     ayahs,
     translations = {},
     showTranslation = true,
     showAyahNumbers = true,
     scrollToAyahId,
   }: {
-    surahId: number;
+    surah: Surah;
     ayahs: Ayah[];
     translations?: Record<number, string>;
     showTranslation?: boolean;
     showAyahNumbers?: boolean;
     scrollToAyahId?: number;
   } = $props();
+
+  const rukuCount = $derived(ayahs.length ? ayahs[ayahs.length - 1].ruku - ayahs[0].ruku + 1 : 0);
 
   let container = $state<HTMLDivElement>();
   let lastReadTimer: ReturnType<typeof setTimeout>;
@@ -38,7 +41,7 @@
     const id = Number(visible.target.id.replace('ayah-', ''));
     if (!id) return;
     clearTimeout(lastReadTimer);
-    lastReadTimer = setTimeout(() => settingsStore.setLastRead(surahId, id), 400);
+    lastReadTimer = setTimeout(() => settingsStore.setLastRead(surah.id, id), 400);
   }
 
   // Re-run scroll positioning and intersection tracking whenever the ayah list changes (surah navigation).
@@ -67,6 +70,7 @@
 </script>
 
 <div bind:this={container} class="reader-scroll scrollbar-thin">
+  <SurahHeader {surah} {rukuCount} />
   {#each ayahs as ayah, i (ayah.id)}
     {#if pageChanged(i)}
       <div class="boundary-divider">

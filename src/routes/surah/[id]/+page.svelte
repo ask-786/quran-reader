@@ -1,7 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { PageData } from './$types';
-  import SurahHeader from '$lib/components/reader/SurahHeader.svelte';
   import ReaderView from '$lib/components/reader/ReaderView.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
 
@@ -25,9 +24,8 @@
 </svelte:head>
 
 <div class="surah-page">
-  <SurahHeader surah={data.surah} />
   <ReaderView
-    surahId={data.surah.id}
+    surah={data.surah}
     ayahs={data.ayahs}
     showAyahNumbers={settingsStore.current.show_ayah_numbers}
     scrollToAyahId={scrollTarget}
