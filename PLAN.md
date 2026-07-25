@@ -44,12 +44,12 @@
 
 ## Styling
 
-- [ ] TailwindCSS (optional)
-- [ ] CSS Variables for themes
+- [ ] TailwindCSS (optional — skipped for now, plain CSS + variables kept install size down)
+- [x] CSS Variables for themes
 
 ## Icons
 
-- [ ] Lucide
+- [x] Lucide
 
 ---
 
@@ -59,7 +59,7 @@
 - [ ] Phase 2 — Project Setup
 - [x] Phase 3 — Database Design
 - [x] Phase 4 — Import Quran Data
-- [ ] Phase 5 — Reader MVP
+- [x] Phase 5 — Reader MVP
 - [ ] Phase 6 — Navigation
 - [ ] Phase 7 — Search
 - [ ] Phase 8 — Bookmarks
@@ -292,37 +292,37 @@ Create separate Rust importer
 
 ## Layout
 
-- [ ] Sidebar
-- [ ] Reader
-- [ ] Toolbar
+- [x] Sidebar
+- [x] Reader
+- [x] Toolbar
 
 ---
 
 ## Sidebar
 
-- [ ] Surah List
-- [ ] Search
-- [ ] Settings
+- [x] Surah List
+- [x] Search (filter surah list by name/number; full Arabic/translation search is Phase 7)
+- [ ] Settings (only a theme toggle exists in the toolbar; full settings panel is Phase 9)
 
 ---
 
 ## Reader
 
-- [ ] Load Surah
-- [ ] Render Ayahs
-- [ ] Scroll smoothly
-- [ ] Responsive layout
+- [x] Load Surah
+- [x] Render Ayahs
+- [x] Scroll smoothly
+- [x] Responsive layout
 
 ---
 
 ## Typography
 
-- [ ] Proper font
-- [ ] Line spacing
-- [ ] Letter spacing
-- [ ] Margins
-- [ ] RTL support
-- [ ] Text selection
+- [x] Proper font
+- [x] Line spacing
+- [x] Letter spacing
+- [x] Margins
+- [x] RTL support
+- [x] Text selection
 
 ---
 
@@ -330,17 +330,17 @@ Create separate Rust importer
 
 Display
 
-- [ ] Surah Name
-- [ ] Surah Number
-- [ ] Revelation Type
-- [ ] Verse Count
+- [x] Surah Name
+- [x] Surah Number
+- [x] Revelation Type
+- [x] Verse Count
 
 Display for every ayah
 
-- [ ] Ayah Number
-- [ ] Page
-- [ ] Juz
-- [ ] Hizb
+- [x] Ayah Number (per-ayah marker)
+- [x] Page (boundary divider on change, not repeated per ayah — avoids clutter)
+- [x] Juz (boundary divider on change, alongside Page)
+- [ ] Hizb (not surfaced yet)
 
 ---
 

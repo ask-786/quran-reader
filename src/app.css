@@ -1,0 +1,139 @@
+/**
+ * Global styles: theme variables, bundled fonts, typography base.
+ * Attribution: Quran text — Tanzil Project (tanzil.net) CC BY 3.0
+ *              Amiri Quran — Alif Type / Khaled Hosny, SIL OFL 1.1
+ *              Noto Naskh Arabic — Google, SIL OFL 1.1
+ */
+
+@font-face {
+  font-family: 'Amiri Quran';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/amiri-quran-regular.woff2') format('woff2');
+  unicode-range:
+    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+FB50-FDFF,
+    U+FE70-FE74, U+FE76-FEFC;
+}
+
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-naskh-arabic-regular.woff2') format('woff2');
+  unicode-range:
+    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+FB50-FDFF,
+    U+FE70-FE74, U+FE76-FEFC;
+}
+
+:root {
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Quran text font stack: KFGQPC first (system-installed only, not bundled —
+     proprietary/all-rights-reserved), Amiri Quran bundled fallback. */
+  --font-quran:
+    'KFGQPC Uthmanic Script HAFS', 'KFGQPC HAFS Uthmanic Script', 'Amiri Quran',
+    'Noto Naskh Arabic', serif;
+
+  --font-size-quran: 28px;
+  --line-height-quran: 2.2;
+  --letter-spacing-quran: 0;
+
+  --sidebar-width: 300px;
+  --toolbar-height: 56px;
+  --reader-max-width: 720px;
+  --radius: 10px;
+  --transition: 160ms ease;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #16181d;
+  --color-bg-elevated: #1c1f26;
+  --color-bg-hover: #262a33;
+  --color-border: #2c303a;
+  --color-text: #e8e6e1;
+  --color-text-muted: #8b8f99;
+  --color-text-faint: #5a5e68;
+  --color-accent: #c9a15a;
+  --color-accent-contrast: #16181d;
+  --color-sajdah: #c9a15a;
+}
+
+:root[data-theme='light'] {
+  --color-bg: #faf8f4;
+  --color-bg-elevated: #ffffff;
+  --color-bg-hover: #f0ece2;
+  --color-border: #e4ddd0;
+  --color-text: #24211c;
+  --color-text-muted: #6b6559;
+  --color-text-faint: #a39c8c;
+  --color-accent: #9c7a35;
+  --color-accent-contrast: #ffffff;
+  --color-sajdah: #9c7a35;
+}
+
+:root[data-theme='sepia'] {
+  --color-bg: #f4ecd8;
+  --color-bg-elevated: #faf3e3;
+  --color-bg-hover: #ece1c8;
+  --color-border: #ddceac;
+  --color-text: #3a2f22;
+  --color-text-muted: #7a6a4f;
+  --color-text-faint: #b0a284;
+  --color-accent: #8a5a2b;
+  --color-accent-contrast: #faf3e3;
+  --color-sajdah: #8a5a2b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button,
+input {
+  font-family: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.quran-text {
+  font-family: var(--font-quran);
+  font-size: var(--font-size-quran);
+  line-height: var(--line-height-quran);
+  letter-spacing: var(--letter-spacing-quran);
+  direction: rtl;
+  text-align: right;
+  user-select: text;
+}
