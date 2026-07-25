@@ -130,7 +130,11 @@
 
   .surah-item.active {
     background: var(--color-bg-hover);
-    box-shadow: inset 2px 0 0 var(--color-accent);
+  }
+
+  .surah-item.active .surah-translit,
+  .surah-item.active .surah-number {
+    color: var(--color-accent);
   }
 
   .surah-number {
