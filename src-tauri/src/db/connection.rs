@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 use std::path::Path;
-use crate::db::error::{DbError, DbResult};
+use crate::db::error::DbResult;
 
 /// The full SQLite schema applied when no seed database is available.
 /// Embedded at compile time from `database/schema.sql`.
@@ -107,26 +107,6 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         );
     }
     Ok(())
-}
-
-/// Convenience: run VACUUM to compact the database file.
-pub fn vacuum(conn: &Connection) -> DbResult<()> {
-    conn.execute_batch("VACUUM;")?;
-    Ok(())
-}
-
-/// Verify database integrity. Returns `Ok(())` if clean.
-pub fn integrity_check(conn: &Connection) -> DbResult<()> {
-    let result: String = conn.query_row(
-        "PRAGMA integrity_check",
-        [],
-        |row| row.get(0),
-    )?;
-    if result == "ok" {
-        Ok(())
-    } else {
-        Err(DbError::InvalidData(format!("Integrity check failed: {}", result)))
-    }
 }
 
 /// Return basic stats useful for debugging / About screen.

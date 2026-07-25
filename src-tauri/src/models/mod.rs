@@ -68,6 +68,7 @@ pub struct Ayah {
 }
 
 /// Lightweight view used in list/navigation contexts (omits full text).
+#[allow(dead_code)] // returned by get_juz_start/get_hizb_start (PLAN.md Phase 6)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AyahRef {
     pub id: u32,
@@ -91,6 +92,7 @@ pub struct Translation {
     pub is_bundled: bool,
 }
 
+#[allow(dead_code)] // wired up by Phase 10 — Translations (PLAN.md)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslationAyah {
     pub translation_id: u32,
@@ -102,6 +104,7 @@ pub struct TranslationAyah {
 // TAFSIR
 // =============================================================================
 
+#[allow(dead_code)] // wired up by Phase 11 — Tafsir (PLAN.md)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tafsir {
     pub id: u32,
@@ -112,6 +115,7 @@ pub struct Tafsir {
     pub is_bundled: bool,
 }
 
+#[allow(dead_code)] // wired up by Phase 11 — Tafsir (PLAN.md)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TafsirAyah {
     pub tafsir_id: u32,
@@ -247,6 +251,7 @@ pub struct MushafPage {
 
 /// Full data needed to render a single Ayah in the reader, including optional
 /// translation text for the active translation.
+#[allow(dead_code)] // wired up alongside Phase 10/11 — Translations/Tafsir (PLAN.md)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AyahView {
     pub ayah: Ayah,

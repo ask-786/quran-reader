@@ -175,6 +175,7 @@ pub fn get_ayahs_for_juz(conn: &Connection, juz: u32) -> DbResult<Vec<Ayah>> {
 }
 
 /// Return the first Ayah of a given Juz (useful for navigation).
+#[allow(dead_code)] // wired up by the "Go to Juz" navigation command (PLAN.md Phase 6)
 pub fn get_juz_start(conn: &Connection, juz: u32) -> DbResult<AyahRef> {
     let mut stmt = conn.prepare(
         "SELECT id, surah_id, ayah_number, page, juz
@@ -194,6 +195,7 @@ pub fn get_juz_start(conn: &Connection, juz: u32) -> DbResult<AyahRef> {
 }
 
 /// Return the first Ayah of a given Hizb.
+#[allow(dead_code)] // wired up by the "Go to Hizb" navigation command (PLAN.md Phase 6)
 pub fn get_hizb_start(conn: &Connection, hizb: u32) -> DbResult<AyahRef> {
     let mut stmt = conn.prepare(
         "SELECT id, surah_id, ayah_number, page, juz
@@ -213,6 +215,7 @@ pub fn get_hizb_start(conn: &Connection, hizb: u32) -> DbResult<AyahRef> {
 }
 
 /// Return a specific Ayah by global id.
+#[allow(dead_code)] // wired up by the Bookmark list's ayah lookup (PLAN.md Phase 8)
 pub fn get_ayah(conn: &Connection, ayah_id: u32) -> DbResult<Ayah> {
     let mut stmt = conn.prepare(
         "SELECT id, surah_id, ayah_number, uthmani_text, simple_text,
@@ -240,6 +243,7 @@ pub fn get_ayah(conn: &Connection, ayah_id: u32) -> DbResult<Ayah> {
 }
 
 /// Return all 15 Sajdah (prostration) Ayahs.
+#[allow(dead_code)] // wired up by a future Sajdah-list navigation command
 pub fn get_sajdah_ayahs(conn: &Connection) -> DbResult<Vec<Ayah>> {
     let mut stmt = conn.prepare(
         "SELECT id, surah_id, ayah_number, uthmani_text, simple_text,
@@ -389,6 +393,7 @@ pub fn get_translations(conn: &Connection) -> DbResult<Vec<Translation>> {
 }
 
 /// Return translated text for all Ayahs in a Surah under a given translation.
+#[allow(dead_code)] // wired up by Phase 10 — Translations (PLAN.md)
 pub fn get_translation_for_surah(
     conn: &Connection,
     translation_id: u32,
