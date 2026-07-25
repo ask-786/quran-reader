@@ -2,9 +2,14 @@ use rusqlite::Connection;
 use std::path::Path;
 use crate::db::error::{DbError, DbResult};
 
-/// The full SQLite schema applied on first run.
+/// The full SQLite schema applied when no seed database is available.
 /// Embedded at compile time from `database/schema.sql`.
 const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
+
+/// The pre-populated Quran database (114 Surahs, 6,236 Ayahs) shipped with
+/// the app. Embedded at compile time so first run works fully offline —
+/// no separate import step required.
+const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
 const CURRENT_VERSION: u32 = 1;
@@ -20,12 +25,17 @@ pub fn open(path: &Path) -> DbResult<Connection> {
         std::fs::create_dir_all(parent)?;
     }
 
+    if !path.exists() {
+        log::info!("No database found at {:?}; seeding from bundled quran.db", path);
+        std::fs::write(path, SEED_DB)?;
+    }
+
     let conn = Connection::open(path)?;
     configure_connection(&conn)?;
 
     let version = get_schema_version(&conn)?;
     if version == 0 {
-        // Fresh database — apply the full schema
+        // Empty/corrupt file with no seed data — fall back to schema only.
         log::info!("Applying initial database schema (v{})", CURRENT_VERSION);
         conn.execute_batch(SCHEMA_SQL)?;
     } else if version < CURRENT_VERSION {
