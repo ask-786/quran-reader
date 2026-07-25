@@ -18,7 +18,7 @@
 
     <div class="banner-center">
       <span class="bracket" aria-hidden="true">﴾</span>
-      <h2 class="surah-name quran-text">سورة {surah.name_ar}</h2>
+      <h2 class="surah-name quran-text">{surah.name_ar}</h2>
       <span class="bracket" aria-hidden="true">﴿</span>
     </div>
 

@@ -7,6 +7,27 @@
 
 const MAX_LOADED = 5; // current page + a couple of neighbours in either direction
 
+const BASMALA_FAMILY = 'QCF_BSML';
+let basmalaFontPromise: Promise<string> | null = null;
+
+/**
+ * Basmala lines use a dedicated glyph font, distinct from every page's own
+ * font (its glyph codepoints aren't present in the per-page fonts at all).
+ * Loaded once and kept for the app's lifetime — small and reused on every
+ * Surah-opening page.
+ */
+export function loadBasmalaFont(): Promise<string> {
+  if (!basmalaFontPromise) {
+    basmalaFontPromise = (async () => {
+      const face = new FontFace(BASMALA_FAMILY, `url(/fonts/mushaf/${BASMALA_FAMILY}.woff2)`);
+      await face.load();
+      document.fonts.add(face);
+      return BASMALA_FAMILY;
+    })();
+  }
+  return basmalaFontPromise;
+}
+
 const loaded = new Map<string, FontFace>(); // family name -> FontFace, oldest-first
 
 function familyForPage(page: number): string {

@@ -133,10 +133,24 @@ Research
       Taha calligraphy, 604 files) over the newer QCF4 (47 files): official
       provenance and years of production use in Quran.com/Tarteel outweighed
       QCF4's smaller file count and unclear release status
-- [x] Font source — nuqayah/qpc-fonts (`mushaf-woff2/`), official King Fahd
-      Complex mirror; fonts are usage-restricted ("Quranic rendering
-      purposes", no commercial redistribution) — standard across the whole
-      Quran-app ecosystem, not a redistributable-as-a-font license
+- [x] Font source — the initially-vendored build from nuqayah/qpc-fonts
+      (`mushaf-woff2/`) turned out to be dead on arrival on Linux/Windows: its
+      word glyphs are blank shells on `cmap`, only reachable via an Apple
+      AAT `morx` table that HarfBuzz-based engines (Chromium, WebKitGTK)
+      don't process. Fixed by switching the per-page fonts to
+      `verses.quran.foundation`'s build (Quran Foundation's official CDN,
+      same King Fahd Complex/Uthman Taha artwork, properly GSUB-converted —
+      confirmed with fontTools and a live render). Same `qpcV2` codepoints as
+      the already-imported zonetecde layout data, so no importer changes were
+      needed — just re-vendored the 604 page fonts
+      (`scripts/vendor-mushaf-fonts.sh`). The Basmala font (`QCF_BSML`, still
+      from nuqayah/qpc-fonts) already worked correctly and was left as-is.
+      Fonts are usage-restricted ("Quranic rendering purposes", no commercial
+      redistribution) — standard across the whole Quran-app ecosystem, not a
+      redistributable-as-a-font license. Quran Foundation's docs recommend
+      loading fonts live from their CDN rather than vendoring; done anyway
+      to keep this app offline-first, consistent with how the rest of its
+      data is bundled.
 - [x] Data quality check — the source layout data's own `surah-header` lines
       are unreliable (17 Surahs missing one, 13 with a stray duplicate from a
       page-boundary bug); the importer discards them and synthesizes all 114

@@ -3,7 +3,7 @@
   import { ChevronRight, ChevronLeft } from 'lucide-svelte';
   import { getPage } from '$lib/api/db';
   import type { MushafPage } from '$lib/types/database';
-  import { loadPageFont } from '$lib/utils/mushaf-fonts';
+  import { loadPageFont, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
 
   let {
     page = 1,
@@ -15,6 +15,7 @@
 
   let data = $state<MushafPage | null>(null);
   let fontFamily = $state<string | null>(null);
+  let basmalaFontFamily = $state<string | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let pageInput = $state(untrack(() => String(page)));
@@ -29,10 +30,15 @@
 
     (async () => {
       try {
-        const [pageData, family] = await Promise.all([getPage(p), loadPageFont(p)]);
+        const [pageData, family, basmalaFamily] = await Promise.all([
+          getPage(p),
+          loadPageFont(p),
+          loadBasmalaFont(),
+        ]);
         if (cancelled) return;
         data = pageData;
         fontFamily = family;
+        basmalaFontFamily = basmalaFamily;
       } catch (err) {
         if (!cancelled) error = err instanceof Error ? err.message : String(err);
       } finally {
@@ -105,11 +111,11 @@
           {#if line.line_type === 'surah_header'}
             <div class="line surah-header-line">
               <span class="motif" aria-hidden="true">۞</span>
-              <h3 class="quran-text">سورة {line.text}</h3>
+              <h3 class="quran-text">{line.text}</h3>
               <span class="motif" aria-hidden="true">۞</span>
             </div>
           {:else if line.line_type === 'basmala'}
-            <div class="line basmala-line" style:font-family={fontFamily}>
+            <div class="line basmala-line" style:font-family={basmalaFontFamily}>
               {#each line.words as w (w.position)}
                 <span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
               {/each}
