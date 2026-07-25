@@ -4,6 +4,8 @@
   import { getPage } from '$lib/api/db';
   import type { Ayah, MushafPage } from '$lib/types/database';
   import { loadPageFonts, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
+  import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
+  import { progressStore } from '$lib/stores/progress.svelte';
 
   let {
     ayahs,
@@ -32,6 +34,15 @@
     for (const a of ayahs) if (!map.has(a.page)) map.set(a.page, a.juz);
     return map;
   });
+
+  function updateProgress() {
+    if (!container || ayahs.length === 0) return;
+    const max = container.scrollHeight - container.clientHeight;
+    const fraction = max > 0 ? container.scrollTop / max : 0;
+    const idx = Math.min(ayahs.length - 1, Math.max(0, Math.round(fraction * (ayahs.length - 1))));
+    const a = ayahs[idx];
+    progressStore.update(fraction, a?.juz ?? null, a?.hizb ?? null);
+  }
 
   $effect(() => {
     const start = firstPage;
@@ -70,6 +81,9 @@
         } else {
           container.scrollTo({ top: 0 });
         }
+
+        container.addEventListener('scroll', updateProgress, { passive: true });
+        updateProgress();
       } catch (err) {
         if (!cancelled) error = err instanceof Error ? err.message : String(err);
       } finally {
@@ -79,7 +93,29 @@
 
     return () => {
       cancelled = true;
+      container?.removeEventListener('scroll', updateProgress);
     };
+  });
+
+  $effect(() => {
+    if (!autoScrollStore.active || !container) return;
+    let raf: number;
+    let last = performance.now();
+
+    function step(now: number) {
+      const dt = (now - last) / 1000;
+      last = now;
+      if (container) {
+        container.scrollTop += autoScrollStore.pxPerSecond * dt;
+        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
+          autoScrollStore.stop();
+          return;
+        }
+      }
+      raf = requestAnimationFrame(step);
+    }
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
   });
 </script>
 

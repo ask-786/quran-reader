@@ -68,7 +68,7 @@
 - [ ] Phase 11 — Tafsir
 - [ ] Phase 12 — Audio
 - [ ] Phase 13 — Release
-- [ ] Phase 14 — Reading Experience Enhancements
+- [x] Phase 14 — Reading Experience Enhancements
 
 ---
 
@@ -559,34 +559,43 @@ Packaging
 
 ---
 
-# Phase 14 — Reading Experience Enhancements
+- [x] Phase 14 — Reading Experience Enhancements
 
 ## Zoom
 
-- [ ] App-wide zoom (scales entire UI)
-- [ ] Reader-only zoom (scales just the Quran text, on top of app zoom)
-- [ ] Both persist across app relaunch (settings table)
+- [x] App-wide zoom (scales entire UI, via Tauri's native webview zoom API)
+- [x] Reader-only zoom (scales just the Quran text, on top of app zoom, via
+      CSS `calc()` scaling of font-size/width — the non-standard `zoom`
+      property was tried first but broke `overflow-y:auto` scrolling in
+      WebKitGTK)
+- [x] Both persist across app relaunch (settings table)
 
 ---
 
 ## Focus Mode
 
-- [ ] Toggle hides sidebar + toolbar, leaving only the reader
-- [ ] Reader zoom control remains reachable (top-right corner overlay)
+- [x] Toggle hides sidebar + toolbar, leaving only the reader
+- [x] Reader zoom control remains reachable (top-right corner overlay,
+      alongside an exit button; `Escape` also exits)
+- [ ] Known tradeoff — window drag/minimize/maximize/close live in the
+      custom toolbar-as-titlebar, so they're unreachable until focus mode
+      is exited
 
 ---
 
 ## Auto-scroll
 
-- [ ] Available in both normal and focus reader views
-- [ ] Right-side vertical handle to adjust scroll speed
+- [x] Available in both normal and focus reader views
+- [x] Right-side vertical handle to adjust scroll speed (drag) and
+      play/pause (click), no separate toolbar button
 
 ---
 
 ## Reading Progress Indicator
 
-- [ ] Left-edge vertical bar on the reader
-- [ ] Shows % progress through the current Surah
+- [x] Left-edge vertical bar on the reader
+- [x] Shows % progress through the current Surah (scroll-fraction based),
+      with current Juz/Hizb on hover
 
 ---
 

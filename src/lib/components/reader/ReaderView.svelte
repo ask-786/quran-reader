@@ -4,6 +4,8 @@
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
+  import { progressStore } from '$lib/stores/progress.svelte';
 
   let {
     surah,
@@ -44,6 +46,15 @@
     lastReadTimer = setTimeout(() => settingsStore.setLastRead(surah.id, id), 400);
   }
 
+  function updateProgress() {
+    if (!container || ayahs.length === 0) return;
+    const max = container.scrollHeight - container.clientHeight;
+    const fraction = max > 0 ? container.scrollTop / max : 0;
+    const idx = Math.min(ayahs.length - 1, Math.max(0, Math.round(fraction * (ayahs.length - 1))));
+    const a = ayahs[idx];
+    progressStore.update(fraction, a?.juz ?? null, a?.hizb ?? null);
+  }
+
   // Re-run scroll positioning and intersection tracking whenever the ayah list changes (surah navigation).
   $effect(() => {
     const current = ayahs;
@@ -62,10 +73,37 @@
 
       observer = new IntersectionObserver(onIntersect, { root: container, threshold: [0.6] });
       container.querySelectorAll('[id^="ayah-"]').forEach((el) => observer!.observe(el));
+
+      container.addEventListener('scroll', updateProgress, { passive: true });
+      updateProgress();
     })();
 
     void current;
-    return () => observer?.disconnect();
+    return () => {
+      observer?.disconnect();
+      container?.removeEventListener('scroll', updateProgress);
+    };
+  });
+
+  $effect(() => {
+    if (!autoScrollStore.active || !container) return;
+    let raf: number;
+    let last = performance.now();
+
+    function step(now: number) {
+      const dt = (now - last) / 1000;
+      last = now;
+      if (container) {
+        container.scrollTop += autoScrollStore.pxPerSecond * dt;
+        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
+          autoScrollStore.stop();
+          return;
+        }
+      }
+      raf = requestAnimationFrame(step);
+    }
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
   });
 </script>
 
