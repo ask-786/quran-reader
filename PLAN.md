@@ -58,7 +58,7 @@
 - [x] Phase 1 — Research
 - [ ] Phase 2 — Project Setup
 - [x] Phase 3 — Database Design
-- [ ] Phase 4 — Import Quran Data
+- [x] Phase 4 — Import Quran Data
 - [ ] Phase 5 — Reader MVP
 - [ ] Phase 6 — Navigation
 - [ ] Phase 7 — Search
@@ -271,20 +271,20 @@ Fields
 
 Create separate Rust importer
 
-- [ ] Read Quran source
-- [ ] Convert
-- [ ] Validate
-- [ ] Export SQLite
+- [x] Read Quran source
+- [x] Convert
+- [x] Validate
+- [x] Export SQLite
 
 ---
 
 ## Validation
 
-- [ ] 114 Surahs
-- [ ] 6236 Ayahs
-- [ ] All Pages
-- [ ] All Juz
-- [ ] All Hizb
+- [x] 114 Surahs
+- [x] 6236 Ayahs
+- [x] All Pages
+- [x] All Juz
+- [x] All Hizb
 
 ---
 
