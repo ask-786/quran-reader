@@ -1,0 +1,56 @@
+name: Android APK
+
+# Scoped to this feature branch only — intentionally not wired to run on
+# master. Delete or repoint this workflow once mobile support graduates out
+# of the experimental phase.
+on:
+  push:
+    branches:
+      - claude/smaller-screens-support-kp6997
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Point at the preinstalled Android NDK
+        run: |
+          ndk_version=$(ls "$ANDROID_HOME/ndk" | sort -V | tail -n1)
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$ndk_version" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ndk_version" >> "$GITHUB_ENV"
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Initialize Android project
+        run: pnpm tauri android init --ci
+
+      - name: Build debug APK
+        run: pnpm tauri android build --debug --apk --target aarch64 --target x86_64
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: quran-reader-debug-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
