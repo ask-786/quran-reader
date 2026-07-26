@@ -4,6 +4,7 @@ class UiStore {
   sidebarOpen = $state(true);
   readingMode = $state<ReadingMode>('mushaf');
   focusMode = $state(false);
+  goToAyahOpen = $state(false);
 
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
@@ -19,6 +20,18 @@ class UiStore {
 
   exitFocusMode() {
     this.focusMode = false;
+  }
+
+  openGoToAyah() {
+    this.goToAyahOpen = true;
+  }
+
+  closeGoToAyah() {
+    this.goToAyahOpen = false;
+  }
+
+  toggleGoToAyah() {
+    this.goToAyahOpen = !this.goToAyahOpen;
   }
 }
 

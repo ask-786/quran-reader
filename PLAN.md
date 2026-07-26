@@ -425,7 +425,7 @@ See "Mushaf Page Layout" under Phase 1 for data sourcing.
 Navigate
 
 - [ ] Surah
-- [ ] Ayah
+- [x] Ayah
 - [ ] Juz
 - [ ] Hizb
 - [ ] Page
@@ -435,7 +435,9 @@ Navigate
 ## Quick Navigation
 
 - [ ] Go to Surah
-- [ ] Go to Ayah
+- [x] Go to Ayah — keyboard-triggered overlay (Ctrl/Cmd+G), accepts `N`
+      (ayah in current surah) or `S:N` (surah:ayah); deep-links via
+      `/surah/[id]?ayah=N`
 - [ ] Go to Page
 - [ ] Go to Juz
 - [ ] Go to Hizb
