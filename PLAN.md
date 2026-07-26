@@ -415,8 +415,8 @@ See "Mushaf Page Layout" under Phase 1 for data sourcing.
 - [x] Prev/next page + jump-to-page within the page view
 - [ ] Word-level tap actions (bookmark/note/copy) — only available in the
       scrolling Reader for now
-- [ ] Deep-linking to a specific page (`/page/[n]` route) — folded into
-      Phase 6 quick navigation instead of duplicated here
+- [x] Deep-linking to a specific page (`/page/[id]` route) — see Phase 6
+      quick navigation
 
 ---
 
@@ -428,7 +428,7 @@ Navigate
 - [x] Ayah
 - [x] Juz — sidebar tab lists all 30, browsable via `/juz/[id]`
 - [x] Hizb — sidebar tab lists all 60, browsable via `/hizb/[id]`
-- [ ] Page
+- [x] Page — deep-linkable via `/page/[id]` (1–604), opens in Mushaf view
 
 ---
 
@@ -438,7 +438,7 @@ Navigate
 - [x] Go to Ayah — keyboard-triggered overlay (Ctrl/Cmd+G), accepts `N`
       (ayah in current surah) or `S:N` (surah:ayah); deep-links via
       `/surah/[id]?ayah=N`
-- [ ] Go to Page
+- [x] Go to Page — same overlay, `p255` jumps to `/page/[id]` in Mushaf view
 - [ ] Go to Juz
 - [ ] Go to Hizb
 

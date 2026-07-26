@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import Sidebar from '$lib/components/sidebar/Sidebar.svelte';
   import Toolbar from '$lib/components/layout/Toolbar.svelte';
-  import GoToAyahDialog from '$lib/components/navigation/GoToAyahDialog.svelte';
+  import GoToDialog from '$lib/components/navigation/GoToDialog.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
@@ -18,8 +18,8 @@
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (uiStore.goToAyahOpen) {
-          uiStore.closeGoToAyah();
+        if (uiStore.goToOpen) {
+          uiStore.closeGoTo();
         } else if (uiStore.focusMode) {
           uiStore.exitFocusMode();
         }
@@ -27,7 +27,7 @@
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
         e.preventDefault();
-        uiStore.toggleGoToAyah();
+        uiStore.toggleGoTo();
       }
     }
     window.addEventListener('keydown', onKeydown);
@@ -51,7 +51,7 @@
   </div>
 </div>
 
-<GoToAyahDialog />
+<GoToDialog />
 
 <style>
   .app-shell {
