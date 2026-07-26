@@ -211,9 +211,12 @@
   /* Reader-only zoom: scale the page width and glyph font-sizes together
      (via calc, not the CSS `zoom` property) so justified lines stay
      proportional. Plain calc()/font-size keeps normal scroll-height
-     calculation intact — `zoom` broke overflow-y:auto in WebKitGTK. */
+     calculation intact — `zoom` broke overflow-y:auto in WebKitGTK.
+     Width is driven by the same --reader-max-width as the aya list view
+     (not a separate hardcoded value), so both views land on the same
+     column width at any given zoom level. */
   .mushaf-page {
-    width: calc(min(560px, 100%) * var(--reader-zoom));
+    width: calc(min(100%, var(--reader-max-width) * var(--reader-zoom)));
   }
 
   .boundary-divider {
@@ -221,7 +224,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: calc(min(560px, 100%) * var(--reader-zoom));
+    width: calc(min(100%, var(--reader-max-width) * var(--reader-zoom)));
     margin: 20px 0;
     color: var(--color-text-faint);
     font-size: 11px;

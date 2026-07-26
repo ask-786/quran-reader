@@ -144,7 +144,9 @@
       if (!container) return;
 
       if (targetId) {
-        document.getElementById(`ayah-${targetId}`)?.scrollIntoView({ block: 'center' });
+        document
+          .getElementById(`ayah-${targetId}`)
+          ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       } else {
         container.scrollTo({ top: 0 });
       }
@@ -224,12 +226,30 @@
   .reader-scroll {
     flex: 1;
     overflow-y: auto;
-    scroll-behavior: smooth;
-    padding: 0 max(var(--reader-side-padding), calc((100% - var(--reader-max-width)) / 2)) 80px;
-    /* Reader-only zoom: scales just the Quran text within this view, layered
-       on top of the global font-size setting. Scoped by re-declaring the
-       same custom property so every .quran-text descendant picks it up. */
-    --font-size-quran: calc(var(--font-size-quran) * var(--reader-zoom));
+    /* Not scroll-behavior: smooth — that CSS-wide smoothing fights the
+       auto-scroll loop below, which drives its own per-frame scrollTop
+       increments and needs those applied instantly (see PageView, which
+       has never had this rule and auto-scrolls smoothly as a result).
+       The one spot that wants an eased jump (scrollIntoView on ayah
+       navigation) requests { behavior: 'smooth' } itself instead. */
+    /* The reading column grows with reader zoom (capped at 100% so it can
+       never force horizontal overflow) instead of staying pinned to the
+       narrow/normal/wide preset width, so the wide idle margins shrink as
+       the text gets bigger rather than staying empty. */
+    padding: 0
+      max(
+        var(--reader-side-padding),
+        calc((100% - min(100%, var(--reader-max-width) * var(--reader-zoom))) / 2)
+      )
+      80px;
+  }
+
+  /* Reader-only zoom: scales just the Quran text within this view, layered
+     on top of the global font-size setting. Applied directly to font-size
+     (not by redeclaring --font-size-quran in terms of itself, which is a
+     cyclic custom-property reference and gets silently dropped as invalid). */
+  .reader-scroll :global(.quran-text) {
+    font-size: calc(var(--font-size-quran) * var(--reader-zoom));
   }
 
   .reader-content {
