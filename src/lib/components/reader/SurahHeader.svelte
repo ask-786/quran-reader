@@ -124,6 +124,7 @@
   .surah-name {
     margin: 0;
     font-size: 26px;
+    font-weight: 400;
     line-height: 1.3;
     white-space: nowrap;
   }
