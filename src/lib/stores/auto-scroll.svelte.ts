@@ -37,12 +37,16 @@ class AutoScrollStore {
   }
 
   /**
-   * Advance the eased scroll speed toward the target for this frame and
-   * return the whole pixels to apply. The fractional remainder is kept in
-   * an accumulator so low speeds still scroll smoothly instead of getting
-   * rounded away every frame.
+   * Advance the eased scroll speed toward the target for this frame.
+   * `scrollTop` can't be trusted to keep a fractional remainder across
+   * writes — WebKitGTK snaps it to the nearest integer on every set — so
+   * the sub-pixel accumulator has to live here, and only whole pixels are
+   * ever committed to `whole`. The leftover (`fraction`, always in [0,1))
+   * is exposed so the caller can render it as a CSS transform on top of
+   * the real scroll position: without that, low speeds visibly step once
+   * every N frames instead of gliding.
    */
-  tick(dt: number): number {
+  tick(dt: number): { whole: number; fraction: number } {
     const target = (this.speed / AUTO_SCROLL_SPEED_MAX) * MAX_PX_PER_SECOND;
     const alpha = 1 - Math.exp(-EASE_RATE * dt);
     this.#currentPxPerSecond += (target - this.#currentPxPerSecond) * alpha;
@@ -50,13 +54,13 @@ class AutoScrollStore {
     if (target === 0 && Math.abs(this.#currentPxPerSecond) < 0.05) {
       this.#currentPxPerSecond = 0;
       this.#accumulator = 0;
-      return 0;
+      return { whole: 0, fraction: 0 };
     }
 
     this.#accumulator += this.#currentPxPerSecond * dt;
     const whole = Math.trunc(this.#accumulator);
     this.#accumulator -= whole;
-    return whole;
+    return { whole, fraction: this.#accumulator };
   }
 }
 

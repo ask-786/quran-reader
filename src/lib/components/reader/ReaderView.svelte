@@ -43,6 +43,7 @@
   });
 
   let container = $state<HTMLDivElement>();
+  let content = $state<HTMLDivElement>();
   let lastReadTimer: ReturnType<typeof setTimeout>;
 
   function pageChanged(i: number) {
@@ -112,8 +113,9 @@
       const dt = (now - last) / 1000;
       last = now;
       if (container) {
-        const dy = autoScrollStore.tick(dt);
-        if (dy !== 0) container.scrollTop += dy;
+        const { whole, fraction } = autoScrollStore.tick(dt);
+        if (whole !== 0) container.scrollTop += whole;
+        if (content) content.style.transform = fraction > 0 ? `translateY(${-fraction}px)` : '';
         if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
           autoScrollStore.stop();
           return;
@@ -122,32 +124,37 @@
       raf = requestAnimationFrame(step);
     }
     raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (content) content.style.transform = '';
+    };
   });
 </script>
 
 <div bind:this={container} class="reader-scroll scrollbar-none">
-  {#each ayahs as ayah, i (ayah.id)}
-    {#if segments.has(i)}
-      {@const seg = segments.get(i)}
-      {#if seg?.surah}
-        <SurahHeader surah={seg.surah} rukuCount={seg.rukuCount} />
+  <div bind:this={content} class="reader-content">
+    {#each ayahs as ayah, i (ayah.id)}
+      {#if segments.has(i)}
+        {@const seg = segments.get(i)}
+        {#if seg?.surah}
+          <SurahHeader surah={seg.surah} rukuCount={seg.rukuCount} />
+        {/if}
       {/if}
-    {/if}
-    {#if pageChanged(i)}
-      <div class="boundary-divider">
-        <span
-          >Page {ayah.page}{#if juzChanged(i)}
-            · Juz {ayah.juz}{/if}</span
-        >
-      </div>
-    {/if}
-    <AyahRow
-      {ayah}
-      translation={showTranslation ? (translations[ayah.id] ?? null) : null}
-      {showAyahNumbers}
-    />
-  {/each}
+      {#if pageChanged(i)}
+        <div class="boundary-divider">
+          <span
+            >Page {ayah.page}{#if juzChanged(i)}
+              · Juz {ayah.juz}{/if}</span
+          >
+        </div>
+      {/if}
+      <AyahRow
+        {ayah}
+        translation={showTranslation ? (translations[ayah.id] ?? null) : null}
+        {showAyahNumbers}
+      />
+    {/each}
+  </div>
 </div>
 
 <style>
@@ -160,6 +167,13 @@
        on top of the global font-size setting. Scoped by re-declaring the
        same custom property so every .quran-text descendant picks it up. */
     --font-size-quran: calc(var(--font-size-quran) * var(--reader-zoom));
+  }
+
+  .reader-content {
+    /* Auto-scroll drives a sub-pixel translateY on this wrapper each
+       frame to smooth out low-speed scrolling (see auto-scroll.svelte.ts);
+       it stays a no-op transform otherwise. */
+    will-change: transform;
   }
 
   .boundary-divider {

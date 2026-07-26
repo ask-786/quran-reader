@@ -22,6 +22,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let container = $state<HTMLDivElement>();
+  let content = $state<HTMLDivElement>();
 
   const firstPage = $derived(ayahs[0]?.page ?? 1);
   const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
@@ -106,8 +107,9 @@
       const dt = (now - last) / 1000;
       last = now;
       if (container) {
-        const dy = autoScrollStore.tick(dt);
-        if (dy !== 0) container.scrollTop += dy;
+        const { whole, fraction } = autoScrollStore.tick(dt);
+        if (whole !== 0) container.scrollTop += whole;
+        if (content) content.style.transform = fraction > 0 ? `translateY(${-fraction}px)` : '';
         if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
           autoScrollStore.stop();
           return;
@@ -116,7 +118,10 @@
       raf = requestAnimationFrame(step);
     }
     raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (content) content.style.transform = '';
+    };
   });
 </script>
 
@@ -127,44 +132,46 @@
     {:else if loading && pages.length === 0}
       <p class="state-message">Loading…</p>
     {:else}
-      {#each pages as p, i (p.page)}
-        {#if i > 0}
-          <div class="boundary-divider">
-            <span
-              >Page {p.page}{#if juzByPage.get(p.page) !== juzByPage.get(pages[i - 1].page)}
-                · Juz {juzByPage.get(p.page)}{/if}</span
-            >
+      <div bind:this={content} class="page-content">
+        {#each pages as p, i (p.page)}
+          {#if i > 0}
+            <div class="boundary-divider">
+              <span
+                >Page {p.page}{#if juzByPage.get(p.page) !== juzByPage.get(pages[i - 1].page)}
+                  · Juz {juzByPage.get(p.page)}{/if}</span
+              >
+            </div>
+          {/if}
+          <div class="mushaf-page" dir="rtl">
+            {#each p.data.lines as line (line.line_number)}
+              {#if line.line_type === 'surah_header'}
+                <div class="line surah-header-line">
+                  <span class="motif" aria-hidden="true">۞</span>
+                  <h3 class="quran-text">{line.text}</h3>
+                  <span class="motif" aria-hidden="true">۞</span>
+                </div>
+              {:else if line.line_type === 'basmala'}
+                <div class="line basmala-line" style:font-family={basmalaFontFamily}>
+                  {#each line.words as w (w.position)}
+                    <span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
+                  {/each}
+                </div>
+              {:else}
+                <div class="line text-line" style:font-family={p.fontFamily}>
+                  {#each line.words as w (w.position)}
+                    <span
+                      class="word"
+                      data-ayah-id={w.ayah_id}
+                      aria-label={w.uthmani_text}
+                      title={w.uthmani_text}>{w.glyph_v2}</span
+                    >
+                  {/each}
+                </div>
+              {/if}
+            {/each}
           </div>
-        {/if}
-        <div class="mushaf-page" dir="rtl">
-          {#each p.data.lines as line (line.line_number)}
-            {#if line.line_type === 'surah_header'}
-              <div class="line surah-header-line">
-                <span class="motif" aria-hidden="true">۞</span>
-                <h3 class="quran-text">{line.text}</h3>
-                <span class="motif" aria-hidden="true">۞</span>
-              </div>
-            {:else if line.line_type === 'basmala'}
-              <div class="line basmala-line" style:font-family={basmalaFontFamily}>
-                {#each line.words as w (w.position)}
-                  <span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
-                {/each}
-              </div>
-            {:else}
-              <div class="line text-line" style:font-family={p.fontFamily}>
-                {#each line.words as w (w.position)}
-                  <span
-                    class="word"
-                    data-ayah-id={w.ayah_id}
-                    aria-label={w.uthmani_text}
-                    title={w.uthmani_text}>{w.glyph_v2}</span
-                  >
-                {/each}
-              </div>
-            {/if}
-          {/each}
-        </div>
-      {/each}
+        {/each}
+      </div>
     {/if}
   </div>
 </div>
@@ -185,6 +192,17 @@
     flex-direction: column;
     align-items: center;
     padding: 24px 16px 80px;
+  }
+
+  .page-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    /* Auto-scroll drives a sub-pixel translateY on this wrapper each
+       frame to smooth out low-speed scrolling (see auto-scroll.svelte.ts);
+       it stays a no-op transform otherwise. */
+    will-change: transform;
   }
 
   /* Reader-only zoom: scale the page width and glyph font-sizes together
