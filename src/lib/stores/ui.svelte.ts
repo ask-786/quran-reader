@@ -1,3 +1,5 @@
+import { settingsStore } from './settings.svelte';
+
 export type ReadingMode = 'scroll' | 'mushaf';
 
 class UiStore {
@@ -16,10 +18,13 @@ class UiStore {
 
   toggleFocusMode() {
     this.focusMode = !this.focusMode;
+    // Normal and focus view remember separate reader zoom levels.
+    settingsStore.applyReaderZoom(this.focusMode);
   }
 
   exitFocusMode() {
     this.focusMode = false;
+    settingsStore.applyReaderZoom(false);
   }
 
   openGoTo() {

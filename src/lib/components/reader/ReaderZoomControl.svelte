@@ -1,26 +1,33 @@
 <script lang="ts">
   import { Plus, Minus } from 'lucide-svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
+
+  let zoom = $derived(
+    uiStore.focusMode
+      ? settingsStore.current.reader_zoom_focus
+      : settingsStore.current.reader_zoom_normal,
+  );
 </script>
 
-<div class="zoom-group" title="Reader text zoom">
+<div class="zoom-group" title={uiStore.focusMode ? 'Focus view zoom' : 'Reader text zoom'}>
   <button
     class="icon-btn"
-    onclick={() => settingsStore.zoomReaderIn()}
+    onclick={() => settingsStore.zoomReaderIn(uiStore.focusMode)}
     aria-label="Increase reader zoom"
   >
     <Plus size={14} />
   </button>
   <button
     class="zoom-value"
-    onclick={() => settingsStore.resetReaderZoom()}
+    onclick={() => settingsStore.resetReaderZoom(uiStore.focusMode)}
     aria-label="Reset reader zoom"
   >
-    {Math.round(settingsStore.current.reader_zoom * 100)}%
+    {Math.round(zoom * 100)}%
   </button>
   <button
     class="icon-btn"
-    onclick={() => settingsStore.zoomReaderOut()}
+    onclick={() => settingsStore.zoomReaderOut(uiStore.focusMode)}
     aria-label="Decrease reader zoom"
   >
     <Minus size={14} />

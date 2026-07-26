@@ -27,7 +27,8 @@ function defaultSettings(): Settings {
     show_ayah_numbers: true,
     scroll_position: 0,
     app_zoom: 1,
-    reader_zoom: 1,
+    reader_zoom_normal: 1,
+    reader_zoom_focus: 1,
   };
 }
 
@@ -46,7 +47,9 @@ class SettingsStore {
     this.applyTheme();
     this.applyTypography();
     this.applyAppZoom();
-    this.applyReaderZoom();
+    // Focus mode always starts off on launch (it isn't persisted), so the reader opens
+    // in its normal-view zoom.
+    this.applyReaderZoom(false);
   }
 
   applyTheme() {
@@ -70,9 +73,10 @@ class SettingsStore {
       .catch((err) => console.error('Failed to set webview zoom', err));
   }
 
-  applyReaderZoom() {
+  applyReaderZoom(focusMode: boolean) {
     if (typeof document === 'undefined') return;
-    document.documentElement.style.setProperty('--reader-zoom', `${this.current.reader_zoom}`);
+    const zoom = focusMode ? this.current.reader_zoom_focus : this.current.reader_zoom_normal;
+    document.documentElement.style.setProperty('--reader-zoom', `${zoom}`);
   }
 
   async setTheme(theme: Theme) {
@@ -87,10 +91,15 @@ class SettingsStore {
     await setSetting('app_zoom', String(this.current.app_zoom));
   }
 
-  async setReaderZoom(zoom: number) {
-    this.current.reader_zoom = clampZoom(zoom, READER_ZOOM_MIN, READER_ZOOM_MAX);
-    this.applyReaderZoom();
-    await setSetting('reader_zoom', String(this.current.reader_zoom));
+  async setReaderZoom(zoom: number, focusMode: boolean) {
+    const clamped = clampZoom(zoom, READER_ZOOM_MIN, READER_ZOOM_MAX);
+    if (focusMode) {
+      this.current.reader_zoom_focus = clamped;
+    } else {
+      this.current.reader_zoom_normal = clamped;
+    }
+    this.applyReaderZoom(focusMode);
+    await setSetting(focusMode ? 'reader_zoom_focus' : 'reader_zoom_normal', String(clamped));
   }
 
   zoomAppIn() {
@@ -105,16 +114,18 @@ class SettingsStore {
     return this.setAppZoom(1);
   }
 
-  zoomReaderIn() {
-    return this.setReaderZoom(this.current.reader_zoom + ZOOM_STEP);
+  zoomReaderIn(focusMode: boolean) {
+    const current = focusMode ? this.current.reader_zoom_focus : this.current.reader_zoom_normal;
+    return this.setReaderZoom(current + ZOOM_STEP, focusMode);
   }
 
-  zoomReaderOut() {
-    return this.setReaderZoom(this.current.reader_zoom - ZOOM_STEP);
+  zoomReaderOut(focusMode: boolean) {
+    const current = focusMode ? this.current.reader_zoom_focus : this.current.reader_zoom_normal;
+    return this.setReaderZoom(current - ZOOM_STEP, focusMode);
   }
 
-  resetReaderZoom() {
-    return this.setReaderZoom(1);
+  resetReaderZoom(focusMode: boolean) {
+    return this.setReaderZoom(1, focusMode);
   }
 
   async setLastRead(surahId: number, ayahId: number) {

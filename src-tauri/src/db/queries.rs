@@ -586,7 +586,13 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
         show_ayah_numbers:        map.get("show_ayah_numbers").map(|v| v == "true").unwrap_or(true),
         scroll_position:          map.get("scroll_position").and_then(|v| v.parse().ok()).unwrap_or(0),
         app_zoom:                 map.get("app_zoom").and_then(|v| v.parse().ok()).unwrap_or(1.0),
-        reader_zoom:              map.get("reader_zoom").and_then(|v| v.parse().ok()).unwrap_or(1.0),
+        // `reader_zoom_normal` falls back to the legacy unscoped `reader_zoom` key so
+        // existing users keep their zoom level after the normal/focus split.
+        reader_zoom_normal:       map.get("reader_zoom_normal")
+                                      .or_else(|| map.get("reader_zoom"))
+                                      .and_then(|v| v.parse().ok())
+                                      .unwrap_or(1.0),
+        reader_zoom_focus:        map.get("reader_zoom_focus").and_then(|v| v.parse().ok()).unwrap_or(1.0),
     };
 
     Ok(s)

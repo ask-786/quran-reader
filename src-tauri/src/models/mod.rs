@@ -168,7 +168,8 @@ pub struct Settings {
     pub show_ayah_numbers: bool,
     pub scroll_position: u32,
     pub app_zoom: f32,
-    pub reader_zoom: f32,
+    pub reader_zoom_normal: f32,
+    pub reader_zoom_focus: f32,
 }
 
 impl Default for Settings {
@@ -187,7 +188,8 @@ impl Default for Settings {
             show_ayah_numbers: true,
             scroll_position: 0,
             app_zoom: 1.0,
-            reader_zoom: 1.0,
+            reader_zoom_normal: 1.0,
+            reader_zoom_focus: 1.0,
         }
     }
 }

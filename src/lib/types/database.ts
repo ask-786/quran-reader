@@ -132,7 +132,8 @@ export interface Settings {
   show_ayah_numbers: boolean;
   scroll_position: number;
   app_zoom: number;
-  reader_zoom: number;
+  reader_zoom_normal: number;
+  reader_zoom_focus: number;
 }
 
 // =============================================================================
