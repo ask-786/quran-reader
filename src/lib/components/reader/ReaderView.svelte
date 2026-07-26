@@ -162,7 +162,7 @@
     flex: 1;
     overflow-y: auto;
     scroll-behavior: smooth;
-    padding: 0 max(24px, calc((100% - var(--reader-max-width)) / 2)) 80px;
+    padding: 0 max(var(--reader-side-padding), calc((100% - var(--reader-max-width)) / 2)) 80px;
     /* Reader-only zoom: scales just the Quran text within this view, layered
        on top of the global font-size setting. Scoped by re-declaring the
        same custom property so every .quran-text descendant picks it up. */

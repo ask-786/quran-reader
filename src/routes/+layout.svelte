@@ -11,6 +11,7 @@
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
+  import { isNarrowViewport } from '$lib/utils/viewport';
 
   let { children } = $props();
 
@@ -37,6 +38,10 @@
     settingsStore.init();
     surahsStore.init();
     bookmarksStore.init();
+
+    // On a phone-sized window the sidebar starts as a closed overlay rather
+    // than a docked column stealing half the screen.
+    if (isNarrowViewport()) uiStore.sidebarOpen = false;
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -78,6 +83,12 @@
 
 <div class="app-shell">
   {#if !uiStore.focusMode}
+    <div
+      class="sidebar-backdrop"
+      class:visible={uiStore.sidebarOpen}
+      role="presentation"
+      onclick={() => uiStore.toggleSidebar()}
+    ></div>
     <div class="sidebar-slot" class:collapsed={!uiStore.sidebarOpen}>
       <Sidebar />
     </div>
@@ -112,6 +123,36 @@
 
   .sidebar-slot.collapsed {
     width: 0;
+  }
+
+  .sidebar-backdrop {
+    display: none;
+  }
+
+  /* Below the tablet breakpoint the sidebar docks on top of the content as a
+     sliding drawer instead of sharing the row with it. */
+  @media (max-width: 900px) {
+    .sidebar-slot {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 50;
+      width: min(var(--sidebar-width), 85vw);
+      transform: translateX(0);
+      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .sidebar-slot.collapsed {
+      width: min(var(--sidebar-width), 85vw);
+      transform: translateX(-100%);
+    }
+
+    .sidebar-backdrop.visible {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 49;
+      background: rgba(0, 0, 0, 0.4);
+    }
   }
 
   .main-column {

@@ -43,10 +43,47 @@
   --sidebar-width: 300px;
   --toolbar-height: 56px;
   --reader-max-width: 720px;
+  --reader-side-padding: 24px;
   --radius: 10px;
   --transition: 160ms ease;
 
   --reader-zoom: 1;
+}
+
+/* Tablet / narrow desktop window: sidebar becomes an overlay drawer (see
+   .sidebar-slot in +layout.svelte) so it no longer competes with the reader
+   for width. */
+@media (max-width: 900px) {
+  :root {
+    --sidebar-width: 280px;
+  }
+}
+
+/* Phone-sized viewport. The progress bar and auto-scroll handle sit flush
+   against the screen edges here (see ProgressIndicator.svelte /
+   AutoScrollHandle.svelte), so side padding needs to be wide enough to keep
+   the reading column clear of them. */
+@media (max-width: 600px) {
+  :root {
+    --font-size-quran: 24px;
+    --toolbar-height: 52px;
+    --reader-side-padding: 20px;
+  }
+}
+
+/* Below this the progress bar, auto-scroll handle, and reader zoom control
+   are hidden entirely (see their own @media (max-width: 480px) rules), so
+   the side padding can shrink back down to reclaim text width. */
+@media (max-width: 480px) {
+  :root {
+    --reader-side-padding: 12px;
+  }
+}
+
+@media (max-width: 400px) {
+  :root {
+    --font-size-quran: 21px;
+  }
 }
 
 :root[data-theme='dark'] {

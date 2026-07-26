@@ -117,4 +117,20 @@
   .fill.active {
     background: var(--color-accent);
   }
+
+  /* Sit flush against the window edge instead of floating 10px in — the
+     reading column's side padding (see --reader-side-padding) is widened
+     at this breakpoint to keep text clear of both the bar and its drag
+     hit-area (the ::before above extends 8px past the visible bar). */
+  @media (max-width: 900px) {
+    .auto-scroll-handle {
+      right: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .auto-scroll-handle {
+      display: none;
+    }
+  }
 </style>

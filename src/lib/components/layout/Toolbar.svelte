@@ -45,7 +45,7 @@
   }
 </script>
 
-<header class="toolbar" data-tauri-drag-region>
+<header class="toolbar scrollbar-none" data-tauri-drag-region>
   <button class="icon-btn" onclick={() => uiStore.toggleSidebar()} aria-label="Toggle sidebar">
     <PanelLeft size={18} />
   </button>
@@ -141,14 +141,25 @@
     padding: 0 12px;
     background: var(--color-bg-elevated);
     border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
   }
 
   .title {
     flex: 1;
+    min-width: 0;
     margin: 0;
     font-size: 15px;
     font-weight: 600;
     text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .icon-btn,
+  .zoom-group,
+  .window-controls {
+    flex-shrink: 0;
   }
 
   .icon-btn {
@@ -213,5 +224,16 @@
   .close-btn:hover {
     background: #e81123;
     color: #fff;
+  }
+
+  @media (max-width: 480px) {
+    .toolbar {
+      gap: 4px;
+      padding: 0 8px;
+    }
+
+    .zoom-group {
+      display: none;
+    }
   }
 </style>
