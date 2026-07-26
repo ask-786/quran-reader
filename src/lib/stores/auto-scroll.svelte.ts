@@ -2,7 +2,7 @@ export const AUTO_SCROLL_SPEED_MIN = 0;
 export const AUTO_SCROLL_SPEED_MAX = 100;
 
 const DEFAULT_SPEED = 40;
-const MAX_PX_PER_SECOND = 150;
+const MAX_PX_PER_SECOND = 40;
 // Higher = snappier ramp to the target speed; frame-rate independent (exponential ease).
 const EASE_RATE = 6;
 
