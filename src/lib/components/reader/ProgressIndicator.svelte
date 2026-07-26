@@ -38,4 +38,19 @@
     background: var(--color-accent);
     transition: height 80ms linear;
   }
+
+  /* Sit flush against the window edge instead of floating 10px in — the
+     reading column's side padding (see --reader-side-padding) is widened
+     at this breakpoint to keep text clear of it. */
+  @media (max-width: 900px) {
+    .progress-indicator {
+      left: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .progress-indicator {
+      display: none;
+    }
+  }
 </style>

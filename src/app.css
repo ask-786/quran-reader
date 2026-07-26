@@ -59,11 +59,23 @@
   }
 }
 
-/* Phone-sized viewport. */
+/* Phone-sized viewport. The progress bar and auto-scroll handle sit flush
+   against the screen edges here (see ProgressIndicator.svelte /
+   AutoScrollHandle.svelte), so side padding needs to be wide enough to keep
+   the reading column clear of them. */
 @media (max-width: 600px) {
   :root {
     --font-size-quran: 24px;
     --toolbar-height: 52px;
+    --reader-side-padding: 20px;
+  }
+}
+
+/* Below this the progress bar, auto-scroll handle, and reader zoom control
+   are hidden entirely (see their own @media (max-width: 480px) rules), so
+   the side padding can shrink back down to reclaim text width. */
+@media (max-width: 480px) {
+  :root {
     --reader-side-padding: 12px;
   }
 }

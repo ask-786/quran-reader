@@ -49,4 +49,10 @@
     right: 30px;
     z-index: 6;
   }
+
+  @media (max-width: 480px) {
+    .zoom-control-slot {
+      display: none;
+    }
+  }
 </style>
