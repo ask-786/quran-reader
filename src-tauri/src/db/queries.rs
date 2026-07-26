@@ -174,6 +174,35 @@ pub fn get_ayahs_for_juz(conn: &Connection, juz: u32) -> DbResult<Vec<Ayah>> {
     Ok(ayahs)
 }
 
+/// Return all Ayahs in a given Hizb.
+pub fn get_ayahs_for_hizb(conn: &Connection, hizb: u32) -> DbResult<Vec<Ayah>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, surah_id, ayah_number, uthmani_text, simple_text,
+                juz, hizb, rub_hizb, manzil, ruku, page, sajdah
+         FROM ayah WHERE hizb = ?1 ORDER BY id ASC"
+    )?;
+
+    let ayahs = stmt.query_map(params![hizb], |row| {
+        Ok(Ayah {
+            id:           row.get(0)?,
+            surah_id:     row.get(1)?,
+            ayah_number:  row.get(2)?,
+            uthmani_text: row.get(3)?,
+            simple_text:  row.get(4)?,
+            juz:          row.get(5)?,
+            hizb:         row.get(6)?,
+            rub_hizb:     row.get(7)?,
+            manzil:       row.get(8)?,
+            ruku:         row.get(9)?,
+            page:         row.get(10)?,
+            sajdah:       row.get(11)?,
+        })
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(ayahs)
+}
+
 /// Return the first Ayah of a given Juz (useful for navigation).
 #[allow(dead_code)] // wired up by the "Go to Juz" navigation command (PLAN.md Phase 6)
 pub fn get_juz_start(conn: &Connection, juz: u32) -> DbResult<AyahRef> {

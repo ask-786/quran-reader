@@ -24,9 +24,8 @@
   const THEMES: Theme[] = ['dark', 'light', 'sepia'];
   const appWindow = getCurrentWindow();
 
-  const surah = $derived(
-    $page.data?.surah as { name_en: string; transliteration: string } | undefined,
-  );
+  const heading = $derived($page.data?.title as string | undefined);
+  const hasReader = $derived(Array.isArray($page.data?.ayahs));
 
   let isMaximized = $state(false);
 
@@ -51,9 +50,9 @@
     <PanelLeft size={18} />
   </button>
 
-  <h1 class="title">{surah ? surah.transliteration : 'Quran Reader'}</h1>
+  <h1 class="title">{heading ?? 'Quran Reader'}</h1>
 
-  {#if surah}
+  {#if hasReader}
     <button
       class="icon-btn"
       onclick={() => uiStore.toggleReadingMode()}
@@ -86,7 +85,7 @@
     </button>
   </div>
 
-  {#if surah}
+  {#if hasReader}
     <button
       class="icon-btn"
       onclick={() => uiStore.toggleFocusMode()}

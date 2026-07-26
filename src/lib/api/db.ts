@@ -52,6 +52,10 @@ export function getAyahsForJuz(juz: number): Promise<Ayah[]> {
   return invoke('get_ayahs_for_juz', { juz });
 }
 
+export function getAyahsForHizb(hizb: number): Promise<Ayah[]> {
+  return invoke('get_ayahs_for_hizb', { hizb });
+}
+
 // =============================================================================
 // MUSHAF PAGE
 // =============================================================================

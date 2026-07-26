@@ -1,21 +1,21 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import type { Ayah, Surah } from '$lib/types/database';
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import { surahsStore } from '$lib/stores/surahs.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
 
   let {
-    surah,
     ayahs,
     translations = {},
     showTranslation = true,
     showAyahNumbers = true,
     scrollToAyahId,
   }: {
-    surah: Surah;
     ayahs: Ayah[];
     translations?: Record<number, string>;
     showTranslation?: boolean;
@@ -23,7 +23,24 @@
     scrollToAyahId?: number;
   } = $props();
 
-  const rukuCount = $derived(ayahs.length ? ayahs[ayahs.length - 1].ruku - ayahs[0].ruku + 1 : 0);
+  // Ayah lists can span multiple Surahs (Juz/Hizb browsing), so a header is
+  // rendered per contiguous run of one Surah's Ayahs, keyed by its start index.
+  const segments = $derived.by(() => {
+    const map = new SvelteMap<number, { surah?: Surah; rukuCount: number }>();
+    let segStart = 0;
+    for (let i = 1; i <= ayahs.length; i++) {
+      if (i === ayahs.length || ayahs[i].surah_id !== ayahs[segStart].surah_id) {
+        const first = ayahs[segStart];
+        const last = ayahs[i - 1];
+        map.set(segStart, {
+          surah: surahsStore.get(first.surah_id),
+          rukuCount: last.ruku - first.ruku + 1,
+        });
+        segStart = i;
+      }
+    }
+    return map;
+  });
 
   let container = $state<HTMLDivElement>();
   let lastReadTimer: ReturnType<typeof setTimeout>;
@@ -41,9 +58,10 @@
       .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
     if (!visible) return;
     const id = Number(visible.target.id.replace('ayah-', ''));
-    if (!id) return;
+    const ayah = ayahs.find((a) => a.id === id);
+    if (!ayah) return;
     clearTimeout(lastReadTimer);
-    lastReadTimer = setTimeout(() => settingsStore.setLastRead(surah.id, id), 400);
+    lastReadTimer = setTimeout(() => settingsStore.setLastRead(ayah.surah_id, id), 400);
   }
 
   function updateProgress() {
@@ -109,8 +127,13 @@
 </script>
 
 <div bind:this={container} class="reader-scroll scrollbar-none">
-  <SurahHeader {surah} {rukuCount} />
   {#each ayahs as ayah, i (ayah.id)}
+    {#if segments.has(i)}
+      {@const seg = segments.get(i)}
+      {#if seg?.surah}
+        <SurahHeader surah={seg.surah} rukuCount={seg.rukuCount} />
+      {/if}
+    {/if}
     {#if pageChanged(i)}
       <div class="boundary-divider">
         <span

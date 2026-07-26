@@ -3,9 +3,13 @@
 
   const percent = $derived(Math.round(progressStore.fraction * 100));
   const label = $derived(
-    `${percent}% through this Surah` +
-      (progressStore.juz ? ` · Juz ${progressStore.juz}` : '') +
-      (progressStore.hizb ? ` · Hizb ${progressStore.hizb}` : ''),
+    `${percent}% through ${progressStore.scopeText}` +
+      (progressStore.juz && !progressStore.scopeText.startsWith('Juz')
+        ? ` · Juz ${progressStore.juz}`
+        : '') +
+      (progressStore.hizb && !progressStore.scopeText.startsWith('Hizb')
+        ? ` · Hizb ${progressStore.hizb}`
+        : ''),
   );
 </script>
 

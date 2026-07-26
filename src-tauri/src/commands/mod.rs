@@ -66,6 +66,12 @@ pub fn get_ayahs_for_juz(state: State<AppDb>, juz: u32) -> Result<Vec<Ayah>, Str
     queries::get_ayahs_for_juz(&conn, juz).map_err(e)
 }
 
+#[tauri::command]
+pub fn get_ayahs_for_hizb(state: State<AppDb>, hizb: u32) -> Result<Vec<Ayah>, String> {
+    let conn = db!(state);
+    queries::get_ayahs_for_hizb(&conn, hizb).map_err(e)
+}
+
 // =============================================================================
 // MUSHAF PAGE COMMANDS
 // =============================================================================

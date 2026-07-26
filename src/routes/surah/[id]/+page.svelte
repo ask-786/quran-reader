@@ -2,13 +2,8 @@
   import { untrack } from 'svelte';
   import { page } from '$app/stores';
   import type { PageData } from './$types';
-  import ReaderView from '$lib/components/reader/ReaderView.svelte';
-  import PageView from '$lib/components/reader/PageView.svelte';
-  import AutoScrollHandle from '$lib/components/reader/AutoScrollHandle.svelte';
-  import ProgressIndicator from '$lib/components/reader/ProgressIndicator.svelte';
-  import ReaderZoomControl from '$lib/components/reader/ReaderZoomControl.svelte';
+  import ReaderPage from '$lib/components/reader/ReaderPage.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
-  import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
 
@@ -40,37 +35,4 @@
   <title>{data.surah.transliteration} — Quran Reader</title>
 </svelte:head>
 
-<div class="surah-page">
-  {#if uiStore.readingMode === 'mushaf'}
-    <PageView ayahs={data.ayahs} scrollToAyahId={scrollTarget} />
-  {:else}
-    <ReaderView
-      surah={data.surah}
-      ayahs={data.ayahs}
-      showAyahNumbers={settingsStore.current.show_ayah_numbers}
-      scrollToAyahId={scrollTarget}
-    />
-  {/if}
-  <ProgressIndicator />
-  <AutoScrollHandle />
-  <div class="zoom-control-slot">
-    <ReaderZoomControl />
-  </div>
-</div>
-
-<style>
-  .surah-page {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .zoom-control-slot {
-    position: absolute;
-    top: 16px;
-    right: 30px;
-    z-index: 6;
-  }
-</style>
+<ReaderPage ayahs={data.ayahs} {scrollTarget} />

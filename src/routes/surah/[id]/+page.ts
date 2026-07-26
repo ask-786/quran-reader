@@ -10,7 +10,7 @@ export const load: PageLoad = async ({ params }) => {
 
   try {
     const [surah, ayahs] = await Promise.all([getSurah(surahId), getAyahsForSurah(surahId)]);
-    return { surah, ayahs };
+    return { surah, ayahs, title: surah.transliteration };
   } catch {
     error(404, `Surah ${surahId} not found`);
   }

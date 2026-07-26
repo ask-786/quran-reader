@@ -424,10 +424,10 @@ See "Mushaf Page Layout" under Phase 1 for data sourcing.
 
 Navigate
 
-- [ ] Surah
+- [x] Surah
 - [x] Ayah
-- [ ] Juz
-- [ ] Hizb
+- [x] Juz — sidebar tab lists all 30, browsable via `/juz/[id]`
+- [x] Hizb — sidebar tab lists all 60, browsable via `/hizb/[id]`
 - [ ] Page
 
 ---

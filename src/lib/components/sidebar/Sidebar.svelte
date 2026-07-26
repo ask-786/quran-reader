@@ -4,15 +4,38 @@
   import { resolve } from '$app/paths';
   import { surahsStore } from '$lib/stores/surahs.svelte';
 
+  type Mode = 'surah' | 'juz' | 'hizb';
+
+  const MODES: { id: Mode; label: string }[] = [
+    { id: 'surah', label: 'Surah' },
+    { id: 'juz', label: 'Juz' },
+    { id: 'hizb', label: 'Hizb' },
+  ];
+
+  const JUZ_LIST = Array.from({ length: 30 }, (_, i) => i + 1);
+  const HIZB_LIST = Array.from({ length: 60 }, (_, i) => i + 1);
+
+  let mode = $state<Mode>('surah');
   let filter = $state('');
 
   onMount(() => {
     surahsStore.init();
   });
 
-  const activeId = $derived(Number($page.params.id ?? 0));
+  function selectMode(next: Mode) {
+    mode = next;
+    filter = '';
+  }
 
-  const filtered = $derived.by(() => {
+  const activeSurahId = $derived(
+    $page.url.pathname.startsWith('/surah/') ? Number($page.params.id) : 0,
+  );
+  const activeJuz = $derived($page.url.pathname.startsWith('/juz/') ? Number($page.params.id) : 0);
+  const activeHizb = $derived(
+    $page.url.pathname.startsWith('/hizb/') ? Number($page.params.id) : 0,
+  );
+
+  const filteredSurahs = $derived.by(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return surahsStore.list;
     return surahsStore.list.filter(
@@ -22,38 +45,95 @@
         String(s.id) === q,
     );
   });
+
+  const filteredJuz = $derived.by(() => {
+    const q = filter.trim();
+    return q ? JUZ_LIST.filter((n) => String(n).includes(q)) : JUZ_LIST;
+  });
+
+  const filteredHizb = $derived.by(() => {
+    const q = filter.trim();
+    return q ? HIZB_LIST.filter((n) => String(n).includes(q)) : HIZB_LIST;
+  });
+
+  const placeholder = $derived(
+    mode === 'surah' ? 'Find a surah…' : mode === 'juz' ? 'Jump to a Juz…' : 'Jump to a Hizb…',
+  );
 </script>
 
 <aside class="sidebar scrollbar-thin">
-  <div class="filter-row">
-    <input
-      class="filter-input"
-      type="text"
-      placeholder="Find a surah…"
-      bind:value={filter}
-      aria-label="Filter surahs"
-    />
+  <div class="sidebar-header">
+    <div class="mode-tabs">
+      {#each MODES as m (m.id)}
+        <button class="mode-tab" class:active={mode === m.id} onclick={() => selectMode(m.id)}>
+          {m.label}
+        </button>
+      {/each}
+    </div>
+
+    <div class="filter-row">
+      <input
+        class="filter-input"
+        type="text"
+        {placeholder}
+        bind:value={filter}
+        aria-label={placeholder}
+      />
+    </div>
   </div>
 
-  {#if surahsStore.loading}
-    <p class="hint">Loading surahs…</p>
-  {:else if surahsStore.error}
-    <p class="hint hint-error">Failed to load surahs.</p>
-  {:else}
-    <ul class="surah-list">
-      {#each filtered as surah (surah.id)}
+  {#if mode === 'surah'}
+    {#if surahsStore.loading}
+      <p class="hint">Loading surahs…</p>
+    {:else if surahsStore.error}
+      <p class="hint hint-error">Failed to load surahs.</p>
+    {:else}
+      <ul class="item-list">
+        {#each filteredSurahs as surah (surah.id)}
+          <li>
+            <a
+              class="surah-item"
+              class:active={surah.id === activeSurahId}
+              href={resolve('/surah/[id]', { id: String(surah.id) })}
+            >
+              <span class="roundel">{surah.id}</span>
+              <span class="surah-info">
+                <span class="surah-translit">{surah.transliteration}</span>
+                <span class="surah-meta">{surah.revelation_type} · {surah.verses_count} verses</span
+                >
+              </span>
+              <span class="surah-arabic quran-text">{surah.name_ar}</span>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  {:else if mode === 'juz'}
+    <ul class="item-list">
+      {#each filteredJuz as n (n)}
         <li>
           <a
-            class="surah-item"
-            class:active={surah.id === activeId}
-            href={resolve('/surah/[id]', { id: String(surah.id) })}
+            class="unit-item"
+            class:active={n === activeJuz}
+            href={resolve('/juz/[id]', { id: String(n) })}
           >
-            <span class="surah-number">{surah.id}</span>
-            <span class="surah-info">
-              <span class="surah-translit">{surah.transliteration}</span>
-              <span class="surah-meta">{surah.revelation_type} · {surah.verses_count} verses</span>
-            </span>
-            <span class="surah-arabic quran-text">{surah.name_ar}</span>
+            <span class="roundel">{n}</span>
+            <span class="unit-label">Juz {n}</span>
+          </a>
+        </li>
+      {/each}
+    </ul>
+  {:else}
+    <ul class="item-list">
+      {#each filteredHizb as n (n)}
+        <li>
+          <a
+            class="unit-item"
+            class:active={n === activeHizb}
+            href={resolve('/hizb/[id]', { id: String(n) })}
+          >
+            <span class="roundel">{n}</span>
+            <span class="unit-label">Hizb {n}</span>
           </a>
         </li>
       {/each}
@@ -73,13 +153,44 @@
     flex-direction: column;
   }
 
-  .filter-row {
-    padding: 10px 12px;
+  .sidebar-header {
     position: sticky;
     top: 0;
     background: var(--color-bg-elevated);
-    border-bottom: 1px solid var(--color-border);
     z-index: 1;
+  }
+
+  .mode-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 10px 12px 0;
+  }
+
+  .mode-tab {
+    flex: 1;
+    padding: 6px 0;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+
+  .mode-tab:hover {
+    background: var(--color-bg-hover);
+  }
+
+  .mode-tab.active {
+    background: var(--color-bg-hover);
+    color: var(--color-accent);
+  }
+
+  .filter-row {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .filter-input {
@@ -107,7 +218,7 @@
     color: #d9736a;
   }
 
-  .surah-list {
+  .item-list {
     list-style: none;
     margin: 0;
     padding: 6px 12px;
@@ -116,7 +227,8 @@
     gap: 2px;
   }
 
-  .surah-item {
+  .surah-item,
+  .unit-item {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -127,20 +239,24 @@
     transition: background var(--transition);
   }
 
-  .surah-item:hover {
+  .surah-item:hover,
+  .unit-item:hover {
     background: var(--color-bg-hover);
   }
 
-  .surah-item.active {
+  .surah-item.active,
+  .unit-item.active {
     background: var(--color-bg-hover);
   }
 
   .surah-item.active .surah-translit,
-  .surah-item.active .surah-number {
+  .surah-item.active .roundel,
+  .unit-item.active .unit-label,
+  .unit-item.active .roundel {
     color: var(--color-accent);
   }
 
-  .surah-number {
+  .roundel {
     flex-shrink: 0;
     width: 24px;
     height: 24px;
@@ -178,5 +294,11 @@
     line-height: 1;
     flex-shrink: 0;
     color: var(--color-text);
+  }
+
+  .unit-label {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
   }
 </style>
