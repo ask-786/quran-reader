@@ -106,7 +106,8 @@
       const dt = (now - last) / 1000;
       last = now;
       if (container) {
-        container.scrollTop += autoScrollStore.pxPerSecond * dt;
+        const dy = autoScrollStore.tick(dt);
+        if (dy !== 0) container.scrollTop += dy;
         if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
           autoScrollStore.stop();
           return;

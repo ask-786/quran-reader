@@ -7,23 +7,21 @@
   } from '$lib/stores/auto-scroll.svelte';
 
   const TRACK_HEIGHT = 140;
-  const THUMB_SIZE = 26;
-  const THUMB_TRAVEL = TRACK_HEIGHT - THUMB_SIZE;
   const RANGE = AUTO_SCROLL_SPEED_MAX - AUTO_SCROLL_SPEED_MIN;
+  const KEY_STEP = 10;
 
   let track = $state<HTMLDivElement>();
   let dragging = $state(false);
   let moved = false;
 
-  const thumbTop = $derived(
-    THUMB_TRAVEL - ((autoScrollStore.speed - AUTO_SCROLL_SPEED_MIN) / RANGE) * THUMB_TRAVEL,
-  );
+  const percent = $derived(autoScrollStore.speed);
 
+  // Top of the track = stopped, bottom = fastest — matches the fill
+  // growing downward from 0, so the filled height always reads as "how fast".
   function speedFromClientY(clientY: number) {
     if (!track) return autoScrollStore.speed;
     const rect = track.getBoundingClientRect();
-    const y = Math.min(Math.max(clientY - rect.top - THUMB_SIZE / 2, 0), THUMB_TRAVEL);
-    const ratio = 1 - y / THUMB_TRAVEL;
+    const ratio = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
     return AUTO_SCROLL_SPEED_MIN + ratio * RANGE;
   }
 
@@ -45,12 +43,12 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowUp') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
-      autoScrollStore.setSpeed(autoScrollStore.speed + 1);
-    } else if (e.key === 'ArrowDown') {
+      autoScrollStore.setSpeed(autoScrollStore.speed + KEY_STEP);
+    } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      autoScrollStore.setSpeed(autoScrollStore.speed - 1);
+      autoScrollStore.setSpeed(autoScrollStore.speed - KEY_STEP);
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       autoScrollStore.toggle();
@@ -62,6 +60,7 @@
   <div
     bind:this={track}
     class="track"
+    class:dragging
     style:height="{TRACK_HEIGHT}px"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
@@ -75,13 +74,15 @@
     aria-valuenow={autoScrollStore.speed}
     tabindex="0"
   >
-    <div class="thumb" class:active={autoScrollStore.active} style:top="{thumbTop}px">
-      {#if autoScrollStore.active}
-        <Pause size={12} />
-      {:else}
-        <Play size={12} />
-      {/if}
-    </div>
+    <div class="fill" class:active={autoScrollStore.active} style:height="{percent}%"></div>
+  </div>
+  <div class="label" class:active={autoScrollStore.active}>
+    {#if autoScrollStore.active}
+      <Pause size={10} />
+      {percent}%
+    {:else}
+      <Play size={10} />
+    {/if}
   </div>
 </div>
 
@@ -92,40 +93,60 @@
     top: 50%;
     transform: translateY(-50%);
     z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
   }
 
   .track {
     position: relative;
-    width: 8px;
-    border-radius: 4px;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
+    width: 4px;
+    border-radius: 2px;
+    background: var(--color-border);
+    overflow: visible;
     cursor: pointer;
     touch-action: none;
   }
 
-  .thumb {
+  /* Widen the hit area without widening the visible track, so the slim
+     bar stays visually consistent with ProgressIndicator's rail. */
+  .track::before {
+    content: '';
     position: absolute;
-    left: 50%;
-    width: 26px;
-    height: 26px;
-    transform: translateX(-50%);
-    border-radius: 50%;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-    transition:
-      background var(--transition),
-      color var(--transition);
+    inset: 0 -8px;
   }
 
-  .thumb.active {
+  .fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border-radius: 2px;
+    background: var(--color-text-faint);
+    overflow: hidden;
+  }
+
+  .track:not(.dragging) .fill {
+    transition:
+      height 80ms linear,
+      background var(--transition);
+  }
+
+  .fill.active {
     background: var(--color-accent);
-    color: var(--color-accent-contrast);
-    border-color: var(--color-accent);
+  }
+
+  .label {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--color-text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .label.active {
+    color: var(--color-accent);
   }
 </style>
