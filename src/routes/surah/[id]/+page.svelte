@@ -5,6 +5,7 @@
   import PageView from '$lib/components/reader/PageView.svelte';
   import AutoScrollHandle from '$lib/components/reader/AutoScrollHandle.svelte';
   import ProgressIndicator from '$lib/components/reader/ProgressIndicator.svelte';
+  import ReaderZoomControl from '$lib/components/reader/ReaderZoomControl.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
@@ -44,6 +45,9 @@
   {/if}
   <ProgressIndicator />
   <AutoScrollHandle />
+  <div class="zoom-control-slot">
+    <ReaderZoomControl />
+  </div>
 </div>
 
 <style>
@@ -53,5 +57,12 @@
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+  }
+
+  .zoom-control-slot {
+    position: absolute;
+    top: 16px;
+    right: 30px;
+    z-index: 6;
   }
 </style>

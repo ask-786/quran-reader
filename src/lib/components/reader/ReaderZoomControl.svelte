@@ -1,16 +1,15 @@
 <script lang="ts">
-  import { Minus, Plus, ALargeSmall } from 'lucide-svelte';
+  import { Plus, Minus } from 'lucide-svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
 </script>
 
 <div class="zoom-group" title="Reader text zoom">
-  <ALargeSmall size={15} class="zoom-group-icon" />
   <button
-    class="icon-btn small"
-    onclick={() => settingsStore.zoomReaderOut()}
-    aria-label="Decrease reader zoom"
+    class="icon-btn"
+    onclick={() => settingsStore.zoomReaderIn()}
+    aria-label="Increase reader zoom"
   >
-    <Minus size={13} />
+    <Plus size={14} />
   </button>
   <button
     class="zoom-value"
@@ -20,21 +19,33 @@
     {Math.round(settingsStore.current.reader_zoom * 100)}%
   </button>
   <button
-    class="icon-btn small"
-    onclick={() => settingsStore.zoomReaderIn()}
-    aria-label="Increase reader zoom"
+    class="icon-btn"
+    onclick={() => settingsStore.zoomReaderOut()}
+    aria-label="Decrease reader zoom"
   >
-    <Plus size={13} />
+    <Minus size={14} />
   </button>
 </div>
 
 <style>
+  .zoom-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: var(--radius);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  }
+
   .icon-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     border-radius: var(--radius);
     background: transparent;
     border: none;
@@ -48,32 +59,12 @@
     color: var(--color-text);
   }
 
-  .icon-btn.small {
-    width: 24px;
-    height: 24px;
-  }
-
-  .zoom-group {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 2px;
-    border-radius: var(--radius);
-    background: var(--color-bg);
-  }
-
-  .zoom-group :global(.zoom-group-icon) {
-    color: var(--color-text-muted);
-    margin: 0 2px 0 4px;
-  }
-
   .zoom-value {
-    min-width: 38px;
-    padding: 2px 4px;
+    padding: 2px 0;
     background: transparent;
     border: none;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 10px;
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
     border-radius: var(--radius);

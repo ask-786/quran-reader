@@ -121,7 +121,7 @@
 </script>
 
 <div class="page-view">
-  <div bind:this={container} class="page-surface scrollbar-thin">
+  <div bind:this={container} class="page-surface scrollbar-none">
     {#if error}
       <p class="state-message">Couldn't load pages: {error}</p>
     {:else if loading && pages.length === 0}

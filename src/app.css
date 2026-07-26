@@ -130,6 +130,14 @@ input {
   border-radius: 4px;
 }
 
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 .quran-text {
   font-family: var(--font-quran);
   font-size: var(--font-size-quran);

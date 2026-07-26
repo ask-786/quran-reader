@@ -19,7 +19,6 @@
   } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
-  import ReaderZoomControl from '$lib/components/reader/ReaderZoomControl.svelte';
   import type { Theme } from '$lib/types/database';
 
   const THEMES: Theme[] = ['dark', 'light', 'sepia'];
@@ -88,8 +87,6 @@
   </div>
 
   {#if surah}
-    <ReaderZoomControl />
-
     <button
       class="icon-btn"
       onclick={() => uiStore.toggleFocusMode()}

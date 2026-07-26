@@ -108,7 +108,7 @@
   });
 </script>
 
-<div bind:this={container} class="reader-scroll scrollbar-thin">
+<div bind:this={container} class="reader-scroll scrollbar-none">
   <SurahHeader {surah} {rukuCount} />
   {#each ayahs as ayah, i (ayah.id)}
     {#if pageChanged(i)}
