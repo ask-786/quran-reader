@@ -3,6 +3,8 @@
   import { page } from '$app/stores';
   import { resolve } from '$app/paths';
   import { surahsStore } from '$lib/stores/surahs.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
+  import { isNarrowViewport } from '$lib/utils/viewport';
 
   type Mode = 'surah' | 'juz' | 'hizb';
 
@@ -25,6 +27,10 @@
   function selectMode(next: Mode) {
     mode = next;
     filter = '';
+  }
+
+  function selectItem() {
+    if (isNarrowViewport()) uiStore.sidebarOpen = false;
   }
 
   const activeSurahId = $derived(
@@ -95,6 +101,7 @@
               class="surah-item"
               class:active={surah.id === activeSurahId}
               href={resolve('/surah/[id]', { id: String(surah.id) })}
+              onclick={selectItem}
             >
               <span class="roundel">{surah.id}</span>
               <span class="surah-info">
@@ -116,6 +123,7 @@
             class="unit-item"
             class:active={n === activeJuz}
             href={resolve('/juz/[id]', { id: String(n) })}
+            onclick={selectItem}
           >
             <span class="roundel">{n}</span>
             <span class="unit-label">Juz {n}</span>
@@ -131,6 +139,7 @@
             class="unit-item"
             class:active={n === activeHizb}
             href={resolve('/hizb/[id]', { id: String(n) })}
+            onclick={selectItem}
           >
             <span class="roundel">{n}</span>
             <span class="unit-label">Hizb {n}</span>
@@ -143,7 +152,7 @@
 
 <style>
   .sidebar {
-    width: var(--sidebar-width);
+    width: 100%;
     flex-shrink: 0;
     height: 100%;
     overflow-y: auto;

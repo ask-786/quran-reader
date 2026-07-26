@@ -191,7 +191,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 24px 16px 80px;
+    padding: 24px var(--reader-side-padding) 80px;
   }
 
   .page-content {
@@ -244,7 +244,10 @@
   .basmala-line {
     justify-content: space-between;
     flex-wrap: nowrap;
-    font-size: calc(27px * var(--reader-zoom));
+    /* Lines are laid out edge-to-edge like a real Mushaf page and can't
+       reflow, so on narrow screens the glyphs shrink with the viewport
+       instead of overflowing into horizontal scroll. */
+    font-size: calc(clamp(15px, 4.6vw, 27px) * var(--reader-zoom));
     line-height: 2.5;
     color: var(--color-text);
   }
@@ -276,12 +279,12 @@
 
   .surah-header-line h3 {
     margin: 0;
-    font-size: calc(22px * var(--reader-zoom));
+    font-size: calc(clamp(13px, 3.8vw, 22px) * var(--reader-zoom));
     white-space: nowrap;
   }
 
   .motif {
-    font-size: calc(13px * var(--reader-zoom));
+    font-size: calc(clamp(9px, 2.2vw, 13px) * var(--reader-zoom));
   }
 
   .state-message {

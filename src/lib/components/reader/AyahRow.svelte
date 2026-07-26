@@ -83,6 +83,14 @@
     opacity: 1;
   }
 
+  /* Touch devices have no hover state, so the actions must stay visible —
+     otherwise they'd only ever appear via keyboard focus. */
+  @media (hover: none) {
+    .ayah-actions {
+      opacity: 1;
+    }
+  }
+
   .action-btn {
     display: flex;
     align-items: center;

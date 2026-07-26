@@ -43,10 +43,35 @@
   --sidebar-width: 300px;
   --toolbar-height: 56px;
   --reader-max-width: 720px;
+  --reader-side-padding: 24px;
   --radius: 10px;
   --transition: 160ms ease;
 
   --reader-zoom: 1;
+}
+
+/* Tablet / narrow desktop window: sidebar becomes an overlay drawer (see
+   .sidebar-slot in +layout.svelte) so it no longer competes with the reader
+   for width. */
+@media (max-width: 900px) {
+  :root {
+    --sidebar-width: 280px;
+  }
+}
+
+/* Phone-sized viewport. */
+@media (max-width: 600px) {
+  :root {
+    --font-size-quran: 24px;
+    --toolbar-height: 52px;
+    --reader-side-padding: 12px;
+  }
+}
+
+@media (max-width: 400px) {
+  :root {
+    --font-size-quran: 21px;
+  }
 }
 
 :root[data-theme='dark'] {
