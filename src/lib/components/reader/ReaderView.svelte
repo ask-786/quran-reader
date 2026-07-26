@@ -1,7 +1,9 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
-  import type { Ayah, Surah } from '$lib/types/database';
+  import type { Ayah, AyahGlyphWord, GlyphSpan, Surah } from '$lib/types/database';
+  import { getPage } from '$lib/api/db';
+  import { loadPageFonts, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
@@ -13,29 +15,22 @@
     ayahs,
     translations = {},
     showTranslation = true,
-    showAyahNumbers = true,
     scrollToAyahId,
   }: {
     ayahs: Ayah[];
     translations?: Record<number, string>;
     showTranslation?: boolean;
-    showAyahNumbers?: boolean;
     scrollToAyahId?: number;
   } = $props();
 
   // Ayah lists can span multiple Surahs (Juz/Hizb browsing), so a header is
   // rendered per contiguous run of one Surah's Ayahs, keyed by its start index.
   const segments = $derived.by(() => {
-    const map = new SvelteMap<number, { surah?: Surah; rukuCount: number }>();
+    const map = new SvelteMap<number, { surah?: Surah }>();
     let segStart = 0;
     for (let i = 1; i <= ayahs.length; i++) {
       if (i === ayahs.length || ayahs[i].surah_id !== ayahs[segStart].surah_id) {
-        const first = ayahs[segStart];
-        const last = ayahs[i - 1];
-        map.set(segStart, {
-          surah: surahsStore.get(first.surah_id),
-          rukuCount: last.ruku - first.ruku + 1,
-        });
+        map.set(segStart, { surah: surahsStore.get(ayahs[segStart].surah_id) });
         segStart = i;
       }
     }
@@ -45,6 +40,70 @@
   let container = $state<HTMLDivElement>();
   let content = $state<HTMLDivElement>();
   let lastReadTimer: ReturnType<typeof setTimeout>;
+
+  // Page-glyph words per Ayah, fetched from the same page data PageView uses,
+  // so list-mode text matches Mushaf/page-mode rendering quality instead of
+  // live-shaping ayah.uthmani_text through the buggy system font stack.
+  const ayahWords = new SvelteMap<number, AyahGlyphWord[]>();
+  // Basmala glyph words per Surah id, from the same fetched pages — a Surah's
+  // basmala line always immediately follows its surah_header line on the
+  // page that opens it, so it's within the same page range as its Ayahs.
+  const basmalaWords = new SvelteMap<number, GlyphSpan[]>();
+  let basmalaFontFamily = $state<string | null>(null);
+
+  const firstPage = $derived(ayahs[0]?.page ?? 1);
+  const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
+
+  $effect(() => {
+    const start = firstPage;
+    const end = lastPage;
+    let cancelled = false;
+
+    (async () => {
+      const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+      const [pageData, fontFamilies, basmalaFamily] = await Promise.all([
+        Promise.all(pageNumbers.map((p) => getPage(p))),
+        loadPageFonts(pageNumbers),
+        loadBasmalaFont(),
+      ]);
+      if (cancelled) return;
+      basmalaFontFamily = basmalaFamily;
+
+      ayahWords.clear();
+      basmalaWords.clear();
+      let pendingHeaderSurahId: number | null = null;
+      for (const data of pageData) {
+        const fontFamily = fontFamilies.get(data.page) ?? null;
+        for (const line of data.lines) {
+          if (line.line_type === 'surah_header') {
+            pendingHeaderSurahId = line.surah_id;
+            continue;
+          }
+          if (line.line_type === 'basmala') {
+            if (pendingHeaderSurahId !== null) basmalaWords.set(pendingHeaderSurahId, line.words);
+            pendingHeaderSurahId = null;
+            continue;
+          }
+          if (line.line_type !== 'text') continue;
+          for (const w of line.words) {
+            if (w.ayah_id === null) continue;
+            const word: AyahGlyphWord = {
+              uthmani_text: w.uthmani_text,
+              glyph_v2: w.glyph_v2,
+              fontFamily,
+            };
+            const list = ayahWords.get(w.ayah_id);
+            if (list) list.push(word);
+            else ayahWords.set(w.ayah_id, [word]);
+          }
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  });
 
   function pageChanged(i: number) {
     return i > 0 && ayahs[i].page !== ayahs[i - 1].page;
@@ -137,7 +196,11 @@
       {#if segments.has(i)}
         {@const seg = segments.get(i)}
         {#if seg?.surah}
-          <SurahHeader surah={seg.surah} rukuCount={seg.rukuCount} />
+          <SurahHeader
+            surah={seg.surah}
+            basmalaWords={basmalaWords.get(seg.surah.id) ?? []}
+            {basmalaFontFamily}
+          />
         {/if}
       {/if}
       {#if pageChanged(i)}
@@ -150,8 +213,8 @@
       {/if}
       <AyahRow
         {ayah}
+        words={ayahWords.get(ayah.id) ?? []}
         translation={showTranslation ? (translations[ayah.id] ?? null) : null}
-        {showAyahNumbers}
       />
     {/each}
   </div>

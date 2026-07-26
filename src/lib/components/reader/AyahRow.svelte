@@ -1,17 +1,16 @@
 <script lang="ts">
   import { Bookmark, BookmarkCheck, Copy, Check } from 'lucide-svelte';
-  import type { Ayah } from '$lib/types/database';
-  import { toArabicNumerals } from '$lib/utils/arabic-numerals';
+  import type { Ayah, AyahGlyphWord } from '$lib/types/database';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
 
   let {
     ayah,
+    words,
     translation = null,
-    showAyahNumbers = true,
   }: {
     ayah: Ayah;
+    words: AyahGlyphWord[];
     translation?: string | null;
-    showAyahNumbers?: boolean;
   } = $props();
 
   const bookmarked = $derived(bookmarksStore.isBookmarked(ayah.id));
@@ -41,12 +40,15 @@
   </div>
 
   <p class="ayah-text quran-text">
-    {ayah.uthmani_text}
+    {#each words as w, i (i)}<span
+        class="word"
+        style:font-family={w.fontFamily}
+        aria-label={w.uthmani_text}
+        title={w.uthmani_text}>{w.glyph_v2}</span
+      >
+    {/each}
     {#if ayah.sajdah}
       <span class="sajdah-mark" title="Sajdah — prostration recommended">۩</span>
-    {/if}
-    {#if showAyahNumbers}
-      <span class="ayah-marker">{toArabicNumerals(ayah.ayah_number)}</span>
     {/if}
   </p>
 
@@ -115,19 +117,21 @@
 
   .ayah-text {
     margin: 0;
+    /* Words are individual glyph spans with a single literal space between
+       them (see markup) rather than free-flowing text, so a pathologically
+       long single word still has somewhere to break instead of overflowing. */
+    overflow-wrap: anywhere;
   }
 
-  .ayah-marker {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 0.9em;
-    height: 0.9em;
-    margin: 0 0.2em;
-    border: 1px solid var(--color-accent);
-    border-radius: 50%;
-    font-size: 0.5em;
-    vertical-align: middle;
+  .word {
+    /* The QCF glyph fonts' own space character is much narrower than the
+       gap a live-shaped Arabic font would give — pad it out explicitly so
+       words in the flowing (non-justified) list view don't read as cramped. */
+    margin-inline-end: 0.35em;
+    cursor: default;
+  }
+
+  .word:hover {
     color: var(--color-accent);
   }
 

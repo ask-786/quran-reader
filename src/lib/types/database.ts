@@ -181,6 +181,25 @@ export interface MushafPage {
 }
 
 // =============================================================================
+// READER — PAGE-GLYPH WORDS
+// =============================================================================
+
+export interface GlyphSpan {
+  uthmani_text: string;
+  glyph_v2: string;
+}
+
+/**
+ * A single word rendered from Mushaf page-glyph data (see PageLineWord)
+ * rather than live-shaped Unicode text, tagged with the font-family of the
+ * page it came from — an Ayah split across a page boundary has words in two
+ * different QCF fonts.
+ */
+export interface AyahGlyphWord extends GlyphSpan {
+  fontFamily: string | null;
+}
+
+// =============================================================================
 // RICH AYAH VIEW
 // =============================================================================
 

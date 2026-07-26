@@ -4,8 +4,10 @@
   import { getPage } from '$lib/api/db';
   import type { Ayah, MushafPage } from '$lib/types/database';
   import { loadPageFonts, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
+  import { surahsStore } from '$lib/stores/surahs.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
+  import SurahHeader from './SurahHeader.svelte';
 
   let {
     ayahs,
@@ -143,19 +145,20 @@
             </div>
           {/if}
           <div class="mushaf-page" dir="rtl">
-            {#each p.data.lines as line (line.line_number)}
+            {#each p.data.lines as line, li (line.line_number)}
               {#if line.line_type === 'surah_header'}
-                <div class="line surah-header-line">
-                  <span class="motif" aria-hidden="true">۞</span>
-                  <h3 class="quran-text">{line.text}</h3>
-                  <span class="motif" aria-hidden="true">۞</span>
-                </div>
+                {@const headerSurah =
+                  line.surah_id !== null ? surahsStore.get(line.surah_id) : undefined}
+                {@const nextLine = p.data.lines[li + 1]}
+                {#if headerSurah}
+                  <SurahHeader
+                    surah={headerSurah}
+                    basmalaWords={nextLine?.line_type === 'basmala' ? nextLine.words : []}
+                    {basmalaFontFamily}
+                  />
+                {/if}
               {:else if line.line_type === 'basmala'}
-                <div class="line basmala-line" style:font-family={basmalaFontFamily}>
-                  {#each line.words as w (w.position)}
-                    <span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
-                  {/each}
-                </div>
+                <!-- rendered as part of the preceding surah_header, above -->
               {:else}
                 <div class="line text-line" style:font-family={p.fontFamily}>
                   {#each line.words as w (w.position)}
@@ -240,8 +243,7 @@
     min-height: 2.6em;
   }
 
-  .text-line,
-  .basmala-line {
+  .text-line {
     justify-content: space-between;
     flex-wrap: nowrap;
     /* Lines are laid out edge-to-edge like a real Mushaf page and can't
@@ -252,39 +254,12 @@
     color: var(--color-text);
   }
 
-  .basmala-line {
-    justify-content: center;
-    gap: 0.3em;
-    color: var(--color-accent);
-  }
-
   .word {
     cursor: default;
   }
 
   .word:hover {
     color: var(--color-accent);
-  }
-
-  .surah-header-line {
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    margin: 10px 0;
-    padding: 8px 0;
-    border-top: 1px solid var(--color-accent);
-    border-bottom: 1px solid var(--color-accent);
-    color: var(--color-accent);
-  }
-
-  .surah-header-line h3 {
-    margin: 0;
-    font-size: calc(clamp(13px, 3.8vw, 22px) * var(--reader-zoom));
-    white-space: nowrap;
-  }
-
-  .motif {
-    font-size: calc(clamp(9px, 2.2vw, 13px) * var(--reader-zoom));
   }
 
   .state-message {
