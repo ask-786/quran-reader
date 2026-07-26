@@ -1,6 +1,9 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import Sidebar from '$lib/components/sidebar/Sidebar.svelte';
   import Toolbar from '$lib/components/layout/Toolbar.svelte';
   import GoToDialog from '$lib/components/navigation/GoToDialog.svelte';
@@ -10,6 +13,25 @@
   import { uiStore } from '$lib/stores/ui.svelte';
 
   let { children } = $props();
+
+  // n/p step through the adjacent Surah/Juz/Hizb, bounds keyed by the current route.
+  function navigateAdjacent(direction: 1 | -1) {
+    const currentId = Number($page.params.id);
+    if (!Number.isInteger(currentId)) return;
+    const next = currentId + direction;
+
+    switch ($page.route.id) {
+      case '/surah/[id]':
+        if (next >= 1 && next <= 114) goto(resolve('/surah/[id]', { id: String(next) }));
+        break;
+      case '/juz/[id]':
+        if (next >= 1 && next <= 30) goto(resolve('/juz/[id]', { id: String(next) }));
+        break;
+      case '/hizb/[id]':
+        if (next >= 1 && next <= 60) goto(resolve('/hizb/[id]', { id: String(next) }));
+        break;
+    }
+  }
 
   onMount(() => {
     settingsStore.init();
@@ -28,6 +50,25 @@
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
         e.preventDefault();
         uiStore.toggleGoTo();
+        return;
+      }
+
+      if (uiStore.goToOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement;
+      if (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case 'f':
+          uiStore.toggleFocusMode();
+          break;
+        case 'n':
+          navigateAdjacent(1);
+          break;
+        case 'p':
+          navigateAdjacent(-1);
+          break;
       }
     }
     window.addEventListener('keydown', onKeydown);
