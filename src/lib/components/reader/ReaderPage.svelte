@@ -1,11 +1,13 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { Ayah } from '$lib/types/database';
   import ReaderView from './ReaderView.svelte';
   import PageView from './PageView.svelte';
   import AutoScrollHandle from './AutoScrollHandle.svelte';
   import ProgressIndicator from './ProgressIndicator.svelte';
   import ReaderZoomControl from './ReaderZoomControl.svelte';
-  import { uiStore } from '$lib/stores/ui.svelte';
+  import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
+  import { readerPosition } from '$lib/stores/reader-position.svelte';
 
   let {
     ayahs,
@@ -14,13 +16,55 @@
     ayahs: Ayah[];
     scrollTarget?: number;
   } = $props();
+
+  // Where the mounted view should scroll to. Normally that's whatever the route
+  // asked for, but toggling reading mode tears one view down and builds the
+  // other, so on that trigger alone we hand the incoming view the Ayah the
+  // outgoing one was showing.
+  let viewTarget = $state<number | undefined>();
+
+  // Plain (non-reactive) last-seen values: the point is to tell *which* input
+  // changed. Deliberately one flat $effect rather than a $derived reading the
+  // position through untrack() — a derived evaluates during render, before the
+  // effect that refreshes the tracked position has run, so a stale position
+  // wins the race and swallows genuinely new targets like `?ayah=` deep links.
+  let lastAyahs: Ayah[] | undefined;
+  let lastScrollTarget: number | undefined;
+  let lastReadingMode: ReadingMode | undefined;
+
+  $effect(() => {
+    const currentAyahs = ayahs;
+    const target = scrollTarget;
+    const mode = uiStore.readingMode;
+
+    const ayahsChanged = currentAyahs !== lastAyahs;
+    const targetChanged = target !== lastScrollTarget;
+    const modeChanged = mode !== lastReadingMode;
+
+    lastAyahs = currentAyahs;
+    lastScrollTarget = target;
+    lastReadingMode = mode;
+
+    if (ayahsChanged || targetChanged) {
+      // A route change or an explicit jump (Go To, deep link, resume) always
+      // wins over wherever the reader happened to be sitting.
+      if (ayahsChanged) readerPosition.reset();
+      viewTarget = target;
+    } else if (modeChanged) {
+      // untrack: the position updates on every scroll, and re-running this on
+      // each of those would re-fire the scroll and pin the view in place. The
+      // previous target is read the same way, so this effect never depends on
+      // the very state it writes.
+      viewTarget = untrack(() => readerPosition.ayahId ?? viewTarget) ?? target;
+    }
+  });
 </script>
 
 <div class="reader-page">
   {#if uiStore.readingMode === 'mushaf'}
-    <PageView {ayahs} scrollToAyahId={scrollTarget} />
+    <PageView {ayahs} scrollToAyahId={viewTarget} />
   {:else}
-    <ReaderView {ayahs} scrollToAyahId={scrollTarget} />
+    <ReaderView {ayahs} scrollToAyahId={viewTarget} />
   {/if}
   <ProgressIndicator />
   <AutoScrollHandle />

@@ -10,6 +10,8 @@
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
+  import { readerPosition } from '$lib/stores/reader-position.svelte';
+  import { observeCenteredAyah } from '$lib/utils/centered-ayah';
 
   let {
     ayahs,
@@ -50,6 +52,11 @@
   // page that opens it, so it's within the same page range as its Ayahs.
   const basmalaWords = new SvelteMap<number, GlyphSpan[]>();
   let basmalaFontFamily = $state<string | null>(null);
+  // Rows render empty until the glyph words below have been fetched, so they
+  // collapse to a fraction of their real height. Scrolling to an Ayah before
+  // then measures those stub rows and lands nowhere near it — positioning waits
+  // on this flag.
+  let wordsReady = $state(false);
 
   const firstPage = $derived(ayahs[0]?.page ?? 1);
   const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
@@ -58,6 +65,7 @@
     const start = firstPage;
     const end = lastPage;
     let cancelled = false;
+    wordsReady = false;
 
     (async () => {
       const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
@@ -98,6 +106,7 @@
           }
         }
       }
+      wordsReady = true;
     })();
 
     return () => {
@@ -112,12 +121,10 @@
     return i > 0 && ayahs[i].juz !== ayahs[i - 1].juz;
   }
 
-  function onIntersect(entries: IntersectionObserverEntry[]) {
-    const visible = entries
-      .filter((e) => e.isIntersecting)
-      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-    if (!visible) return;
-    const id = Number(visible.target.id.replace('ayah-', ''));
+  function onCenteredAyah(id: number) {
+    // Published immediately so a Mushaf/list toggle can pick it up, while
+    // last-read stays debounced — that one hits the settings store on disk.
+    readerPosition.ayahId = id;
     const ayah = ayahs.find((a) => a.id === id);
     if (!ayah) return;
     clearTimeout(lastReadTimer);
@@ -133,10 +140,17 @@
     progressStore.update(fraction, a?.juz ?? null, a?.hizb ?? null);
   }
 
-  // Re-run scroll positioning and intersection tracking whenever the ayah list changes (surah navigation).
+  // Whether this instance has already placed itself once. The first placement
+  // is a mount — resuming a Surah, or the Mushaf/list toggle rebuilding this
+  // view — and jumping there instantly is right; only later target changes
+  // (Go To within the open Surah) read as navigation worth easing.
+  let hasPositioned = false;
+
+  // Re-run scroll positioning and centre tracking whenever the ayah list changes (surah navigation).
   $effect(() => {
     const current = ayahs;
     const targetId = scrollToAyahId;
+    if (!wordsReady) return;
     let observer: IntersectionObserver | undefined;
 
     (async () => {
@@ -146,13 +160,18 @@
       if (targetId) {
         document
           .getElementById(`ayah-${targetId}`)
-          ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          ?.scrollIntoView({ block: 'center', behavior: hasPositioned ? 'smooth' : 'auto' });
       } else {
         container.scrollTo({ top: 0 });
       }
+      hasPositioned = true;
 
-      observer = new IntersectionObserver(onIntersect, { root: container, threshold: [0.6] });
-      container.querySelectorAll('[id^="ayah-"]').forEach((el) => observer!.observe(el));
+      observer = observeCenteredAyah(
+        container,
+        container.querySelectorAll('.ayah-row'),
+        'data-ayah-id',
+        onCenteredAyah,
+      );
 
       container.addEventListener('scroll', updateProgress, { passive: true });
       updateProgress();

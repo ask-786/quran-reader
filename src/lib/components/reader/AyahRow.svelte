@@ -23,7 +23,13 @@
   }
 </script>
 
-<div class="ayah-row" id="ayah-{ayah.id}" data-page={ayah.page} data-juz={ayah.juz}>
+<div
+  class="ayah-row"
+  id="ayah-{ayah.id}"
+  data-ayah-id={ayah.id}
+  data-page={ayah.page}
+  data-juz={ayah.juz}
+>
   <div class="ayah-actions">
     <button
       class="action-btn"

@@ -7,6 +7,8 @@
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
+  import { readerPosition } from '$lib/stores/reader-position.svelte';
+  import { observeCenteredAyah } from '$lib/utils/centered-ayah';
   import SurahHeader from './SurahHeader.svelte';
 
   let {
@@ -56,6 +58,7 @@
     pages = [];
 
     let cancelled = false;
+    let observer: IntersectionObserver | undefined;
 
     (async () => {
       try {
@@ -85,6 +88,13 @@
           container.scrollTo({ top: 0 });
         }
 
+        observer = observeCenteredAyah(
+          container,
+          container.querySelectorAll('[data-line-ayah-id]'),
+          'data-line-ayah-id',
+          (id) => (readerPosition.ayahId = id),
+        );
+
         container.addEventListener('scroll', updateProgress, { passive: true });
         updateProgress();
       } catch (err) {
@@ -96,6 +106,7 @@
 
     return () => {
       cancelled = true;
+      observer?.disconnect();
       container?.removeEventListener('scroll', updateProgress);
     };
   });
@@ -160,7 +171,15 @@
               {:else if line.line_type === 'basmala'}
                 <!-- rendered as part of the preceding surah_header, above -->
               {:else}
-                <div class="line text-line" style:font-family={p.fontFamily}>
+                <!-- Individual words are too many to observe (thousands per
+                     Surah), so centre tracking runs a line at a time, tagged
+                     with the Ayah the line opens on. -->
+                {@const lineAyahId = line.words.find((w) => w.ayah_id !== null)?.ayah_id}
+                <div
+                  class="line text-line"
+                  data-line-ayah-id={lineAyahId}
+                  style:font-family={p.fontFamily}
+                >
                   {#each line.words as w (w.position)}
                     <span
                       class="word"
