@@ -68,6 +68,9 @@
         case 'f':
           uiStore.toggleFocusMode();
           break;
+        case 'm':
+          uiStore.toggleReadingMode();
+          break;
         case 'n':
           navigateAdjacent(1);
           break;
