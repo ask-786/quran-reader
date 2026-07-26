@@ -12,6 +12,8 @@
   let errorMsg = $state('');
   let inputEl = $state<HTMLInputElement>();
 
+  const inSurahMode = $derived($page.route.id === '/surah/[id]');
+
   $effect(() => {
     if (uiStore.goToOpen) {
       value = '';
@@ -37,6 +39,9 @@
     }
 
     if (/^\d{1,3}$/.test(trimmed)) {
+      // A bare number only makes sense as "ayah in the current surah" — in
+      // Juz/Hizb mode there's no single surah to resolve it against.
+      if ($page.route.id !== '/surah/[id]') return null;
       const currentSurahId = Number($page.params.id);
       if (!currentSurahId) return null;
       return { type: 'ayah', surahId: currentSurahId, ayahNumber: Number(trimmed) };
@@ -93,12 +98,15 @@
         bind:this={inputEl}
         bind:value
         type="text"
-        placeholder="e.g. 255, 2:255, or p255"
+        placeholder={inSurahMode ? 'e.g. 255, 2:255, or p255' : 'e.g. 2:255, or p255'}
         class="input"
         autocomplete="off"
       />
       <p class="hint" class:error={!!errorMsg}>
-        {errorMsg || 'Ayah in this surah, Surah:Ayah, or p + Page number'}
+        {errorMsg ||
+          (inSurahMode
+            ? 'Ayah in this surah, Surah:Ayah, or p + Page number'
+            : 'Surah:Ayah, or p + Page number')}
       </p>
     </form>
   </div>
