@@ -27,12 +27,17 @@
 
   // Ayah lists can span multiple Surahs (Juz/Hizb browsing), so a header is
   // rendered per contiguous run of one Surah's Ayahs, keyed by its start index.
+  // A Juz/Hizb/Page range can also open partway into a Surah (Juz 2 begins at
+  // Al-Baqara 142), and a banner + Bismillah there would announce an opening
+  // that isn't one — so a run only gets a header if it starts at Ayah 1.
   const segments = $derived.by(() => {
     const map = new SvelteMap<number, { surah?: Surah }>();
     let segStart = 0;
     for (let i = 1; i <= ayahs.length; i++) {
       if (i === ayahs.length || ayahs[i].surah_id !== ayahs[segStart].surah_id) {
-        map.set(segStart, { surah: surahsStore.get(ayahs[segStart].surah_id) });
+        if (ayahs[segStart].ayah_number === 1) {
+          map.set(segStart, { surah: surahsStore.get(ayahs[segStart].surah_id) });
+        }
         segStart = i;
       }
     }
