@@ -1,9 +1,14 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { SvelteMap } from 'svelte/reactivity';
-  import { getPage } from '$lib/api/db';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+  import { loadPages } from '$lib/api/page-cache';
   import type { Ayah, MushafPage } from '$lib/types/database';
-  import { loadPageFonts, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
+  import {
+    ensurePageFont,
+    familyForPage,
+    loadBasmalaFont,
+    trimPageFonts,
+  } from '$lib/utils/mushaf-fonts';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
@@ -19,8 +24,6 @@
     scrollToAyahId?: number;
   } = $props();
 
-  type LoadedPage = { page: number; data: MushafPage; fontFamily: string | null };
-
   // Al-Fatihah and the opening of Al-Baqarah are set apart in the printed
   // Madani Mushaf: 8 lines instead of 15, each one centred inside the page's
   // decorative frame rather than justified edge-to-edge. Stretching those
@@ -30,12 +33,31 @@
   // centred, and it is a property of the printed Mushaf, not of our data.
   const CENTERED_PAGES = new Set([1, 2]);
 
-  let pages = $state<LoadedPage[]>([]);
+  // How far either side of the visible pages to render glyphs and load fonts,
+  // and how far out to let a page stay rendered before it's dropped again.
+  // The gap between the two is hysteresis: without it, a page sitting exactly
+  // on the boundary would load and unload on every few pixels of scroll.
+  // KEEP_RADIUS also has to outrun auto-scroll, which can cross a page in a
+  // couple of seconds — the render radius is what it actually reads from.
+  const RENDER_RADIUS = 3;
+  const KEEP_RADIUS = 8;
+
+  let pages = $state<MushafPage[]>([]);
   let basmalaFontFamily = $state<string | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let container = $state<HTMLDivElement>();
   let content = $state<HTMLDivElement>();
+
+  /**
+   * Pages whose word glyphs are currently in the DOM. Everything outside this
+   * set still renders its line boxes — see the `.line` markup below — so the
+   * document height, and therefore every scroll position, is identical
+   * whether or not a page's glyphs are loaded.
+   */
+  const renderedPages = new SvelteSet<number>();
+  /** The page range `renderedPages` is scoped to. */
+  let loadedRangeKey: string | null = null;
 
   const firstPage = $derived(ayahs[0]?.page ?? 1);
   const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
@@ -49,6 +71,30 @@
     return map;
   });
 
+  /**
+   * Ayah id -> the id of the line element its first word sits on. Scroll
+   * targets have to resolve through this rather than through a word span:
+   * word spans only exist for rendered pages, but every line box always
+   * exists, so this lookup works for any Ayah in the range at any time.
+   */
+  const lineForAyah = $derived.by(() => {
+    const map = new SvelteMap<number, string>();
+    for (const p of pages) {
+      for (const line of p.lines) {
+        if (line.line_type !== 'text') continue;
+        for (const w of line.words) {
+          if (w.ayah_id === null || map.has(w.ayah_id)) continue;
+          map.set(w.ayah_id, `line-${p.page}-${line.line_number}`);
+        }
+      }
+    }
+    return map;
+  });
+
+  function lineAyahId(words: { ayah_id: number | null }[]) {
+    return words.find((w) => w.ayah_id !== null)?.ayah_id;
+  }
+
   function updateProgress() {
     if (!container || ayahs.length === 0) return;
     const max = container.scrollHeight - container.clientHeight;
@@ -58,41 +104,98 @@
     progressStore.update(fraction, a?.juz ?? null, a?.hizb ?? null);
   }
 
+  /**
+   * Bring the render window in line with what's on screen: load fonts for
+   * pages that have come within RENDER_RADIUS, and drop pages that have
+   * fallen outside KEEP_RADIUS. Called from the visibility observer rather
+   * than an $effect, so it can write `renderedPages` without depending on it.
+   */
+  function syncWindow(visible: Set<number>) {
+    if (visible.size === 0) return;
+    const lo = Math.min(...visible);
+    const hi = Math.max(...visible);
+
+    for (
+      let p = Math.max(firstPage, lo - RENDER_RADIUS);
+      p <= Math.min(lastPage, hi + RENDER_RADIUS);
+      p++
+    ) {
+      if (renderedPages.has(p)) continue;
+      const target = p;
+      void ensurePageFont(target).then(() => {
+        // The window may have moved on, or the view been torn down, while the
+        // font was in flight — only commit if the page is still wanted.
+        if (target >= lo - KEEP_RADIUS && target <= hi + KEEP_RADIUS) renderedPages.add(target);
+      });
+    }
+
+    for (const p of renderedPages) {
+      if (p < lo - KEEP_RADIUS || p > hi + KEEP_RADIUS) renderedPages.delete(p);
+    }
+
+    trimPageFonts(renderedPages);
+  }
+
+  /** Which pages the target Ayah needs on screen before it can be scrolled to. */
+  function pageOfAyah(ayahId: number | undefined) {
+    if (ayahId === undefined) return firstPage;
+    return ayahs.find((a) => a.id === ayahId)?.page ?? firstPage;
+  }
+
   $effect(() => {
     const start = firstPage;
     const end = lastPage;
     const targetId = scrollToAyahId;
     loading = true;
     error = null;
-    pages = [];
 
     let cancelled = false;
     let observer: IntersectionObserver | undefined;
+    let visibility: IntersectionObserver | undefined;
 
     (async () => {
       try {
-        const basmalaFamily = await loadBasmalaFont();
-        if (cancelled) return;
-        basmalaFontFamily = basmalaFamily;
-
-        const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-        const [pageData, fontFamilies] = await Promise.all([
-          Promise.all(pageNumbers.map((p) => getPage(p))),
-          loadPageFonts(pageNumbers),
+        // Layout data for the whole range in one call — it's small (the whole
+        // of Al-Baqara is ~6k word rows) and cached across view toggles, so
+        // this is what makes the line boxes, and every scroll offset derived
+        // from them, correct before any glyph has been fetched.
+        const [loaded, basmalaFamily] = await Promise.all([
+          loadPages(start, end),
+          loadBasmalaFont(),
         ]);
         if (cancelled) return;
-        pages = pageNumbers.map((p, i) => ({
-          page: p,
-          data: pageData[i],
-          fontFamily: fontFamilies.get(p) ?? null,
-        }));
+        basmalaFontFamily = basmalaFamily;
+        pages = loaded;
+
+        // Only a genuinely different page range resets the render window. This
+        // effect also re-runs when just the scroll target changes — a Go To
+        // inside the open Surah — and clearing there would blank every page on
+        // screen and reload the fonts it already had.
+        const rangeKey = `${start}-${end}`;
+        if (rangeKey !== loadedRangeKey) {
+          loadedRangeKey = rangeKey;
+          renderedPages.clear();
+        }
+
+        // Only the pages around the landing spot are fetched before the first
+        // paint. Loading the whole range's fonts up front was the reader's
+        // startup stall: 48 files and 5.9MB for Al-Baqara, versus 3 files and
+        // ~350KB here. The rest stream in from syncWindow as they're scrolled
+        // towards.
+        const target = pageOfAyah(targetId);
+        const seedLo = Math.max(start, target - 1);
+        const seedHi = Math.min(end, target + 1);
+        const seeds: number[] = [];
+        for (let p = seedLo; p <= seedHi; p++) seeds.push(p);
+        await Promise.all(seeds.map((p) => ensurePageFont(p)));
+        if (cancelled) return;
+        for (const p of seeds) renderedPages.add(p);
 
         await tick();
         if (cancelled || !container) return;
-        if (targetId) {
-          container
-            .querySelector(`[data-ayah-id="${targetId}"]`)
-            ?.scrollIntoView({ block: 'center' });
+
+        if (targetId !== undefined && lineForAyah.has(targetId)) {
+          document.getElementById(lineForAyah.get(targetId)!)?.scrollIntoView({ block: 'center' });
         } else {
           container.scrollTo({ top: 0 });
         }
@@ -103,6 +206,26 @@
           'data-line-ayah-id',
           (id) => (readerPosition.ayahId = id),
         );
+
+        // Drives the render window. The generous rootMargin means a page
+        // counts as visible a full viewport before it actually is, giving its
+        // font time to arrive before any glyph is needed. IntersectionObserver
+        // only reports pages whose state *changed*, so the running set is kept
+        // here rather than recomputed from the DOM on every callback.
+        // eslint-disable-next-line svelte/prefer-svelte-reactivity -- observer bookkeeping, never rendered
+        const visiblePages = new Set<number>();
+        visibility = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              const page = Number((entry.target as HTMLElement).dataset.page);
+              if (entry.isIntersecting) visiblePages.add(page);
+              else visiblePages.delete(page);
+            }
+            syncWindow(visiblePages);
+          },
+          { root: container, rootMargin: '100% 0px', threshold: 0 },
+        );
+        for (const el of container.querySelectorAll('.mushaf-page')) visibility.observe(el);
 
         container.addEventListener('scroll', updateProgress, { passive: true });
         updateProgress();
@@ -116,6 +239,7 @@
     return () => {
       cancelled = true;
       observer?.disconnect();
+      visibility?.disconnect();
       container?.removeEventListener('scroll', updateProgress);
     };
   });
@@ -164,12 +288,12 @@
               >
             </div>
           {/if}
-          <div class="mushaf-page" dir="rtl">
-            {#each p.data.lines as line, li (line.line_number)}
+          <div class="mushaf-page" data-page={p.page} dir="rtl">
+            {#each p.lines as line, li (line.line_number)}
               {#if line.line_type === 'surah_header'}
                 {@const headerSurah =
                   line.surah_id !== null ? surahsStore.get(line.surah_id) : undefined}
-                {@const nextLine = p.data.lines[li + 1]}
+                {@const nextLine = p.lines[li + 1]}
                 {#if headerSurah}
                   <SurahHeader
                     surah={headerSurah}
@@ -182,22 +306,31 @@
               {:else}
                 <!-- Individual words are too many to observe (thousands per
                      Surah), so centre tracking runs a line at a time, tagged
-                     with the Ayah the line opens on. -->
-                {@const lineAyahId = line.words.find((w) => w.ayah_id !== null)?.ayah_id}
+                     with the Ayah the line opens on.
+
+                     The line box is always rendered, even for pages outside
+                     the glyph window: its height comes from `min-height` and
+                     `line-height`, never from its contents, so an empty line
+                     and a full one are exactly the same height. That is what
+                     lets pages load and unload as you scroll without ever
+                     moving the content around them. -->
                 <div
+                  id="line-{p.page}-{line.line_number}"
                   class="line text-line"
                   class:centered={CENTERED_PAGES.has(p.page)}
-                  data-line-ayah-id={lineAyahId}
-                  style:font-family={p.fontFamily}
+                  data-line-ayah-id={lineAyahId(line.words)}
+                  style:font-family={familyForPage(p.page)}
                 >
-                  {#each line.words as w (w.position)}
-                    <span
-                      class="word"
-                      data-ayah-id={w.ayah_id}
-                      aria-label={w.uthmani_text}
-                      title={w.uthmani_text}>{w.glyph_v2}</span
-                    >
-                  {/each}
+                  {#if renderedPages.has(p.page)}
+                    {#each line.words as w (w.position)}
+                      <span
+                        class="word"
+                        data-ayah-id={w.ayah_id}
+                        aria-label={w.uthmani_text}
+                        title={w.uthmani_text}>{w.glyph_v2}</span
+                      >
+                    {/each}
+                  {/if}
                 </div>
               {/if}
             {/each}
@@ -275,6 +408,11 @@
   .line {
     display: flex;
     align-items: baseline;
+    /* Load-bearing for windowed rendering, not just spacing: this is what
+       fixes a line's height independently of whether its glyphs are in the
+       DOM. The flex children are single-line spans whose height is 2.5em
+       (line-height) — under this floor — so the box measures 2.6em whether
+       it holds a full line of Quran or nothing at all. */
     min-height: 2.6em;
   }
 

@@ -50,6 +50,7 @@ pub fn run() {
             commands::get_ayahs_for_juz,
             commands::get_ayahs_for_hizb,
             commands::get_page,
+            commands::get_pages,
             commands::search_arabic,
             commands::get_bookmarks,
             commands::toggle_bookmark,

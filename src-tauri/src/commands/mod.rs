@@ -82,6 +82,12 @@ pub fn get_page(state: State<AppDb>, page: u32) -> Result<MushafPage, String> {
     queries::get_page(&conn, page).map_err(e)
 }
 
+#[tauri::command]
+pub fn get_pages(state: State<AppDb>, start: u32, end: u32) -> Result<Vec<MushafPage>, String> {
+    let conn = db!(state);
+    queries::get_pages(&conn, start, end).map_err(e)
+}
+
 // =============================================================================
 // SEARCH COMMANDS
 // =============================================================================

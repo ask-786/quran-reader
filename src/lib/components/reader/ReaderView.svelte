@@ -1,9 +1,9 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { SvelteMap } from 'svelte/reactivity';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import type { Ayah, AyahGlyphWord, GlyphSpan, Surah } from '$lib/types/database';
-  import { getPage } from '$lib/api/db';
-  import { loadPageFonts, loadBasmalaFont } from '$lib/utils/mushaf-fonts';
+  import { loadPages } from '$lib/api/page-cache';
+  import { ensurePageFont, loadBasmalaFont, trimPageFonts } from '$lib/utils/mushaf-fonts';
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
@@ -24,6 +24,10 @@
     showTranslation?: boolean;
     scrollToAyahId?: number;
   } = $props();
+
+  // See PageView for the reasoning behind the two radii.
+  const RENDER_RADIUS = 3;
+  const KEEP_RADIUS = 8;
 
   // Ayah lists can span multiple Surahs (Juz/Hizb browsing), so a header is
   // rendered per contiguous run of one Surah's Ayahs, keyed by its start index.
@@ -64,61 +68,94 @@
   // fallback, which would otherwise paint and then swap to the QCF glyphs.
   let wordsReady = $state(false);
 
+  /** Pages whose Ayah rows currently have their glyph spans in the DOM. */
+  const renderedPages = new SvelteSet<number>();
+
+  /**
+   * Measured pixel height of each rendered row, so a row that leaves the
+   * window can hold exactly the space it occupied. Unlike the Mushaf view —
+   * where a line box is a fixed 2.6em whatever it contains — list rows wrap,
+   * so their height genuinely depends on their content and has to be observed
+   * rather than derived.
+   */
+  // Deliberately a plain Map, not a SvelteMap: it's written on every row
+  // measurement, and making those writes reactive would re-render the whole
+  // list each time. Reserved heights are read during a render that some other
+  // reactive change (renderedPages) has already triggered, so the latest
+  // values are always picked up without this needing to signal anything.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const rowHeights = new Map<number, number>();
+  /**
+   * Mean height per word across measured rows, used to size rows that have
+   * never been rendered. Reactive, so the very first measurements replace the
+   * initial guess for every row still waiting — but only republished when it
+   * moves materially, since each publish re-renders the whole list.
+   */
+  let avgHeightPerWord = $state(0);
+  let runningAvg = 0;
+  let measuredRows = 0;
+  /** The page range the glyph maps below were built for. */
+  let loadedRangeKey: string | null = null;
+
   const firstPage = $derived(ayahs[0]?.page ?? 1);
   const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
 
-  $effect(() => {
-    const start = firstPage;
-    const end = lastPage;
-    let cancelled = false;
-    wordsReady = false;
+  function wordCount(ayahId: number) {
+    return ayahWords.get(ayahId)?.length ?? 0;
+  }
 
-    (async () => {
-      const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-      const [pageData, fontFamilies, basmalaFamily] = await Promise.all([
-        Promise.all(pageNumbers.map((p) => getPage(p))),
-        loadPageFonts(pageNumbers),
-        loadBasmalaFont(),
-      ]);
-      if (cancelled) return;
-      basmalaFontFamily = basmalaFamily;
+  /** Reserved height for a row whose glyphs aren't rendered. */
+  function reservedHeight(ayahId: number): number {
+    const measured = rowHeights.get(ayahId);
+    if (measured !== undefined) return measured;
+    if (avgHeightPerWord > 0) return Math.max(48, wordCount(ayahId) * avgHeightPerWord);
+    return 96;
+  }
 
-      ayahWords.clear();
-      basmalaWords.clear();
-      let pendingHeaderSurahId: number | null = null;
-      for (const data of pageData) {
-        const fontFamily = fontFamilies.get(data.page) ?? null;
-        for (const line of data.lines) {
-          if (line.line_type === 'surah_header') {
-            pendingHeaderSurahId = line.surah_id;
-            continue;
-          }
-          if (line.line_type === 'basmala') {
-            if (pendingHeaderSurahId !== null) basmalaWords.set(pendingHeaderSurahId, line.words);
-            pendingHeaderSurahId = null;
-            continue;
-          }
-          if (line.line_type !== 'text') continue;
-          for (const w of line.words) {
-            if (w.ayah_id === null) continue;
-            const word: AyahGlyphWord = {
-              uthmani_text: w.uthmani_text,
-              glyph_v2: w.glyph_v2,
-              fontFamily,
-            };
-            const list = ayahWords.get(w.ayah_id);
-            if (list) list.push(word);
-            else ayahWords.set(w.ayah_id, [word]);
-          }
-        }
-      }
-      wordsReady = true;
-    })();
+  /** Fold one row's real height into the table and the running mean. */
+  function measureRow(ayahId: number, height: number) {
+    if (height <= 0) return;
+    rowHeights.set(ayahId, height);
+    const words = wordCount(ayahId);
+    if (words === 0) return;
+    measuredRows++;
+    runningAvg += (height / words - runningAvg) / measuredRows;
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  });
+  /**
+   * Republish the mean if it has drifted materially. This resizes every
+   * unmeasured row at once — including the ones above the viewport — so it has
+   * to be bracketed by withStableScroll. Left uncompensated it walks the view
+   * off whatever it was looking at, which is precisely what a Mushaf/list
+   * toggle used to do the instant the first measurements arrived.
+   */
+  function publishAvg() {
+    if (measuredRows === 0) return;
+    const drift =
+      avgHeightPerWord === 0
+        ? Infinity
+        : Math.abs(runningAvg - avgHeightPerWord) / avgHeightPerWord;
+    if (drift > 0.05) void withStableScroll(() => (avgHeightPerWord = runningAvg));
+  }
+
+  /**
+   * Measure the rows already on screen and publish the mean *before* the view
+   * positions itself. Without this, first paint sizes every unrendered row
+   * with the fallback guess — a flat 96px for Ayahs that run from one word to
+   * 128 — and the measurements landing a moment later reflow the entire list
+   * under a view that has already scrolled to its target. Applied straight
+   * rather than through withStableScroll: there is no scroll position worth
+   * preserving yet, and deferring it would let the landing happen first.
+   */
+  function primeHeights() {
+    if (!container) return;
+    for (const el of container.querySelectorAll<HTMLElement>('.ayah-row')) {
+      const id = Number(el.dataset.ayahId);
+      const page = Number(el.dataset.page);
+      if (Number.isFinite(id) && renderedPages.has(page)) measureRow(id, el.offsetHeight);
+    }
+    if (measuredRows > 0) avgHeightPerWord = runningAvg;
+  }
 
   function pageChanged(i: number) {
     return i > 0 && ayahs[i].page !== ayahs[i - 1].page;
@@ -146,6 +183,228 @@
     progressStore.update(fraction, a?.juz ?? null, a?.hizb ?? null);
   }
 
+  /**
+   * The row nearest the top of the viewport, used to hold the view still
+   * across a window change. Reserved heights are estimates until a row has
+   * been rendered once, so filling in or dropping rows *above* the viewport
+   * shifts everything below by the estimation error. Re-pinning this row
+   * afterwards absorbs that shift, which is what keeps scrolling smooth
+   * instead of visibly lurching as the window moves.
+   */
+  function anchorRow(): { el: Element; top: number } | null {
+    if (!container) return null;
+    const rootTop = container.getBoundingClientRect().top;
+    let best: Element | null = null;
+    let bestTop = 0;
+    let bestD = Infinity;
+    for (const el of container.querySelectorAll('.ayah-row')) {
+      const top = el.getBoundingClientRect().top;
+      const d = Math.abs(top - rootTop);
+      if (d < bestD) {
+        bestD = d;
+        best = el;
+        bestTop = top;
+      }
+    }
+    return best ? { el: best, top: bestTop } : null;
+  }
+
+  /**
+   * Run a change that alters reserved row heights while holding the view
+   * still: capture the anchor, apply, let the DOM settle, then put the anchor
+   * back where it was. Every such change goes through here — pages entering
+   * and leaving the window, and the mean-height republish alike.
+   *
+   * Rounds are chained rather than allowed to overlap. Two in flight would
+   * each capture an anchor and each correct scrollTop for the same shift,
+   * applying it twice.
+   */
+  let anchorChain: Promise<void> = Promise.resolve();
+
+  function withStableScroll(apply: () => void): Promise<void> {
+    const round = anchorChain.then(async () => {
+      if (!container) {
+        apply();
+        return;
+      }
+      const anchor = anchorRow();
+      apply();
+      await tick();
+      if (anchor && container?.contains(anchor.el)) {
+        container.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
+      }
+    });
+    // A failed round must not poison every round after it.
+    anchorChain = round.catch(() => {});
+    return round;
+  }
+
+  /**
+   * The Ayah this view was told to land on, held until the first window sync
+   * has settled. Landing happens against estimated heights for everything
+   * outside the seeded pages; re-asserting once those have been filled in and
+   * measured makes the final position exact rather than merely close.
+   */
+  let unsettledTargetId: number | null = null;
+
+  function reassertTarget() {
+    if (unsettledTargetId === null || !container) return;
+    const el = document.getElementById(`ayah-${unsettledTargetId}`);
+    unsettledTargetId = null;
+    el?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }
+
+  // syncWindow awaits font loads, so scrolling can fire another round before
+  // the last one has committed. Two overlapping runs would each capture an
+  // anchor and each correct scrollTop, double-counting the same shift — so
+  // rounds are serialised, with only the newest pending request kept.
+  let syncing = false;
+  let pendingVisible: Set<number> | null = null;
+
+  async function syncWindow(visible: Set<number>) {
+    if (syncing) {
+      pendingVisible = new Set(visible);
+      return;
+    }
+    syncing = true;
+    try {
+      await syncWindowOnce(visible);
+      while (pendingVisible) {
+        const next = pendingVisible;
+        pendingVisible = null;
+        await syncWindowOnce(next);
+      }
+      // The window is now filled in around the landing spot, so this is the
+      // first moment the target's position is backed by real heights.
+      await anchorChain;
+      reassertTarget();
+    } finally {
+      syncing = false;
+    }
+  }
+
+  async function syncWindowOnce(visible: Set<number>) {
+    if (visible.size === 0 || !container) return;
+    const lo = Math.min(...visible);
+    const hi = Math.max(...visible);
+
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local scratch set, never rendered
+    const wanted = new Set<number>();
+    for (
+      let p = Math.max(firstPage, lo - RENDER_RADIUS);
+      p <= Math.min(lastPage, hi + RENDER_RADIUS);
+      p++
+    ) {
+      wanted.add(p);
+    }
+
+    const toAdd = [...wanted].filter((p) => !renderedPages.has(p));
+    const toDrop = [...renderedPages].filter((p) => p < lo - KEEP_RADIUS || p > hi + KEEP_RADIUS);
+    if (toAdd.length === 0 && toDrop.length === 0) return;
+
+    await Promise.all(toAdd.map((p) => ensurePageFont(p)));
+    if (!container) return;
+
+    await withStableScroll(() => {
+      for (const p of toAdd) renderedPages.add(p);
+      for (const p of toDrop) renderedPages.delete(p);
+    });
+    trimPageFonts(renderedPages);
+  }
+
+  $effect(() => {
+    const start = firstPage;
+    const end = lastPage;
+    const targetId = scrollToAyahId;
+    let cancelled = false;
+    wordsReady = false;
+
+    (async () => {
+      // One call for the whole range, served from the process-wide cache on a
+      // view toggle or a revisit — this is what makes flipping between the
+      // Mushaf and the list instant instead of refetching every page.
+      const [pageData, basmalaFamily] = await Promise.all([
+        loadPages(start, end),
+        loadBasmalaFont(),
+      ]);
+      if (cancelled) return;
+      basmalaFontFamily = basmalaFamily;
+
+      // Only a genuinely different page range invalidates the glyph maps and
+      // the measured heights. This effect also re-runs when just the scroll
+      // target changes — a Go To inside the open Surah — and resetting there
+      // would drop every rendered page and blank the view before rebuilding
+      // exactly what it already had.
+      const rangeKey = `${start}-${end}`;
+      if (rangeKey !== loadedRangeKey) {
+        loadedRangeKey = rangeKey;
+        ayahWords.clear();
+        basmalaWords.clear();
+        renderedPages.clear();
+        rowHeights.clear();
+        avgHeightPerWord = 0;
+        runningAvg = 0;
+        measuredRows = 0;
+      } else if (ayahWords.size > 0) {
+        // Same range, maps already built — just re-seed around the new target.
+        const targetPage = targetId ? (ayahs.find((a) => a.id === targetId)?.page ?? start) : start;
+        for (let p = Math.max(start, targetPage - 1); p <= Math.min(end, targetPage + 1); p++) {
+          await ensurePageFont(p);
+          if (cancelled) return;
+          renderedPages.add(p);
+        }
+        wordsReady = true;
+        return;
+      }
+
+      let pendingHeaderSurahId: number | null = null;
+      for (const data of pageData) {
+        for (const line of data.lines) {
+          if (line.line_type === 'surah_header') {
+            pendingHeaderSurahId = line.surah_id;
+            continue;
+          }
+          if (line.line_type === 'basmala') {
+            if (pendingHeaderSurahId !== null) basmalaWords.set(pendingHeaderSurahId, line.words);
+            pendingHeaderSurahId = null;
+            continue;
+          }
+          if (line.line_type !== 'text') continue;
+          for (const w of line.words) {
+            if (w.ayah_id === null) continue;
+            const word: AyahGlyphWord = {
+              uthmani_text: w.uthmani_text,
+              glyph_v2: w.glyph_v2,
+              // The family name is fixed per page and the font is loaded
+              // lazily, so this can be filled in before the file has arrived.
+              fontFamily: `QCF_P${String(data.page).padStart(3, '0')}`,
+            };
+            const list = ayahWords.get(w.ayah_id);
+            if (list) list.push(word);
+            else ayahWords.set(w.ayah_id, [word]);
+          }
+        }
+      }
+
+      // Seed only the pages around the landing spot; the rest stream in as
+      // they're scrolled towards. See PageView for the cost this avoids.
+      const targetPage = targetId ? (ayahs.find((a) => a.id === targetId)?.page ?? start) : start;
+      const seeds: number[] = [];
+      for (let p = Math.max(start, targetPage - 1); p <= Math.min(end, targetPage + 1); p++) {
+        seeds.push(p);
+      }
+      await Promise.all(seeds.map((p) => ensurePageFont(p)));
+      if (cancelled) return;
+      for (const p of seeds) renderedPages.add(p);
+
+      wordsReady = true;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
   // Whether this instance has already placed itself once. The first placement
   // is a mount — resuming a Surah, or the Mushaf/list toggle rebuilding this
   // view — and jumping there instantly is right; only later target changes
@@ -158,8 +417,16 @@
     const targetId = scrollToAyahId;
     if (!wordsReady) return;
     let observer: IntersectionObserver | undefined;
+    let visibility: IntersectionObserver | undefined;
+    let sizes: ResizeObserver | undefined;
 
     (async () => {
+      await tick();
+      if (!container) return;
+
+      // Size the unrendered rows from real measurements before landing, so the
+      // scroll below is computed against heights that won't shift underneath it.
+      primeHeights();
       await tick();
       if (!container) return;
 
@@ -167,6 +434,7 @@
         document
           .getElementById(`ayah-${targetId}`)
           ?.scrollIntoView({ block: 'center', behavior: hasPositioned ? 'smooth' : 'auto' });
+        unsettledTargetId = targetId;
       } else {
         container.scrollTo({ top: 0 });
       }
@@ -179,6 +447,38 @@
         onCenteredAyah,
       );
 
+      // Records the real height of every row while it's rendered, so the same
+      // row can reserve exactly that space once it leaves the window.
+      sizes = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const el = entry.target as HTMLElement;
+          const id = Number(el.dataset.ayahId);
+          const page = Number(el.dataset.page);
+          // offsetHeight, not entry.contentRect: `box-sizing: border-box` is
+          // global (app.css), so the height we later set back on the row is a
+          // border-box height and has to be measured as one — contentRect
+          // excludes the row's padding and would reserve too little.
+          if (Number.isFinite(id) && renderedPages.has(page)) measureRow(id, el.offsetHeight);
+        }
+        publishAvg();
+      });
+      for (const el of container.querySelectorAll('.ayah-row')) sizes.observe(el);
+
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- observer bookkeeping, never rendered
+      const visiblePages = new Set<number>();
+      visibility = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const page = Number((entry.target as HTMLElement).dataset.page);
+            if (entry.isIntersecting) visiblePages.add(page);
+            else visiblePages.delete(page);
+          }
+          void syncWindow(visiblePages);
+        },
+        { root: container, rootMargin: '100% 0px', threshold: 0 },
+      );
+      for (const el of container.querySelectorAll('.ayah-row')) visibility.observe(el);
+
       container.addEventListener('scroll', updateProgress, { passive: true });
       updateProgress();
     })();
@@ -186,6 +486,8 @@
     void current;
     return () => {
       observer?.disconnect();
+      visibility?.disconnect();
+      sizes?.disconnect();
       container?.removeEventListener('scroll', updateProgress);
     };
   });
@@ -241,7 +543,8 @@
       {/if}
       <AyahRow
         {ayah}
-        words={ayahWords.get(ayah.id) ?? []}
+        words={renderedPages.has(ayah.page) ? (ayahWords.get(ayah.id) ?? []) : []}
+        reservedHeight={renderedPages.has(ayah.page) ? null : reservedHeight(ayah.id)}
         translation={showTranslation ? (translations[ayah.id] ?? null) : null}
       />
     {/each}
