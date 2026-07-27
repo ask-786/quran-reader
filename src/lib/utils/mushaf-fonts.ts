@@ -1,11 +1,17 @@
 /**
  * Lazily loads the per-page QCF v2 Mushaf fonts (one font file per Mushaf
- * page — 604 files, ~48MB total) via the CSS Font Loading API instead of
- * declaring 604 @font-face rules up front. Fonts for the currently active
- * set of pages (e.g. every Mushaf page spanned by the Surah on screen) are
- * kept registered for as long as they're active; loading a new active set
- * evicts fonts left over from the previous one, so long reading sessions
- * don't grow memory unbounded.
+ * page — 604 files, ~95MB total) via the CSS Font Loading API instead of
+ * declaring 604 @font-face rules up front.
+ *
+ * Fonts are loaded one page at a time and kept in an LRU, rather than as an
+ * all-or-nothing active set. Loading a whole Surah's range up front was the
+ * reader's dominant startup cost — Al-Baqara spans 48 pages, which is 5.9MB of
+ * woff2 across 48 fetch-decompress-register cycles, all behind one
+ * `Promise.all` barrier before a single word could be painted.
+ *
+ * Eviction is deliberately conservative: a font is only ever dropped when it
+ * is outside the caller's retained set, because a page whose glyphs are still
+ * in the DOM renders as tofu the moment its font leaves `document.fonts`.
  */
 
 const BASMALA_FAMILY = 'QCF_BSML';
@@ -29,9 +35,18 @@ export function loadBasmalaFont(): Promise<string> {
   return basmalaFontPromise;
 }
 
-const loaded = new Map<string, FontFace>(); // family name -> FontFace
+/**
+ * How many page fonts to keep registered. A render window is a handful of
+ * pages, so this leaves a lot of slack for scrolling back and forth without
+ * refetching, while capping resident font memory at roughly 8MB.
+ */
+const MAX_FONTS = 64;
 
-function familyForPage(page: number): string {
+/** Insertion order is LRU order. */
+const loaded = new Map<number, FontFace>();
+const inFlight = new Map<number, Promise<string>>();
+
+export function familyForPage(page: number): string {
   return `QCF_P${String(page).padStart(3, '0')}`;
 }
 
@@ -39,37 +54,53 @@ function urlForPage(page: number): string {
   return `/fonts/mushaf/QCF_P${String(page).padStart(3, '0')}.woff2`;
 }
 
+/** True if this page's font is registered and its glyphs will render now. */
+export function isPageFontReady(page: number): boolean {
+  return loaded.has(page);
+}
+
 /**
- * Ensure fonts for exactly this set of pages are loaded and registered,
- * evicting any fonts left over from a previously active set that this one
- * doesn't need. Returns page -> font-family. Callers that render several
- * pages at once (e.g. a Surah's full continuous-scroll page range) must call
- * this with the whole set together — loading pages one at a time via
- * multiple calls would have each call evict the pages loaded by the last.
+ * Load and register one page's font, returning its family name. Concurrent
+ * callers for the same page share a single load.
  */
-export async function loadPageFonts(pages: number[]): Promise<Map<number, string>> {
-  const activeFamilies = new Set(pages.map(familyForPage));
+export function ensurePageFont(page: number): Promise<string> {
+  const family = familyForPage(page);
 
-  const result = new Map<number, string>();
-  await Promise.all(
-    pages.map(async (page) => {
-      const family = familyForPage(page);
-      if (!loaded.has(family)) {
-        const face = new FontFace(family, `url(${urlForPage(page)})`);
-        await face.load();
-        document.fonts.add(face);
-        loaded.set(family, face);
-      }
-      result.set(page, family);
-    }),
-  );
-
-  for (const [family, face] of loaded) {
-    if (!activeFamilies.has(family)) {
-      document.fonts.delete(face);
-      loaded.delete(family);
-    }
+  const hit = loaded.get(page);
+  if (hit) {
+    // Re-insert to mark as most recently used.
+    loaded.delete(page);
+    loaded.set(page, hit);
+    return Promise.resolve(family);
   }
 
-  return result;
+  let pending = inFlight.get(page);
+  if (!pending) {
+    pending = (async () => {
+      const face = new FontFace(family, `url(${urlForPage(page)})`);
+      await face.load();
+      document.fonts.add(face);
+      loaded.set(page, face);
+      return family;
+    })().finally(() => inFlight.delete(page));
+    inFlight.set(page, pending);
+  }
+  return pending;
+}
+
+/**
+ * Drop registered fonts down to the LRU cap, never touching a page in
+ * `retained`. Callers pass the set of pages whose glyphs are currently
+ * rendered; anything else is fair game once the cap is exceeded.
+ */
+export function trimPageFonts(retained: Iterable<number>): void {
+  const keep = new Set(retained);
+  if (loaded.size <= MAX_FONTS) return;
+
+  for (const [page, face] of loaded) {
+    if (loaded.size <= MAX_FONTS) break;
+    if (keep.has(page)) continue;
+    document.fonts.delete(face);
+    loaded.delete(page);
+  }
 }

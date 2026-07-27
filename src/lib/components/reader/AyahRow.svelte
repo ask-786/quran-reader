@@ -6,10 +6,17 @@
   let {
     ayah,
     words,
+    reservedHeight = null,
     translation = null,
   }: {
     ayah: Ayah;
     words: AyahGlyphWord[];
+    /**
+     * When this row is outside the render window its glyphs are dropped, and
+     * this holds the space they occupied so nothing below it moves. Null while
+     * the row is rendered, when the content sets its own height.
+     */
+    reservedHeight?: number | null;
     translation?: string | null;
   } = $props();
 
@@ -29,34 +36,41 @@
   data-ayah-id={ayah.id}
   data-page={ayah.page}
   data-juz={ayah.juz}
+  style:height={reservedHeight === null ? null : `${reservedHeight}px`}
 >
-  <div class="ayah-actions">
-    <button
-      class="action-btn"
-      class:active={bookmarked}
-      onclick={() => bookmarksStore.toggle(ayah.id)}
-      aria-pressed={bookmarked}
-      aria-label={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
-    >
-      {#if bookmarked}<BookmarkCheck size={15} />{:else}<Bookmark size={15} />{/if}
-    </button>
-    <button class="action-btn" onclick={copyText} aria-label="Copy ayah text">
-      {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
-    </button>
-  </div>
-
-  <p class="ayah-text quran-text">
-    {#each words as w, i (i)}<span
-        class="word"
-        style:font-family={w.fontFamily}
-        aria-label={w.uthmani_text}
-        title={w.uthmani_text}>{w.glyph_v2}</span
+  <!-- Outside the render window the row keeps its measured height (set above)
+       and drops everything inside it. Rendering the translation or the action
+       buttons here would overflow that reserved box, which is the one thing
+       windowing must never do. -->
+  {#if reservedHeight === null}
+    <div class="ayah-actions">
+      <button
+        class="action-btn"
+        class:active={bookmarked}
+        onclick={() => bookmarksStore.toggle(ayah.id)}
+        aria-pressed={bookmarked}
+        aria-label={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
       >
-    {/each}
-  </p>
+        {#if bookmarked}<BookmarkCheck size={15} />{:else}<Bookmark size={15} />{/if}
+      </button>
+      <button class="action-btn" onclick={copyText} aria-label="Copy ayah text">
+        {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
+      </button>
+    </div>
 
-  {#if translation}
-    <p class="ayah-translation">{translation}</p>
+    <p class="ayah-text quran-text">
+      {#each words as w, i (i)}<span
+          class="word"
+          style:font-family={w.fontFamily}
+          aria-label={w.uthmani_text}
+          title={w.uthmani_text}>{w.glyph_v2}</span
+        >
+      {/each}
+    </p>
+
+    {#if translation}
+      <p class="ayah-translation">{translation}</p>
+    {/if}
   {/if}
 </div>
 

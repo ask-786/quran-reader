@@ -23,6 +23,17 @@
   // outgoing one was showing.
   let viewTarget = $state<number | undefined>();
 
+  // Which view the template actually shows. Deliberately *not* read straight
+  // from uiStore: Svelte updates the template before running user effects, so
+  // an `{#if uiStore.readingMode}` would mount the incoming view a beat before
+  // the effect below hands it the handoff Ayah — it would come up pointed at
+  // the *previous* target. That used to be masked by the page load being slow
+  // enough that the correction always won, but the data is cached now and a
+  // warm toggle renders immediately. Writing this after `viewTarget` in the
+  // same effect run means the swap and the target land in one update, so the
+  // incoming view is correct on its very first render.
+  let renderedMode = $state<ReadingMode>(uiStore.readingMode);
+
   // Plain (non-reactive) last-seen values: the point is to tell *which* input
   // changed. Deliberately one flat $effect rather than a $derived reading the
   // position through untrack() — a derived evaluates during render, before the
@@ -57,11 +68,14 @@
       // the very state it writes.
       viewTarget = untrack(() => readerPosition.ayahId ?? viewTarget) ?? target;
     }
+
+    // Last, so the swap below never renders ahead of the target above.
+    renderedMode = mode;
   });
 </script>
 
 <div class="reader-page">
-  {#if uiStore.readingMode === 'mushaf'}
+  {#if renderedMode === 'mushaf'}
     <PageView {ayahs} scrollToAyahId={viewTarget} />
   {:else}
     <ReaderView {ayahs} scrollToAyahId={viewTarget} />

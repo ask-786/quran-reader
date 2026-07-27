@@ -64,6 +64,11 @@ export function getPage(page: number): Promise<MushafPage> {
   return invoke('get_page', { page });
 }
 
+/** Inclusive page range in a single call. Pages with no layout rows are omitted. */
+export function getPages(start: number, end: number): Promise<MushafPage[]> {
+  return invoke('get_pages', { start, end });
+}
+
 // =============================================================================
 // SEARCH
 // =============================================================================
