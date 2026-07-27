@@ -8,6 +8,7 @@
   import SurahHeader from './SurahHeader.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
@@ -490,6 +491,59 @@
       sizes?.disconnect();
       container?.removeEventListener('scroll', updateProgress);
     };
+  });
+
+  /**
+   * Reader zoom scales the Quran text in every row, so the scroll offset that
+   * was showing one Ayah points at a different one the moment it changes. This
+   * view isn't remounted on a focus toggle — the two modes just carry separate
+   * zoom levels — so it would silently keep an offset that no longer means
+   * anything. Re-centring the Ayah the centre tracker last reported is the
+   * same record-then-restore round trip a Mushaf/list toggle makes.
+   *
+   * Only on an actual change: with both modes at the same zoom the current
+   * offset is still exact, and re-centring would round it to the nearest row
+   * for nothing. `lastZoom` starts unset so the first run (mount) is skipped
+   * too — the positioning effect above does its own landing.
+   */
+  let lastZoom: number | null = null;
+
+  $effect(() => {
+    const zoom = uiStore.readerZoom;
+    const changed = lastZoom !== null && zoom !== lastZoom;
+    lastZoom = zoom;
+    if (!changed) return;
+
+    void (async () => {
+      // Focus mode also adds or removes the toolbar and sidebar in this same
+      // update; waiting for it keeps the measurements below off a half-applied
+      // layout. Nothing read after this point is tracked by the effect.
+      await tick();
+      // A window round already in flight would otherwise restore its own
+      // anchor on top of the landing below.
+      await anchorChain;
+      if (!container) return;
+
+      // Every reserved height in the table was measured at the old zoom, and
+      // the rows holding them are the ones off screen — leaving them would put
+      // the target's neighbours at the wrong distance and drift the view as
+      // they scroll back in. Re-measure what's on screen at the new zoom and
+      // republish the mean before landing, exactly as first paint does; the
+      // rows still rendered keep their natural height throughout, so nothing
+      // falls back to the crude 96px guess in between.
+      rowHeights.clear();
+      runningAvg = 0;
+      measuredRows = 0;
+      primeHeights();
+      await tick();
+      if (!container) return;
+
+      const id = readerPosition.ayahId ?? scrollToAyahId;
+      if (id != null) {
+        document.getElementById(`ayah-${id}`)?.scrollIntoView({ block: 'center' });
+      }
+      updateProgress();
+    })();
   });
 
   $effect(() => {

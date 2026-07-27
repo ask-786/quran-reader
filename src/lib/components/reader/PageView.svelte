@@ -10,6 +10,7 @@
     trimPageFonts,
   } from '$lib/utils/mushaf-fonts';
   import { surahsStore } from '$lib/stores/surahs.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
@@ -242,6 +243,40 @@
       visibility?.disconnect();
       container?.removeEventListener('scroll', updateProgress);
     };
+  });
+
+  /**
+   * Reader zoom scales every line box, so the scroll offset that was showing
+   * one line points at a different one the moment it changes. Nothing here
+   * remounts on a focus toggle — the two modes just carry separate zoom levels
+   * — so the view would silently keep an offset that no longer means anything.
+   * Re-centring the Ayah the centre tracker last reported is the same
+   * record-then-restore round trip a Mushaf/list toggle makes.
+   *
+   * Only on an actual change: with both modes at the same zoom the current
+   * offset is still exact, and re-centring would round it to the nearest line
+   * for nothing. `lastZoom` starts unset so the first run (mount) is skipped
+   * too — the load effect above does its own landing.
+   */
+  let lastZoom: number | null = null;
+
+  $effect(() => {
+    const zoom = uiStore.readerZoom;
+    const changed = lastZoom !== null && zoom !== lastZoom;
+    lastZoom = zoom;
+    if (!changed) return;
+
+    void (async () => {
+      // Focus mode also adds or removes the toolbar and sidebar in this same
+      // update; waiting for it keeps the measurement below off a half-applied
+      // layout. Nothing read after this point is tracked by the effect.
+      await tick();
+      if (!container) return;
+      const id = readerPosition.ayahId ?? scrollToAyahId;
+      const lineId = id == null ? undefined : lineForAyah.get(id);
+      if (lineId) document.getElementById(lineId)?.scrollIntoView({ block: 'center' });
+      updateProgress();
+    })();
   });
 
   $effect(() => {

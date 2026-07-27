@@ -8,6 +8,17 @@ class UiStore {
   focusMode = $state(false);
   goToOpen = $state(false);
 
+  /**
+   * The reader zoom in force right now. Normal and focus view remember separate
+   * levels, so this changes on a focus toggle without any zoom control being
+   * touched — which is why the reader views watch it to hold their position.
+   */
+  get readerZoom() {
+    return this.focusMode
+      ? settingsStore.current.reader_zoom_focus
+      : settingsStore.current.reader_zoom_normal;
+  }
+
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
   }

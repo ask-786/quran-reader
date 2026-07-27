@@ -3,11 +3,7 @@
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
 
-  let zoom = $derived(
-    uiStore.focusMode
-      ? settingsStore.current.reader_zoom_focus
-      : settingsStore.current.reader_zoom_normal,
-  );
+  let zoom = $derived(uiStore.readerZoom);
 </script>
 
 <div class="zoom-group" title={uiStore.focusMode ? 'Focus view zoom' : 'Reader text zoom'}>
