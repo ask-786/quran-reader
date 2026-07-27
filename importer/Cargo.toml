@@ -3,6 +3,7 @@ name = "quran-importer"
 version = "0.1.0"
 edition = "2021"
 description = "Tanzil data importer — converts Quran XML to the app's SQLite database"
+license = "MIT"
 
 [[bin]]
 name = "quran-importer"

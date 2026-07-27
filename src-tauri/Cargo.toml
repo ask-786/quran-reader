@@ -2,8 +2,10 @@
 name = "quran-reader"
 version = "0.1.0"
 description = "A beautiful, fast, offline-first Quran reader"
-authors = ["you"]
+authors = ["Ahmad bin Marakkar <ahmadshabeerk786@gmail.com>"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/ask-786/quran-reader"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
