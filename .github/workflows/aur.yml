@@ -76,21 +76,26 @@ jobs:
           tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
           version="${tag#v}"
 
-          install -dm700 ~/.ssh
-          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
+          # Everything here is an absolute path on purpose. OpenSSH resolves its
+          # default ~/.ssh paths from the passwd database (root -> /root), not
+          # from $HOME, and Actions sets HOME=/github/home for container jobs. A
+          # key or known_hosts written to ~/.ssh is therefore invisible to ssh,
+          # and the only symptom is "Host key verification failed" at the clone.
+          # (git itself does honour $HOME, so --global config below is fine.)
+          ssh_dir=/tmp/aur-ssh
+          install -dm700 "$ssh_dir"
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          chmod 600 "$ssh_dir/key"
 
-          # Pinned rather than ssh-keyscan'd: scanning trusts whatever answers at
-          # build time, and a silent scan failure surfaces only as an unhelpful
-          # "Host key verification failed" at the clone.
+          # Pinned rather than ssh-keyscan'd so the trust decision lives in
+          # review instead of trusting whatever answers at build time. Published
+          # at https://aur.archlinux.org/ as
           # SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4
           printf '%s %s\n' 'aur.archlinux.org' \
             'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN' \
-            > ~/.ssh/known_hosts
+            > "$ssh_dir/known_hosts"
 
-          printf 'Host aur.archlinux.org\n  User aur\n  IdentityFile ~/.ssh/aur\n  IdentitiesOnly yes\n' \
-            > ~/.ssh/config
-          ssh-keygen -lf ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $ssh_dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes"
 
           git config --global user.name 'Ahmad bin Marakkar'
           git config --global user.email 'ahmadshabeerk786@gmail.com'
