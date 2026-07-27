@@ -1,11 +1,11 @@
-use std::sync::Mutex;
-use rusqlite::Connection;
-use tauri::Manager;
 use directories::ProjectDirs;
+use rusqlite::Connection;
+use std::sync::Mutex;
+use tauri::Manager;
 
+mod commands;
 mod db;
 mod models;
-mod commands;
 
 pub use db::error::{DbError, DbResult};
 
@@ -21,22 +21,21 @@ pub fn run() {
         .setup(|app| {
             // Resolve OS-appropriate app data directory
             // e.g. ~/.local/share/com.quranreader.app/quran.db on Linux
-            let db_path = if let Some(proj) =
-                ProjectDirs::from("com", "quranreader", "QuranReader")
+            let db_path = if let Some(proj) = ProjectDirs::from("com", "quranreader", "QuranReader")
             {
                 let data_dir = proj.data_dir().to_path_buf();
                 data_dir.join("quran.db")
             } else {
                 // Fallback: store next to the binary
-                app.path().app_data_dir()
+                app.path()
+                    .app_data_dir()
                     .expect("Failed to resolve app data dir")
                     .join("quran.db")
             };
 
             log::info!("Opening database at: {:?}", db_path);
 
-            let conn = db::connection::open(&db_path)
-                .expect("Failed to open database");
+            let conn = db::connection::open(&db_path).expect("Failed to open database");
 
             app.manage(AppDb(Mutex::new(conn)));
             Ok(())

@@ -1,8 +1,8 @@
 mod fetch;
-mod parse;
-mod validate;
 mod insert;
 mod mushaf;
+mod parse;
+mod validate;
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -10,8 +10,7 @@ use std::path::PathBuf;
 /// Output database path (relative to the workspace root, resolved at runtime).
 fn db_output_path() -> PathBuf {
     // When run from `importer/` via `cargo run`, go up one level.
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .unwrap_or_else(|_| ".".to_string());
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(manifest_dir)
         .parent()
         .unwrap_or(&PathBuf::from("."))
@@ -20,8 +19,7 @@ fn db_output_path() -> PathBuf {
 }
 
 fn schema_path() -> PathBuf {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .unwrap_or_else(|_| ".".to_string());
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(manifest_dir)
         .parent()
         .unwrap_or(&PathBuf::from("."))
@@ -30,10 +28,7 @@ fn schema_path() -> PathBuf {
 }
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
-    )
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     if std::env::args().any(|a| a == "--repair-mushaf-headers") {
         let db_path = db_output_path();
@@ -87,13 +82,11 @@ fn main() -> Result<()> {
 
     // Remove stale database so we start clean
     if db_path.exists() {
-        std::fs::remove_file(&db_path)
-            .context("Failed to remove old quran.db")?;
+        std::fs::remove_file(&db_path).context("Failed to remove old quran.db")?;
         log::info!("      Removed existing quran.db");
     }
 
-    insert::write_db(&db_path, &schema_path, &quran)
-        .context("Failed to write database")?;
+    insert::write_db(&db_path, &schema_path, &quran).context("Failed to write database")?;
 
     // -----------------------------------------------------------------------
     // Step 5 — Fetch Mushaf page layout (line-by-line, QCF v2 glyphs)
@@ -105,8 +98,7 @@ fn main() -> Result<()> {
     // Step 6 — Insert Mushaf page layout
     // -----------------------------------------------------------------------
     log::info!("[6/6] Writing Mushaf page layout …");
-    mushaf::write_mushaf_layout(&db_path, &pages)
-        .context("Failed to write mushaf layout")?;
+    mushaf::write_mushaf_layout(&db_path, &pages).context("Failed to write mushaf layout")?;
 
     log::info!("");
     log::info!("=== Import complete ===");

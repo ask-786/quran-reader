@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::path::Path;
 
 use crate::parse::QuranData;
@@ -21,17 +21,18 @@ pub fn write_db(db_path: &Path, schema_path: &Path, quran: &QuranData) -> Result
     let schema_sql = std::fs::read_to_string(schema_path)
         .with_context(|| format!("Reading schema from {}", schema_path.display()))?;
 
-    let conn = Connection::open(db_path)
-        .context("Opening output database")?;
+    let conn = Connection::open(db_path).context("Opening output database")?;
 
     // Apply per-connection pragmas
-    conn.execute_batch("
+    conn.execute_batch(
+        "
         PRAGMA journal_mode = WAL;
         PRAGMA foreign_keys = ON;
         PRAGMA synchronous = NORMAL;
         PRAGMA cache_size = -32000;
         PRAGMA temp_store = MEMORY;
-    ")?;
+    ",
+    )?;
 
     // Apply schema
     log::info!("  → Applying schema …");
@@ -68,7 +69,10 @@ pub fn write_db(db_path: &Path, schema_path: &Path, quran: &QuranData) -> Result
     // -----------------------------------------------------------------------
     // Insert Ayahs (in one transaction for speed)
     // -----------------------------------------------------------------------
-    log::info!("  → Inserting {} Ayahs (this may take a moment) …", quran.ayahs.len());
+    log::info!(
+        "  → Inserting {} Ayahs (this may take a moment) …",
+        quran.ayahs.len()
+    );
     {
         let tx = conn.unchecked_transaction()?;
 
@@ -94,9 +98,7 @@ pub fn write_db(db_path: &Path, schema_path: &Path, quran: &QuranData) -> Result
                     a.page,
                     a.sajdah as i64,
                 ])
-                .with_context(|| {
-                    format!("Inserting ayah {}:{}", a.surah_id, a.ayah_number)
-                })?;
+                .with_context(|| format!("Inserting ayah {}:{}", a.surah_id, a.ayah_number))?;
 
                 if (i + 1) % 1000 == 0 {
                     log::info!("      … {}/{}", i + 1, quran.ayahs.len());
@@ -117,11 +119,7 @@ pub fn write_db(db_path: &Path, schema_path: &Path, quran: &QuranData) -> Result
     // Integrity check
     // -----------------------------------------------------------------------
     log::info!("  → Running integrity check …");
-    let result: String = conn.query_row(
-        "PRAGMA integrity_check",
-        [],
-        |row| row.get(0),
-    )?;
+    let result: String = conn.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
     if result != "ok" {
         anyhow::bail!("Integrity check failed: {result}");
     }
@@ -130,8 +128,8 @@ pub fn write_db(db_path: &Path, schema_path: &Path, quran: &QuranData) -> Result
     // Final stats
     // -----------------------------------------------------------------------
     let surah_count: u32 = conn.query_row("SELECT COUNT(*) FROM surah", [], |r| r.get(0))?;
-    let ayah_count: u32  = conn.query_row("SELECT COUNT(*) FROM ayah",  [], |r| r.get(0))?;
-    let fts_count: u32   = conn.query_row("SELECT COUNT(*) FROM fts_ayah", [], |r| r.get(0))?;
+    let ayah_count: u32 = conn.query_row("SELECT COUNT(*) FROM ayah", [], |r| r.get(0))?;
+    let fts_count: u32 = conn.query_row("SELECT COUNT(*) FROM fts_ayah", [], |r| r.get(0))?;
 
     log::info!("  → Final DB stats:");
     log::info!("      Surahs:    {}", surah_count);
@@ -141,7 +139,11 @@ pub fn write_db(db_path: &Path, schema_path: &Path, quran: &QuranData) -> Result
     // Report file size
     if let Ok(meta) = std::fs::metadata(db_path) {
         let size_kb = meta.len() / 1024;
-        log::info!("      DB size:   {} KB ({:.1} MB)", size_kb, size_kb as f64 / 1024.0);
+        log::info!(
+            "      DB size:   {} KB ({:.1} MB)",
+            size_kb,
+            size_kb as f64 / 1024.0
+        );
     }
 
     Ok(())

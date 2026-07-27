@@ -21,10 +21,7 @@ pub fn validate(quran: &QuranData) -> Result<()> {
 
 fn validate_surah_count(quran: &QuranData) -> Result<()> {
     if quran.surahs.len() != 114 {
-        bail!(
-            "Expected 114 Surahs, got {}",
-            quran.surahs.len()
-        );
+        bail!("Expected 114 Surahs, got {}", quran.surahs.len());
     }
     // Verify IDs are 1–114 with no gaps
     let ids: HashSet<u32> = quran.surahs.iter().map(|s| s.id).collect();
@@ -38,10 +35,7 @@ fn validate_surah_count(quran: &QuranData) -> Result<()> {
 
 fn validate_ayah_count(quran: &QuranData) -> Result<()> {
     if quran.ayahs.len() != 6236 {
-        bail!(
-            "Expected 6236 Ayahs, got {}",
-            quran.ayahs.len()
-        );
+        bail!("Expected 6236 Ayahs, got {}", quran.ayahs.len());
     }
     Ok(())
 }
@@ -78,7 +72,9 @@ fn validate_juz(quran: &QuranData) -> Result<()> {
         if !(1..=30).contains(&a.juz) {
             bail!(
                 "Ayah {}:{} has invalid juz={}",
-                a.surah_id, a.ayah_number, a.juz
+                a.surah_id,
+                a.ayah_number,
+                a.juz
             );
         }
     }
@@ -96,7 +92,9 @@ fn validate_hizb(quran: &QuranData) -> Result<()> {
         if !(1..=60).contains(&a.hizb) {
             bail!(
                 "Ayah {}:{} has invalid hizb={}",
-                a.surah_id, a.ayah_number, a.hizb
+                a.surah_id,
+                a.ayah_number,
+                a.hizb
             );
         }
     }
@@ -108,7 +106,9 @@ fn validate_rub_hizb(quran: &QuranData) -> Result<()> {
         if !(1..=240).contains(&a.rub_hizb) {
             bail!(
                 "Ayah {}:{} has invalid rub_hizb={}",
-                a.surah_id, a.ayah_number, a.rub_hizb
+                a.surah_id,
+                a.ayah_number,
+                a.rub_hizb
             );
         }
     }
@@ -127,7 +127,9 @@ fn validate_pages(quran: &QuranData) -> Result<()> {
         if !(1..=604).contains(&a.page) {
             bail!(
                 "Ayah {}:{} has invalid page={}",
-                a.surah_id, a.ayah_number, a.page
+                a.surah_id,
+                a.ayah_number,
+                a.page
             );
         }
     }
@@ -158,16 +160,10 @@ fn validate_sajdah(quran: &QuranData) -> Result<()> {
 fn validate_text_not_empty(quran: &QuranData) -> Result<()> {
     for a in &quran.ayahs {
         if a.uthmani_text.is_empty() {
-            bail!(
-                "Empty uthmani_text at {}:{}",
-                a.surah_id, a.ayah_number
-            );
+            bail!("Empty uthmani_text at {}:{}", a.surah_id, a.ayah_number);
         }
         if a.simple_text.is_empty() {
-            bail!(
-                "Empty simple_text at {}:{}",
-                a.surah_id, a.ayah_number
-            );
+            bail!("Empty simple_text at {}:{}", a.surah_id, a.ayah_number);
         }
     }
     Ok(())

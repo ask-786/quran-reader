@@ -1,15 +1,18 @@
 //! Tauri IPC command handlers.
 //! Each function is thin: lock the DB, call the appropriate query, map the error.
 
-use tauri::State;
-use crate::AppDb;
-use crate::db::{queries, connection};
+use crate::db::{connection, queries};
 use crate::models::*;
+use crate::AppDb;
+use tauri::State;
 
 // Helper macro to lock the DB and convert the MutexGuard error.
 macro_rules! db {
     ($state:expr) => {
-        $state.0.lock().map_err(|_| "DB mutex poisoned".to_string())?
+        $state
+            .0
+            .lock()
+            .map_err(|_| "DB mutex poisoned".to_string())?
     };
 }
 
@@ -93,7 +96,11 @@ pub fn get_pages(state: State<AppDb>, start: u32, end: u32) -> Result<Vec<Mushaf
 // =============================================================================
 
 #[tauri::command]
-pub fn search_arabic(state: State<AppDb>, query: String, limit: Option<u32>) -> Result<Vec<SearchResult>, String> {
+pub fn search_arabic(
+    state: State<AppDb>,
+    query: String,
+    limit: Option<u32>,
+) -> Result<Vec<SearchResult>, String> {
     let conn = db!(state);
     queries::search_arabic(&conn, &query, limit.unwrap_or(50)).map_err(e)
 }
@@ -109,7 +116,11 @@ pub fn get_bookmarks(state: State<AppDb>) -> Result<Vec<Bookmark>, String> {
 }
 
 #[tauri::command]
-pub fn toggle_bookmark(state: State<AppDb>, ayah_id: u32, label: Option<String>) -> Result<bool, String> {
+pub fn toggle_bookmark(
+    state: State<AppDb>,
+    ayah_id: u32,
+    label: Option<String>,
+) -> Result<bool, String> {
     let conn = db!(state);
     queries::toggle_bookmark(&conn, ayah_id, label.as_deref()).map_err(e)
 }

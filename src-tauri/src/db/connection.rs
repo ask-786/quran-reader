@@ -1,6 +1,6 @@
+use crate::db::error::DbResult;
 use rusqlite::Connection;
 use std::path::Path;
-use crate::db::error::DbResult;
 
 /// The full SQLite schema applied when no seed database is available.
 /// Embedded at compile time from `database/schema.sql`.
@@ -26,7 +26,10 @@ pub fn open(path: &Path) -> DbResult<Connection> {
     }
 
     if !path.exists() {
-        log::info!("No database found at {:?}; seeding from bundled quran.db", path);
+        log::info!(
+            "No database found at {:?}; seeding from bundled quran.db",
+            path
+        );
         std::fs::write(path, SEED_DB)?;
     }
 
@@ -55,14 +58,16 @@ pub fn open(path: &Path) -> DbResult<Connection> {
 
 /// Apply per-connection SQLite pragmas for performance and correctness.
 fn configure_connection(conn: &Connection) -> DbResult<()> {
-    conn.execute_batch("
+    conn.execute_batch(
+        "
         PRAGMA journal_mode = WAL;
         PRAGMA foreign_keys = ON;
         PRAGMA synchronous = NORMAL;
         PRAGMA cache_size = -8000;
         PRAGMA temp_store = MEMORY;
         PRAGMA mmap_size = 268435456;
-    ")?;
+    ",
+    )?;
     Ok(())
 }
 
@@ -95,7 +100,9 @@ fn get_schema_version(conn: &Connection) -> DbResult<u32> {
 fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
     if from_version < 2 {
         log::info!("  → Applying migration 002: mushaf page layout");
-        conn.execute_batch(include_str!("../../../database/migrations/002_mushaf_layout.sql"))?;
+        conn.execute_batch(include_str!(
+            "../../../database/migrations/002_mushaf_layout.sql"
+        ))?;
     }
 
     let version = get_schema_version(conn)?;

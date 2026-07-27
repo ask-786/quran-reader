@@ -13,34 +13,34 @@ use crate::fetch::RawData;
 #[derive(Debug)]
 pub struct QuranData {
     pub surahs: Vec<Surah>,
-    pub ayahs:  Vec<Ayah>,
+    pub ayahs: Vec<Ayah>,
 }
 
 #[derive(Debug)]
 pub struct Surah {
-    pub id:                  u32,
-    pub name_ar:             String,
-    pub name_en:             String,
-    pub transliteration:     String,
-    pub revelation_type:     String, // "Makki" | "Madani"
-    pub verses_count:        u32,
+    pub id: u32,
+    pub name_ar: String,
+    pub name_en: String,
+    pub transliteration: String,
+    pub revelation_type: String, // "Makki" | "Madani"
+    pub verses_count: u32,
     pub order_of_revelation: u32,
-    pub has_bismillah:       bool,
+    pub has_bismillah: bool,
 }
 
 #[derive(Debug)]
 pub struct Ayah {
-    pub surah_id:     u32,
-    pub ayah_number:  u32,
+    pub surah_id: u32,
+    pub ayah_number: u32,
     pub uthmani_text: String,
-    pub simple_text:  String,
-    pub juz:          u32,
-    pub hizb:         u32,
-    pub rub_hizb:     u32,
-    pub manzil:       u32,
-    pub ruku:         u32,
-    pub page:         u32,
-    pub sajdah:       bool,
+    pub simple_text: String,
+    pub juz: u32,
+    pub hizb: u32,
+    pub rub_hizb: u32,
+    pub manzil: u32,
+    pub ruku: u32,
+    pub page: u32,
+    pub sajdah: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -56,14 +56,14 @@ struct AlquranSurahList {
 /// One entry from alquran.cloud /v1/surah
 #[derive(Debug, Deserialize)]
 struct AlquranSurahMeta {
-    number:           u32,
-    name:             String,   // Arabic: "سُورَةُ الْفَاتِحَةِ"
+    number: u32,
+    name: String, // Arabic: "سُورَةُ الْفَاتِحَةِ"
     #[serde(rename = "englishName")]
-    english_name:     String,   // transliteration: "Al-Faatiha"
+    english_name: String, // transliteration: "Al-Faatiha"
     #[serde(rename = "numberOfAyahs")]
-    number_of_ayahs:  u32,
+    number_of_ayahs: u32,
     #[serde(rename = "revelationType")]
-    revelation_type:  String,   // "Meccan" | "Medinan"
+    revelation_type: String, // "Meccan" | "Medinan"
 }
 
 // Hardcoded revelation order (standard Uloom al-Quran order) as fallback.
@@ -228,18 +228,18 @@ pub struct AlquranData {
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct AlquranSurah {
-    pub number:                   u32,
+    pub number: u32,
     #[serde(default)]
-    pub name:                     Option<String>,
+    pub name: Option<String>,
     #[serde(rename = "englishName", default)]
-    pub english_name:             Option<String>,
+    pub english_name: Option<String>,
     #[serde(rename = "englishNameTranslation", default)]
     pub english_name_translation: Option<String>,
     #[serde(rename = "numberOfAyahs", default)]
-    pub number_of_ayahs:          Option<u32>,
+    pub number_of_ayahs: Option<u32>,
     #[serde(rename = "revelationType", default)]
-    pub revelation_type:          Option<String>,
-    pub ayahs:                    Vec<AlquranAyah>,
+    pub revelation_type: Option<String>,
+    pub ayahs: Vec<AlquranAyah>,
 }
 
 #[allow(dead_code)]
@@ -247,16 +247,16 @@ pub struct AlquranSurah {
 pub struct AlquranAyah {
     #[serde(rename = "numberInSurah")]
     pub number_in_surah: u32,
-    pub juz:             u32,
-    pub manzil:          u32,
-    pub page:            u32,
-    pub ruku:            u32,
+    pub juz: u32,
+    pub manzil: u32,
+    pub page: u32,
+    pub ruku: u32,
     #[serde(rename = "hizbQuarter")]
-    pub hizb_quarter:    u32,
+    pub hizb_quarter: u32,
     #[serde(rename = "sajda")]
-    pub sajda:           Sajda,
+    pub sajda: Sajda,
     #[serde(default)]
-    pub text:            Option<String>,
+    pub text: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -288,13 +288,13 @@ pub type MetaMap = HashMap<(u32, u32), AyahMeta>;
 
 #[derive(Debug)]
 pub struct AyahMeta {
-    pub juz:      u32,
-    pub hizb:     u32,     // computed from hizb_quarter
-    pub rub_hizb: u32,     // hizb_quarter (1–240)
-    pub manzil:   u32,
-    pub ruku:     u32,
-    pub page:     u32,
-    pub sajdah:   bool,
+    pub juz: u32,
+    pub hizb: u32,     // computed from hizb_quarter
+    pub rub_hizb: u32, // hizb_quarter (1–240)
+    pub manzil: u32,
+    pub ruku: u32,
+    pub page: u32,
+    pub sajdah: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -303,8 +303,8 @@ pub struct AyahMeta {
 
 pub fn parse(raw: &RawData) -> Result<QuranData> {
     // 1. Parse surah metadata JSON
-    let surah_meta = parse_surah_meta(&raw.surah_meta_json)
-        .context("Parsing surah metadata JSON")?;
+    let surah_meta =
+        parse_surah_meta(&raw.surah_meta_json).context("Parsing surah metadata JSON")?;
 
     // 2. Fetch and parse per-ayah metadata from alquran.cloud
     log::info!("  → Fetching per-ayah metadata from alquran.cloud …");
@@ -312,13 +312,11 @@ pub fn parse(raw: &RawData) -> Result<QuranData> {
     log::info!("      {} ayah metadata records", meta_map.len());
 
     // 3. Parse Uthmani XML
-    let uthmani_map = parse_quran_xml(&raw.uthmani_xml)
-        .context("Parsing Uthmani XML")?;
+    let uthmani_map = parse_quran_xml(&raw.uthmani_xml).context("Parsing Uthmani XML")?;
     log::info!("      {} Uthmani ayahs", uthmani_map.len());
 
     // 4. Parse Simple XML
-    let simple_map = parse_quran_xml(&raw.simple_xml)
-        .context("Parsing Simple Arabic XML")?;
+    let simple_map = parse_quran_xml(&raw.simple_xml).context("Parsing Simple Arabic XML")?;
     log::info!("      {} Simple ayahs", simple_map.len());
 
     // 5. Merge everything
@@ -331,8 +329,8 @@ pub fn parse(raw: &RawData) -> Result<QuranData> {
 
 fn parse_surah_meta(json: &str) -> Result<Vec<AlquranSurahMeta>> {
     // alquran.cloud wraps the list in {"code":200,"status":"OK","data":[...]}
-    let wrapper: AlquranSurahList = serde_json::from_str(json)
-        .context("JSON parse error for alquran.cloud /v1/surah")?;
+    let wrapper: AlquranSurahList =
+        serde_json::from_str(json).context("JSON parse error for alquran.cloud /v1/surah")?;
     Ok(wrapper.data)
 }
 
@@ -347,8 +345,8 @@ fn fetch_ayah_metadata() -> Result<MetaMap> {
     let url = "https://api.alquran.cloud/v1/quran/en.asad";
     let body = crate::fetch::get_pub(url)?;
 
-    let resp: AlquranResponse = serde_json::from_str(&body)
-        .context("JSON parse error for alquran.cloud response")?;
+    let resp: AlquranResponse =
+        serde_json::from_str(&body).context("JSON parse error for alquran.cloud response")?;
 
     let mut map = HashMap::new();
 
@@ -358,18 +356,18 @@ fn fetch_ayah_metadata() -> Result<MetaMap> {
             // hizb = ceil(hizb_quarter / 4)
             let rub_hizb = ayah.hizb_quarter;
             let hizb = ((rub_hizb as f64) / 4.0).ceil() as u32;
-            let hizb = hizb.max(1).min(60);
+            let hizb = hizb.clamp(1, 60);
 
             map.insert(
                 (surah.number, ayah.number_in_surah),
                 AyahMeta {
-                    juz:      ayah.juz,
+                    juz: ayah.juz,
                     hizb,
                     rub_hizb,
-                    manzil:   ayah.manzil,
-                    ruku:     ayah.ruku,
-                    page:     ayah.page,
-                    sajdah:   ayah.sajda.is_sajda(),
+                    manzil: ayah.manzil,
+                    ruku: ayah.ruku,
+                    page: ayah.page,
+                    sajdah: ayah.sajda.is_sajda(),
                 },
             );
         }
@@ -400,38 +398,36 @@ fn parse_quran_xml(xml: &str) -> Result<HashMap<(u32, u32), String>> {
 
     loop {
         match reader.read_event() {
-            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
-                match e.name().as_ref() {
-                    b"sura" => {
-                        for attr in e.attributes().flatten() {
-                            if attr.key.as_ref() == b"index" {
-                                let val = attr.unescape_value()?;
-                                current_surah = val.parse()?;
-                            }
+            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => match e.name().as_ref() {
+                b"sura" => {
+                    for attr in e.attributes().flatten() {
+                        if attr.key.as_ref() == b"index" {
+                            let val = attr.unescape_value()?;
+                            current_surah = val.parse()?;
                         }
                     }
-                    b"aya" => {
-                        let mut ayah_num = 0u32;
-                        let mut text = String::new();
-                        for attr in e.attributes().flatten() {
-                            match attr.key.as_ref() {
-                                b"index" => {
-                                    let val = attr.unescape_value()?;
-                                    ayah_num = val.parse()?;
-                                }
-                                b"text" => {
-                                    text = attr.unescape_value()?.into_owned();
-                                }
-                                _ => {}
-                            }
-                        }
-                        if current_surah > 0 && ayah_num > 0 && !text.is_empty() {
-                            map.insert((current_surah, ayah_num), text);
-                        }
-                    }
-                    _ => {}
                 }
-            }
+                b"aya" => {
+                    let mut ayah_num = 0u32;
+                    let mut text = String::new();
+                    for attr in e.attributes().flatten() {
+                        match attr.key.as_ref() {
+                            b"index" => {
+                                let val = attr.unescape_value()?;
+                                ayah_num = val.parse()?;
+                            }
+                            b"text" => {
+                                text = attr.unescape_value()?.into_owned();
+                            }
+                            _ => {}
+                        }
+                    }
+                    if current_surah > 0 && ayah_num > 0 && !text.is_empty() {
+                        map.insert((current_surah, ayah_num), text);
+                    }
+                }
+                _ => {}
+            },
             Ok(Event::Eof) => break,
             Err(e) => bail!("XML parse error: {e}"),
             _ => {}
@@ -463,7 +459,7 @@ fn assemble(
     meta_map: MetaMap,
 ) -> Result<QuranData> {
     let mut surahs = Vec::with_capacity(114);
-    let mut ayahs  = Vec::new();
+    let mut ayahs = Vec::new();
 
     // Sort surah meta by number
     let mut sorted_meta = surah_meta;
@@ -484,9 +480,9 @@ fn assemble(
         let name_en = transliteration.clone(); // same source; can be refined later
 
         let revelation_type = normalize_revelation_type(&sm.revelation_type);
-        let verses_count    = sm.number_of_ayahs;
+        let verses_count = sm.number_of_ayahs;
         let order_of_revelation = revelation_order(sid);
-        let has_bismillah   = sid != 9;
+        let has_bismillah = sid != 9;
 
         surahs.push(Surah {
             id: sid,
@@ -503,24 +499,22 @@ fn assemble(
         for ayah_num in 1..=verses_count {
             let key = (sid, ayah_num);
 
-            let uthmani_text = uthmani_map.get(&key)
-                .cloned()
-                .unwrap_or_else(|| {
-                    log::warn!("Missing uthmani text for {sid}:{ayah_num}");
-                    String::new()
-                });
+            let uthmani_text = uthmani_map.get(&key).cloned().unwrap_or_else(|| {
+                log::warn!("Missing uthmani text for {sid}:{ayah_num}");
+                String::new()
+            });
 
-            let simple_text = simple_map.get(&key)
-                .cloned()
-                .unwrap_or_else(|| {
-                    log::warn!("Missing simple text for {sid}:{ayah_num}");
-                    String::new()
-                });
+            let simple_text = simple_map.get(&key).cloned().unwrap_or_else(|| {
+                log::warn!("Missing simple text for {sid}:{ayah_num}");
+                String::new()
+            });
 
             let meta = meta_map.get(&key);
 
             let (juz, hizb, rub_hizb, manzil, ruku, page, sajdah) = match meta {
-                Some(m) => (m.juz, m.hizb, m.rub_hizb, m.manzil, m.ruku, m.page, m.sajdah),
+                Some(m) => (
+                    m.juz, m.hizb, m.rub_hizb, m.manzil, m.ruku, m.page, m.sajdah,
+                ),
                 None => {
                     log::warn!("Missing metadata for {sid}:{ayah_num} — using defaults");
                     (1, 1, 1, 1, 1, 1, false)

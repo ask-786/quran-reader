@@ -11,7 +11,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
-const LAYOUT_RAW_BASE: &str = "https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf";
+const LAYOUT_RAW_BASE: &str =
+    "https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf";
 
 #[derive(Debug, Deserialize)]
 pub struct PageJson {
@@ -76,7 +77,11 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
     {
         let mut stmt = conn.prepare("SELECT id, surah_id, ayah_number FROM ayah")?;
         let rows = stmt.query_map([], |r| {
-            Ok((r.get::<_, i64>(0)?, r.get::<_, u32>(1)?, r.get::<_, u32>(2)?))
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, u32>(1)?,
+                r.get::<_, u32>(2)?,
+            ))
         })?;
         for row in rows {
             let (id, surah_id, ayah_number) = row?;
@@ -134,7 +139,10 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
                         line_count += 1;
 
                         let glyph = line.qpc_v2.as_deref().with_context(|| {
-                            format!("page {} line {}: basmala missing qpcV2", page.page, line.line)
+                            format!(
+                                "page {} line {}: basmala missing qpcV2",
+                                page.page, line.line
+                            )
                         })?;
 
                         word_stmt.execute(params![
@@ -151,7 +159,9 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
                     "text" => {
                         let (first_ayah_id, last_ayah_id) =
                             verse_range_bounds(line.verse_range.as_deref(), &ayah_ids)
-                                .with_context(|| format!("page {} line {}", page.page, line.line))?;
+                                .with_context(|| {
+                                    format!("page {} line {}", page.page, line.line)
+                                })?;
 
                         line_stmt.execute(params![
                             page.page,
@@ -165,9 +175,12 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
                         let page_line_id = tx.last_insert_rowid();
                         line_count += 1;
 
-                        for (position, w) in line.words.as_deref().unwrap_or(&[]).iter().enumerate() {
+                        for (position, w) in line.words.as_deref().unwrap_or(&[]).iter().enumerate()
+                        {
                             let (surah_id, ayah_number, word_index) = parse_location(&w.location)
-                                .with_context(|| format!("page {} line {}", page.page, line.line))?;
+                                .with_context(|| {
+                                format!("page {} line {}", page.page, line.line)
+                            })?;
                             let ayah_id = ayah_ids.get(&(surah_id, ayah_number)).copied();
 
                             word_stmt.execute(params![
@@ -182,7 +195,11 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
                         }
                     }
 
-                    other => bail!("page {} line {}: unknown line type `{other}`", page.page, line.line),
+                    other => bail!(
+                        "page {} line {}: unknown line type `{other}`",
+                        page.page,
+                        line.line
+                    ),
                 }
             }
         }
@@ -194,7 +211,8 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
 
     warn_missing_basmala(&tx)?;
 
-    tx.commit().context("Committing mushaf layout transaction")?;
+    tx.commit()
+        .context("Committing mushaf layout transaction")?;
 
     log::info!("      Inserted {line_count} page lines, {word_count} words");
 
@@ -300,7 +318,9 @@ fn warn_missing_basmala(tx: &rusqlite::Transaction) -> Result<()> {
         .collect::<rusqlite::Result<_>>()?;
 
     for (surah_id, name, page) in &missing {
-        log::warn!("      No basmala glyphs in source data for Surah {surah_id} ({name}), page {page}");
+        log::warn!(
+            "      No basmala glyphs in source data for Surah {surah_id} ({name}), page {page}"
+        );
     }
 
     Ok(())

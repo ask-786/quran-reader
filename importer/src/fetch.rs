@@ -20,7 +20,6 @@ const UTHMANI_URL: &str =
 const SIMPLE_URL: &str =
     "https://tanzil.net/pub/download/index.php?quranType=simple&outType=xml&agree=true";
 
-
 /// Fetch all required raw data sources.
 pub fn fetch_all() -> anyhow::Result<RawData> {
     log::info!("  → Downloading Uthmani XML …");
