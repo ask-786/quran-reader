@@ -78,7 +78,15 @@
   .surah-name {
     margin: 0;
     font-family: var(--font-surah-name);
-    font-size: calc(22px * var(--reader-zoom));
+    /* Comfortably above the Bismillah's 26px below it — at the old 22px the
+       banner's title was the smaller of the two and read as a label rather
+       than a heading.
+
+       The vw cap exists because of `nowrap`: the longest name ("سورة
+       المطففين") at reader zoom 2 would otherwise run past a phone-width
+       window rather than being allowed to wrap. It only binds above roughly
+       zoom 1.2 on narrow viewports; at zoom 1 the px value always wins. */
+    font-size: min(calc(32px * var(--reader-zoom)), 13vw);
     font-weight: 400;
     line-height: 1.3;
     white-space: nowrap;
