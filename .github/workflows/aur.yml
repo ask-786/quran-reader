@@ -79,9 +79,18 @@ jobs:
           install -dm700 ~/.ssh
           printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
-          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Pinned rather than ssh-keyscan'd: scanning trusts whatever answers at
+          # build time, and a silent scan failure surfaces only as an unhelpful
+          # "Host key verification failed" at the clone.
+          # SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4
+          printf '%s %s\n' 'aur.archlinux.org' \
+            'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN' \
+            > ~/.ssh/known_hosts
+
           printf 'Host aur.archlinux.org\n  User aur\n  IdentityFile ~/.ssh/aur\n  IdentitiesOnly yes\n' \
             > ~/.ssh/config
+          ssh-keygen -lf ~/.ssh/known_hosts
 
           git config --global user.name 'Ahmad bin Marakkar'
           git config --global user.email 'ahmadshabeerk786@gmail.com'
