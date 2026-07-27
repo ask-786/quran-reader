@@ -118,3 +118,43 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # linuxdeploy bundles the build machine's libwayland into the AppImage, and
+      # AppRun puts that directory first on LD_LIBRARY_PATH — so the *host's* Mesa
+      # loads it too. On any distro with wayland newer than the 1.20 shipped in
+      # ubuntu-22.04, libEGL_mesa then fails to resolve wl_fixes_interface and
+      # wl_display_create_queue_with_name, no EGL vendor loads, and WebKit aborts
+      # with EGL_BAD_PARAMETER before a window appears. Wayland has to come from
+      # the host to match the compositor, so strip it back out and repack.
+      - name: Repack AppImage without bundled wayland libraries
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The runners have no libfuse2, which AppImages need to mount themselves.
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          set -euo pipefail
+          cd src-tauri/target/release/bundle/appimage
+
+          # Matching *_amd64.AppImage rather than *.AppImage keeps this from
+          # picking up the linuxdeploy tooling Tauri caches in the same directory.
+          original=$(find . -maxdepth 1 -name '*_amd64.AppImage' -printf '%f\n' | head -1)
+          if [ -z "$original" ]; then
+            echo "::error::no AppImage found to repack"
+            exit 1
+          fi
+
+          "./$original" --appimage-extract > /dev/null
+          rm -f squashfs-root/usr/lib/libwayland-*
+
+          curl -sSfL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+
+          # GitHub turns spaces into dots in asset names, so build under the name
+          # the release already used or --clobber won't match the existing asset.
+          asset="${original// /.}"
+          ARCH=x86_64 ./appimagetool squashfs-root "$asset"
+
+          gh release upload "${{ github.event.inputs.tag || github.ref_name }}" \
+            "$asset" --clobber
