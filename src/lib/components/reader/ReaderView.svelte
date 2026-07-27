@@ -112,18 +112,49 @@
     return 96;
   }
 
-  function recordHeight(ayahId: number, height: number) {
+  /** Fold one row's real height into the table and the running mean. */
+  function measureRow(ayahId: number, height: number) {
     if (height <= 0) return;
     rowHeights.set(ayahId, height);
     const words = wordCount(ayahId);
     if (words === 0) return;
     measuredRows++;
     runningAvg += (height / words - runningAvg) / measuredRows;
+  }
+
+  /**
+   * Republish the mean if it has drifted materially. This resizes every
+   * unmeasured row at once — including the ones above the viewport — so it has
+   * to be bracketed by withStableScroll. Left uncompensated it walks the view
+   * off whatever it was looking at, which is precisely what a Mushaf/list
+   * toggle used to do the instant the first measurements arrived.
+   */
+  function publishAvg() {
+    if (measuredRows === 0) return;
     const drift =
       avgHeightPerWord === 0
         ? Infinity
         : Math.abs(runningAvg - avgHeightPerWord) / avgHeightPerWord;
-    if (drift > 0.05) avgHeightPerWord = runningAvg;
+    if (drift > 0.05) void withStableScroll(() => (avgHeightPerWord = runningAvg));
+  }
+
+  /**
+   * Measure the rows already on screen and publish the mean *before* the view
+   * positions itself. Without this, first paint sizes every unrendered row
+   * with the fallback guess — a flat 96px for Ayahs that run from one word to
+   * 128 — and the measurements landing a moment later reflow the entire list
+   * under a view that has already scrolled to its target. Applied straight
+   * rather than through withStableScroll: there is no scroll position worth
+   * preserving yet, and deferring it would let the landing happen first.
+   */
+  function primeHeights() {
+    if (!container) return;
+    for (const el of container.querySelectorAll<HTMLElement>('.ayah-row')) {
+      const id = Number(el.dataset.ayahId);
+      const page = Number(el.dataset.page);
+      if (Number.isFinite(id) && renderedPages.has(page)) measureRow(id, el.offsetHeight);
+    }
+    if (measuredRows > 0) avgHeightPerWord = runningAvg;
   }
 
   function pageChanged(i: number) {
@@ -178,6 +209,51 @@
     return best ? { el: best, top: bestTop } : null;
   }
 
+  /**
+   * Run a change that alters reserved row heights while holding the view
+   * still: capture the anchor, apply, let the DOM settle, then put the anchor
+   * back where it was. Every such change goes through here — pages entering
+   * and leaving the window, and the mean-height republish alike.
+   *
+   * Rounds are chained rather than allowed to overlap. Two in flight would
+   * each capture an anchor and each correct scrollTop for the same shift,
+   * applying it twice.
+   */
+  let anchorChain: Promise<void> = Promise.resolve();
+
+  function withStableScroll(apply: () => void): Promise<void> {
+    const round = anchorChain.then(async () => {
+      if (!container) {
+        apply();
+        return;
+      }
+      const anchor = anchorRow();
+      apply();
+      await tick();
+      if (anchor && container?.contains(anchor.el)) {
+        container.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
+      }
+    });
+    // A failed round must not poison every round after it.
+    anchorChain = round.catch(() => {});
+    return round;
+  }
+
+  /**
+   * The Ayah this view was told to land on, held until the first window sync
+   * has settled. Landing happens against estimated heights for everything
+   * outside the seeded pages; re-asserting once those have been filled in and
+   * measured makes the final position exact rather than merely close.
+   */
+  let unsettledTargetId: number | null = null;
+
+  function reassertTarget() {
+    if (unsettledTargetId === null || !container) return;
+    const el = document.getElementById(`ayah-${unsettledTargetId}`);
+    unsettledTargetId = null;
+    el?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }
+
   // syncWindow awaits font loads, so scrolling can fire another round before
   // the last one has committed. Two overlapping runs would each capture an
   // anchor and each correct scrollTop, double-counting the same shift — so
@@ -198,6 +274,10 @@
         pendingVisible = null;
         await syncWindowOnce(next);
       }
+      // The window is now filled in around the landing spot, so this is the
+      // first moment the target's position is backed by real heights.
+      await anchorChain;
+      reassertTarget();
     } finally {
       syncing = false;
     }
@@ -225,14 +305,10 @@
     await Promise.all(toAdd.map((p) => ensurePageFont(p)));
     if (!container) return;
 
-    const anchor = anchorRow();
-    for (const p of toAdd) renderedPages.add(p);
-    for (const p of toDrop) renderedPages.delete(p);
-    await tick();
-
-    if (anchor && container.contains(anchor.el)) {
-      container.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
-    }
+    await withStableScroll(() => {
+      for (const p of toAdd) renderedPages.add(p);
+      for (const p of toDrop) renderedPages.delete(p);
+    });
     trimPageFonts(renderedPages);
   }
 
@@ -348,10 +424,17 @@
       await tick();
       if (!container) return;
 
+      // Size the unrendered rows from real measurements before landing, so the
+      // scroll below is computed against heights that won't shift underneath it.
+      primeHeights();
+      await tick();
+      if (!container) return;
+
       if (targetId) {
         document
           .getElementById(`ayah-${targetId}`)
           ?.scrollIntoView({ block: 'center', behavior: hasPositioned ? 'smooth' : 'auto' });
+        unsettledTargetId = targetId;
       } else {
         container.scrollTo({ top: 0 });
       }
@@ -375,8 +458,9 @@
           // global (app.css), so the height we later set back on the row is a
           // border-box height and has to be measured as one — contentRect
           // excludes the row's padding and would reserve too little.
-          if (Number.isFinite(id) && renderedPages.has(page)) recordHeight(id, el.offsetHeight);
+          if (Number.isFinite(id) && renderedPages.has(page)) measureRow(id, el.offsetHeight);
         }
+        publishAvg();
       });
       for (const el of container.querySelectorAll('.ayah-row')) sizes.observe(el);
 
