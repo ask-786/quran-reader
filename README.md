@@ -166,14 +166,9 @@ docs/             Research and design notes
 
 The source code is [MIT licensed](LICENSE).
 
-**The bundled fonts and Quran data are not** — they are third-party works
-under their own terms, and the MIT grant above does not extend to them. Most
-notably, the QCF v2 Mushaf fonts are owned by the King Fahd Glorious Quran
-Printing Complex and provided for rendering Quranic text: they may be used,
-copied and distributed, but not sold or modified.
+The bundled fonts and Quran data are not covered by the MIT license — they
+are third-party works under their own terms. The QCF v2 Mushaf fonts in
+particular may be used, copied and distributed, but not sold or modified.
 
-If you fork or redistribute this project — and especially if you intend to
-sell a build — read [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) first.
-Those terms apply to you regardless of the MIT license on the code.
-
-The Quran text itself is, of course, not anyone's to license.
+See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) before forking,
+redistributing, or selling a build.
