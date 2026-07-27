@@ -21,6 +21,15 @@
 
   type LoadedPage = { page: number; data: MushafPage; fontFamily: string | null };
 
+  // Al-Fatihah and the opening of Al-Baqarah are set apart in the printed
+  // Madani Mushaf: 8 lines instead of 15, each one centred inside the page's
+  // decorative frame rather than justified edge-to-edge. Stretching those
+  // short lines across the full column (what every other page wants) is what
+  // made them read as ordinary body text. The layout data carries no flag for
+  // this, so the two pages are named here — the same two the QPC layout marks
+  // centred, and it is a property of the printed Mushaf, not of our data.
+  const CENTERED_PAGES = new Set([1, 2]);
+
   let pages = $state<LoadedPage[]>([]);
   let basmalaFontFamily = $state<string | null>(null);
   let loading = $state(true);
@@ -177,6 +186,7 @@
                 {@const lineAyahId = line.words.find((w) => w.ayah_id !== null)?.ayah_id}
                 <div
                   class="line text-line"
+                  class:centered={CENTERED_PAGES.has(p.page)}
                   data-line-ayah-id={lineAyahId}
                   style:font-family={p.fontFamily}
                 >
@@ -290,6 +300,29 @@
     font-size: min(calc(var(--font-size-quran) * var(--reader-zoom)), 4.3cqi);
     line-height: 2.5;
     color: var(--color-text);
+  }
+
+  /* Al-Fatihah / the opening of Al-Baqarah (see CENTERED_PAGES): the lines
+     keep their printed break points but sit centred, giving the page the
+     tapered, rounded block of the printed Mushaf instead of a justified
+     rectangle. */
+  .text-line.centered {
+    justify-content: center;
+  }
+
+  /* Justified lines get their word spacing from `space-between`; centred ones
+     have none to distribute, and the whitespace between the glyph spans is
+     dropped by flex layout, so the gap has to be explicit. Matches the Ayah
+     list's 0.35em (see AyahRow) — the QCF fonts' own space is far narrower
+     than a live-shaped Arabic font would give. */
+  .centered .word {
+    margin-inline-end: 0.35em;
+  }
+
+  /* Otherwise the trailing gap counts as content and the line centres off by
+     half of it. */
+  .centered .word:last-child {
+    margin-inline-end: 0;
   }
 
   .word {
