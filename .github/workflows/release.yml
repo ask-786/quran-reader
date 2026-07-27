@@ -108,7 +108,7 @@ jobs:
 
       # Artifacts are unsigned: macOS shows a Gatekeeper warning and Windows
       # SmartScreen flags the installer until signing certificates are added.
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
