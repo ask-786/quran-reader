@@ -18,6 +18,6 @@ pkgbase = quran-reader-bin
 	source = quran-reader.desktop
 	sha256sums = 5f3b90195b12e9387cbf229f5c5693b3f793a0c5b423813ddeab9ca8ce99c9b8
 	sha256sums = 7ac4a8c2a9f051e95d1b4aaf77fab3c616837769b82871d37f94a91345df1e34
-	sha256sums = SKIP
+	sha256sums = 3117e16cd8e62a5eb824deb896fc2af63a4703b1af81974435504b40b0908ad5
 
 pkgname = quran-reader-bin
