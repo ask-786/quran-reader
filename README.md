@@ -1,44 +1,12 @@
 # Quran Reader
 
-A beautiful, fast, offline-first Quran reader for the desktop, built around
-one goal: **the reading experience.**
+An offline-first Quran reader for desktop, built with [Tauri 2](https://tauri.app),
+SvelteKit and Rust. No account, no network calls, no telemetry — the Quran
+data ships inside the binary.
 
-Built with [Tauri 2](https://tauri.app), SvelteKit and Rust. No account, no
-network calls, no telemetry — the entire Quran ships inside the binary.
-
-> **Status: early.** Reading, navigation and the Mushaf page view are solid
-> and in daily use. Search, translations, tafsir and audio are not built yet.
+> **Status: early.** Reading, navigation and the Mushaf page view work and
+> are used daily. Search, translations, tafsir and audio are not built yet.
 > See [PLAN.md](PLAN.md) for what exists and what doesn't.
-
----
-
-## The reading experience is the point
-
-This is not a Quran app that happens to display text. **Reading is the
-primary goal, and every other consideration loses to it.**
-
-That principle is not decorative — it is why the app is built the way it is:
-
-- **The page is the printed page.** Rather than reflowing verses into a list,
-  the Mushaf view reproduces all 604 pages of the Madani Mushaf line for line
-  and word for word, using the official KFGQPC glyph fonts. A hafiz who has
-  memorised by page position sees the same shapes in the same places.
-- **Typography got the hard hours.** The bundled font was replaced outright
-  when its glyphs turned out to render blank on Linux, and again when a
-  dagger alef detached and floated as a stray mark on four Surah names.
-  Every one of the 114 headers was rendered and checked by eye.
-- **The interface gets out of the way.** Focus mode strips the app down to
-  the text alone. Auto-scroll lets you read hands-free. Page and Juz markers
-  appear at boundaries instead of repeating on every verse.
-- **Nothing interrupts.** No notifications, no streaks, no nags, no network.
-  The app opens where you stopped reading and gets on with it.
-- **Speed is a reading feature.** A reader that stutters while you read is a
-  reader you stop using — so fonts load lazily and the scrolling view renders
-  only what's near the viewport.
-
-Features are only worth adding if they help you read, understand and navigate
-the Quran more comfortably. When something improves the reading experience at
-the cost of a longer feature list, the reading experience wins.
 
 ---
 
@@ -59,7 +27,7 @@ the cost of a longer feature list, the reading experience wins.
 - Deep links: `/surah/2?ayah=255`, `/juz/30`, `/hizb/59`, `/page/604`
 - Reopens where you left off
 
-**Reading experience**
+**Reading**
 
 - Focus mode — hides everything but the text
 - Auto-scroll with a drag-to-adjust speed handle
@@ -77,7 +45,7 @@ the cost of a longer feature list, the reading experience wins.
 ### Keyboard shortcuts
 
 | Key              | Action                                   |
-| ---------------- | ---------------------------------------- |
+| ---------------- | ----------------------------------------- |
 | `Ctrl`/`Cmd`+`G` | Go to ayah or page                       |
 | `f`              | Toggle focus mode                        |
 | `m`              | Switch between Mushaf and scrolling view |
@@ -92,9 +60,9 @@ Download the installer for your platform from the
 [Releases](https://github.com/ask-786/quran-reader/releases) page.
 
 | Platform | Format                                       |
-| -------- | -------------------------------------------- |
-| Linux    | `.deb`, `.rpm`, `.AppImage` (glibc 2.35+)    |
-| Windows  | `.msi`, `.exe` (NSIS)                        |
+| -------- | --------------------------------------------- |
+| Linux    | `.deb`, `.rpm`, `.AppImage` (glibc 2.35+)     |
+| Windows  | `.msi`, `.exe` (NSIS)                         |
 | macOS    | `.dmg` (universal — Apple Silicon and Intel) |
 
 Builds are **not code-signed**. macOS will show a Gatekeeper warning and
@@ -185,12 +153,12 @@ docs/             Research and design notes
 ## Data sources
 
 | Source                                                                                                       | Provides                        | License                |
-| ------------------------------------------------------------------------------------------------------------ | ------------------------------- | ---------------------- |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------- | ---------------------- |
 | [Tanzil Project](https://tanzil.net)                                                                         | Uthmani and simple Arabic text  | CC BY 3.0              |
-| [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout)                                        | Mushaf page line layout         | ISC                    |
+| [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout)                                        | Mushaf page line layout          | ISC                    |
 | [alquran.cloud](https://alquran.cloud)                                                                       | Per-ayah juz/hizb/page metadata | Open                   |
-| [spa5k/quran_data](https://github.com/spa5k/quran_data)                                                      | Surah metadata                  | Open                   |
-| [KFGQPC](http://dm.qurancomplex.gov.sa/copyright-2/) via [Quran Foundation](https://verses.quran.foundation) | QCF v2 Mushaf glyph fonts       | Restricted — see below |
+| [spa5k/quran_data](https://github.com/spa5k/quran_data)                                                      | Surah metadata                   | Open                   |
+| [KFGQPC](http://dm.qurancomplex.gov.sa/copyright-2/) via [Quran Foundation](https://verses.quran.foundation) | QCF v2 Mushaf glyph fonts        | Restricted — see below |
 
 ---
 
@@ -198,14 +166,9 @@ docs/             Research and design notes
 
 The source code is [MIT licensed](LICENSE).
 
-**The bundled fonts and Quran data are not** — they are third-party works
-under their own terms, and the MIT grant above does not extend to them. Most
-notably, the QCF v2 Mushaf fonts are owned by the King Fahd Glorious Quran
-Printing Complex and provided for rendering Quranic text: they may be used,
-copied and distributed, but not sold or modified.
+The bundled fonts and Quran data are not covered by the MIT license — they
+are third-party works under their own terms. The QCF v2 Mushaf fonts in
+particular may be used, copied and distributed, but not sold or modified.
 
-If you fork or redistribute this project — and especially if you intend to
-sell a build — read [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) first.
-Those terms apply to you regardless of the MIT license on the code.
-
-The Quran text itself is, of course, not anyone's to license.
+See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) before forking,
+redistributing, or selling a build.
