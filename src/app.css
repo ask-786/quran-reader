@@ -1,44 +1,64 @@
 /**
  * Global styles: theme variables, bundled fonts, typography base.
  * Attribution: Quran text — Tanzil Project (tanzil.net) CC BY 3.0
- *              Amiri Quran — Alif Type / Khaled Hosny, SIL OFL 1.1
- *              Noto Naskh Arabic — Google, SIL OFL 1.1
+ *              Scheherazade New — SIL Global, SIL OFL 1.1
  *              Inter — Rasmus Andersson, SIL OFL 1.1 (via @fontsource-variable/inter)
  */
 
 @import '@fontsource-variable/inter/wght.css';
 
-@font-face {
-  font-family: 'Amiri Quran';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/amiri-quran-regular.woff2') format('woff2');
-  unicode-range:
-    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+FB50-FDFF,
-    U+FE70-FE74, U+FE76-FEFC;
-}
+/* The only bundled font for live-shaped Arabic. Everything in the reader
+   itself renders from the per-page QCF glyph fonts instead (see
+   mushaf-fonts.ts), so this covers Surah names, the Bismillah fallback, and
+   the banner ornament — see --font-surah-name.
 
+   Amiri Quran and Noto Naskh Arabic used to be bundled here too and are
+   deliberately gone: Noto was unreachable in every font stack, and Amiri was
+   left rendering a single character (the sajdah mark), which turned out to be
+   a duplicate of one already baked into the page glyphs.
+
+   Consequence for whoever lands tafsir/translations: there is now NO bundled
+   font suitable for running Arabic prose. Scheherazade New is a Quranic face
+   and is the wrong tool for flowing paragraphs — bundle a general Arabic text
+   font (Noto Naskh Arabic is the obvious re-add) under its own
+   --font-arabic-prose variable rather than reusing either variable below.
+
+   Not subsetted: the OFL reserves the name "Scheherazade", so this ships as a
+   pure ttf->woff2 format conversion, unmodified otherwise. */
 @font-face {
-  font-family: 'Noto Naskh Arabic';
+  font-family: 'Scheherazade New';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/noto-naskh-arabic-regular.woff2') format('woff2');
-  unicode-range:
-    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+FB50-FDFF,
-    U+FE70-FE74, U+FE76-FEFC;
+  src: url('/fonts/scheherazade-new-regular.woff2') format('woff2');
 }
 
 :root {
   --font-ui: 'Inter Variable', sans-serif;
 
-  /* Quran text font stack: Amiri Quran bundled, Noto Naskh Arabic fallback.
-     KFGQPC Uthmanic Script HAFS is intentionally excluded here even when
-     system-installed — its complex-shaping rules are tuned to the exact
-     glyph sequences of the Tanzil Uthmani corpus and drop or misplace
-     tashkeel marks on any other Arabic text (surah names, UI labels). */
-  --font-quran: 'Amiri Quran', 'Noto Naskh Arabic', serif;
+  /* Applies to .quran-text, whose only remaining job in the reader is the
+     literal space characters between the QCF glyph spans in AyahRow — the
+     spans set their own per-page font-family, the spaces don't. So this
+     variable is really "reader word-space width", and changing it silently
+     changes reader spacing and wrapping.
+
+     `serif` is not a placeholder: U+0020 fell outside the unicode-range of
+     both fonts previously listed here, so spaces already resolved to serif.
+     Naming it directly preserves that exactly. Do not point this at a bundled
+     Arabic font — none of them are asked for a single visible glyph here, and
+     one that answered for U+0020 would change the reader's spacing. */
+  --font-quran: serif;
+
+  /* Live-shaped vocalized Arabic: Surah names, the Bismillah fallback, and the
+     ۞ banner ornament. Deliberately NOT --font-quran — see the note above.
+
+     The previously bundled Amiri Quran and Noto Naskh both anchored the dagger
+     alef (U+0670) at baseline height, so it detached and floated as a stray
+     "١" on Surahs 42, 55, 87, 93, dropping those banners off the line.
+     Scheherazade New anchors it correctly and carries no Mushaf
+     line-justification stagger. Verified by rendering all 114 names + the
+     Bismillah through WebKitGTK. */
+  --font-surah-name: 'Scheherazade New', serif;
 
   --font-size-quran: 28px;
   --line-height-quran: 2.2;
@@ -100,7 +120,6 @@
   --color-text-faint: #5a5e68;
   --color-accent: #c9a15a;
   --color-accent-contrast: #16181d;
-  --color-sajdah: #c9a15a;
 }
 
 :root[data-theme='light'] {
@@ -113,7 +132,6 @@
   --color-text-faint: #a39c8c;
   --color-accent: #9c7a35;
   --color-accent-contrast: #ffffff;
-  --color-sajdah: #9c7a35;
 }
 
 :root[data-theme='sepia'] {
@@ -126,7 +144,6 @@
   --color-text-faint: #b0a284;
   --color-accent: #8a5a2b;
   --color-accent-contrast: #faf3e3;
-  --color-sajdah: #8a5a2b;
 }
 
 * {

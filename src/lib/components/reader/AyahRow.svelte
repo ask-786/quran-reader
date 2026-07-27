@@ -53,9 +53,6 @@
         title={w.uthmani_text}>{w.glyph_v2}</span
       >
     {/each}
-    {#if ayah.sajdah}
-      <span class="sajdah-mark" title="Sajdah — prostration recommended">۩</span>
-    {/if}
   </p>
 
   {#if translation}
@@ -139,12 +136,6 @@
 
   .word:hover {
     color: var(--color-accent);
-  }
-
-  .sajdah-mark {
-    color: var(--color-sajdah);
-    font-size: 0.7em;
-    margin-inline-start: 0.2em;
   }
 
   .ayah-translation {

@@ -298,7 +298,10 @@
     color: var(--color-text-muted);
   }
 
+  /* Live-shaped, so it needs --font-surah-name rather than the --font-quran
+     that .quran-text supplies. See app.css for why the two are separate. */
   .surah-arabic {
+    font-family: var(--font-surah-name);
     font-size: 17px;
     line-height: 1;
     flex-shrink: 0;
