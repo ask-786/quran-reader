@@ -60,7 +60,8 @@
   // Rows render empty until the glyph words below have been fetched, so they
   // collapse to a fraction of their real height. Scrolling to an Ayah before
   // then measures those stub rows and lands nowhere near it — positioning waits
-  // on this flag.
+  // on this flag. It also holds back SurahHeader's live-shaped Bismillah
+  // fallback, which would otherwise paint and then swap to the QCF glyphs.
   let wordsReady = $state(false);
 
   const firstPage = $derived(ayahs[0]?.page ?? 1);
@@ -226,6 +227,7 @@
             surah={seg.surah}
             basmalaWords={basmalaWords.get(seg.surah.id) ?? []}
             {basmalaFontFamily}
+            glyphsPending={!wordsReady}
           />
         {/if}
       {/if}

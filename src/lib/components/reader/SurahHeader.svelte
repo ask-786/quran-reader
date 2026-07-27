@@ -7,10 +7,15 @@
     surah,
     basmalaWords = [],
     basmalaFontFamily = null,
+    glyphsPending = false,
   }: {
     surah: Surah;
     basmalaWords?: GlyphSpan[];
     basmalaFontFamily?: string | null;
+    // Set while the caller's glyph fetch is still in flight, so an empty
+    // basmalaWords means "not here yet" rather than "not available" — see the
+    // fallback note in the style block below.
+    glyphsPending?: boolean;
   } = $props();
 </script>
 
@@ -25,7 +30,7 @@
     {surah.transliteration} · {surah.revelation_type} · {surah.verses_count} verses
   </p>
 
-  {#if shouldShowBismillahHeader(surah)}
+  {#if shouldShowBismillahHeader(surah) && (basmalaWords.length || !glyphsPending)}
     <p class="bismillah" style:font-family={basmalaWords.length ? basmalaFontFamily : null}>
       {#if basmalaWords.length}
         {#each basmalaWords as w, i (i)}<span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
@@ -98,7 +103,12 @@
   /* Only reached when the Surah's own page (and so its QCF basmala glyphs) is
      outside the fetched range — e.g. a Juz view opening mid-Surah. Live-shaped,
      and BISMILLAH_TEXT contains U+0670 in ٱلرَّحْمَٰنِ, so it needs the same
-     font as the Surah name. */
+     font as the Surah name.
+
+     Callers that render before their glyph fetch resolves (ReaderView, whose
+     list paints straight off its `ayahs` prop) must pass glyphsPending — this
+     branch otherwise paints for a frame and then swaps to the QCF glyphs,
+     which reads as the Bismillah blinking between two fonts. */
   .bismillah-fallback {
     font-family: var(--font-surah-name);
   }
