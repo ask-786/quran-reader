@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and publish (e.g. v0.1.0)'
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Catches the easy mistake of tagging v0.2.0 while the manifests still say
+  # 0.1.0 — the bundles would carry the wrong version forever.
+  verify-version:
+    name: Verify tag matches manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Compare versions
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+          fail=0
+          for file in package.json src-tauri/tauri.conf.json; do
+            found=$(grep -m1 '"version"' "$file" | sed -E 's/.*"version"[^"]*"([^"]+)".*/\1/')
+            if [ "$found" != "$version" ]; then
+              echo "::error file=$file::version is $found, tag says $version"
+              fail=1
+            fi
+          done
+          found=$(grep -m1 '^version' src-tauri/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ "$found" != "$version" ]; then
+            echo "::error file=src-tauri/Cargo.toml::version is $found, tag says $version"
+            fail=1
+          fi
+          exit $fail
+
+  release:
+    needs: verify-version
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built on 22.04 on purpose: the .deb/.rpm/AppImage then run on any
+          # distro with glibc >= 2.35. Building on a newer image raises that
+          # floor and breaks Ubuntu 22.04 / Debian 12 users.
+          - name: Linux (x86_64)
+            platform: ubuntu-22.04
+            args: ''
+          - name: macOS (universal)
+            platform: macos-latest
+            args: '--target universal-apple-darwin'
+          - name: Windows (x86_64)
+            platform: windows-latest
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install Tauri system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Artifacts are unsigned: macOS shows a Gatekeeper warning and Windows
+      # SmartScreen flags the installer until signing certificates are added.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: 'Quran Reader ${{ github.event.inputs.tag || github.ref_name }}'
+          releaseBody: 'See the assets below to download and install this version.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
