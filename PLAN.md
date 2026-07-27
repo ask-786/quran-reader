@@ -620,13 +620,22 @@ Accessibility
 
 Packaging
 
-> Automated by the release workflow (Phase 2). The first tag will be the real
-> test — none of these bundles has been produced by CI yet.
+> Automated by the release workflow (Phase 2). Proven by the `v0.1.0` tag —
+> all seven bundles built green on the first run. None has been _launched_
+> on Windows or macOS yet, only compiled and packaged.
 
 - [x] Linux — deb / rpm / AppImage, built on Ubuntu 22.04 for a glibc 2.35
       floor
 - [x] Windows — msi + nsis (unsigned)
 - [x] macOS — universal (Apple Silicon + Intel) dmg (unsigned)
+- [ ] Arch — no pacman target exists in Tauri's bundler; AppImage is the
+      stopgap, an AUR `quran-reader-bin` PKGBUILD is the real answer
+- [ ] Install size — v0.1.0 ships at ~100MB per installer (175MB AppImage,
+      203MB dmg), against a stated core principle of "small install size".
+      Structural: 95MB of QCF page fonts bundled into the frontend dist plus
+      the 11MB embedded database. Levers are QCF4 (47 files, rejected in
+      Phase 1 on provenance) or fetching fonts on first run (costs
+      offline-first). Decide deliberately rather than let it drift
 
 ---
 
