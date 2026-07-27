@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
+use quick_xml::XmlVersion;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -402,7 +403,8 @@ fn parse_quran_xml(xml: &str) -> Result<HashMap<(u32, u32), String>> {
                 b"sura" => {
                     for attr in e.attributes().flatten() {
                         if attr.key.as_ref() == b"index" {
-                            let val = attr.unescape_value()?;
+                            // Tanzil serves XML 1.0; only 1.1 normalizes differently.
+                            let val = attr.normalized_value(XmlVersion::Explicit1_0)?;
                             current_surah = val.parse()?;
                         }
                     }
@@ -413,11 +415,11 @@ fn parse_quran_xml(xml: &str) -> Result<HashMap<(u32, u32), String>> {
                     for attr in e.attributes().flatten() {
                         match attr.key.as_ref() {
                             b"index" => {
-                                let val = attr.unescape_value()?;
+                                let val = attr.normalized_value(XmlVersion::Explicit1_0)?;
                                 ayah_num = val.parse()?;
                             }
                             b"text" => {
-                                text = attr.unescape_value()?.into_owned();
+                                text = attr.normalized_value(XmlVersion::Explicit1_0)?.into_owned();
                             }
                             _ => {}
                         }
