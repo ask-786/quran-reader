@@ -1,0 +1,135 @@
+name: Publish to AUR
+
+# Deliberately triggered by the release being *published*, not by the tag push:
+# release.yml creates a draft, and draft assets 404 for everyone except the repo
+# owner. updpkgsums would fail on that 404 if this ran any earlier.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g. v0.1.0)'
+        required: true
+
+concurrency:
+  group: aur
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: quran-reader-bin
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      # Before checkout: without git, actions/checkout falls back to a tarball
+      # download and the repository has no history to commit back to.
+      - name: Install packaging tools
+        run: pacman -Syu --noconfirm --needed git openssh pacman-contrib namcap
+
+      # The default branch, not the tag: pkgver comes from the tag below, so the
+      # packaging files themselves should be the current ones — and it lets the
+      # final step commit back as an ordinary fast-forward.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Create build user
+        run: |
+          # makepkg refuses to run as root, and the container has no other user.
+          useradd -m builder
+          chown -R builder:builder .
+          git config --global --add safe.directory '*'
+
+      - name: Point the PKGBUILD at this release
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          version="${tag#v}"
+          cd packaging/aur
+
+          sed -i "s/^pkgver=.*/pkgver=$version/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+
+          # Checksums and .SRCINFO are derived, never hand-maintained.
+          sudo -u builder updpkgsums
+          sudo -u builder makepkg --printsrcinfo > .SRCINFO
+
+      - name: Build and inspect the package
+        run: |
+          set -euo pipefail
+          cd packaging/aur
+          # -d because nothing is compiled here; the runtime deps are Arch
+          # packages that this container has no reason to install.
+          sudo -u builder makepkg -df --noconfirm
+          namcap PKGBUILD
+          namcap quran-reader-bin-*.pkg.tar.zst
+
+      - name: Push to the AUR
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          version="${tag#v}"
+
+          # Everything here is an absolute path on purpose. OpenSSH resolves its
+          # default ~/.ssh paths from the passwd database (root -> /root), not
+          # from $HOME, and Actions sets HOME=/github/home for container jobs. A
+          # key or known_hosts written to ~/.ssh is therefore invisible to ssh,
+          # and the only symptom is "Host key verification failed" at the clone.
+          # (git itself does honour $HOME, so --global config below is fine.)
+          ssh_dir=/tmp/aur-ssh
+          install -dm700 "$ssh_dir"
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          chmod 600 "$ssh_dir/key"
+
+          # Pinned rather than ssh-keyscan'd so the trust decision lives in
+          # review instead of trusting whatever answers at build time. Published
+          # at https://aur.archlinux.org/ as
+          # SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4
+          printf '%s %s\n' 'aur.archlinux.org' \
+            'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN' \
+            > "$ssh_dir/known_hosts"
+
+          export GIT_SSH_COMMAND="ssh -i $ssh_dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes"
+
+          git config --global user.name 'Ahmad bin Marakkar'
+          git config --global user.email 'ahmadshabeerk786@gmail.com'
+
+          git clone ssh://aur@aur.archlinux.org/quran-reader-bin.git /tmp/aur
+          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
+             packaging/aur/quran-reader.desktop /tmp/aur/
+
+          cd /tmp/aur
+          git add PKGBUILD .SRCINFO quran-reader.desktop
+          if git diff --cached --quiet; then
+            echo "AUR already up to date for $version"
+            exit 0
+          fi
+          git commit -m "quran-reader-bin $version-1"
+          git push
+
+      # Runs last on purpose: the AUR is the deliverable, and this only keeps the
+      # in-repo copy honest about what was actually published.
+      - name: Commit the regenerated PKGBUILD back
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          version="${tag#v}"
+
+          git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO
+          if git diff --cached --quiet; then
+            echo "packaging/aur already matches"
+            exit 0
+          fi
+          git commit -m "chore(aur): update PKGBUILD for $version"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Summary
+        run: |
+          echo "Published quran-reader-bin to https://aur.archlinux.org/packages/quran-reader-bin" \
+            >> "$GITHUB_STEP_SUMMARY"
