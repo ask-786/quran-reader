@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { GlyphSpan, Surah } from '$lib/types/database';
+  import { stripTashkeel } from '$lib/utils/arabic-text';
   import { BISMILLAH_TEXT, shouldShowBismillahHeader } from '$lib/utils/bismillah';
 
   let {
@@ -16,7 +17,7 @@
 <div class="surah-banner" dir="rtl">
   <div class="banner-frame">
     <span class="motif" aria-hidden="true">۞</span>
-    <h2 class="surah-name quran-text">{surah.name_ar}</h2>
+    <h2 class="surah-name">{stripTashkeel(surah.name_ar)}</h2>
     <span class="motif" aria-hidden="true">۞</span>
   </div>
 
@@ -30,7 +31,7 @@
         {#each basmalaWords as w, i (i)}<span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
         {/each}
       {:else}
-        <span class="bismillah-fallback quran-text">{BISMILLAH_TEXT}</span>
+        <span class="bismillah-fallback">{BISMILLAH_TEXT}</span>
       {/if}
     </p>
   {/if}
@@ -49,8 +50,6 @@
     justify-content: center;
     gap: 10px;
     padding: 8px 0;
-    border-top: 1px solid var(--color-accent);
-    border-bottom: 1px solid var(--color-accent);
     color: var(--color-accent);
   }
 
@@ -60,16 +59,21 @@
      rub-el-hizb ornament. */
   .motif {
     font-family: var(--font-surah-name);
-    font-size: 13px;
+    font-size: calc(13px * var(--reader-zoom));
     line-height: 1;
   }
 
-  /* Live-shaped, so it needs --font-surah-name rather than the --font-quran
-     that .quran-text supplies. See app.css for why the two are separate. */
+  /* Deliberately not .quran-text: the banner is chrome announcing the Surah,
+     not body text, so its size is the banner's own and must not track the
+     Ayah font-size setting. (It used to carry .quran-text, which put it under
+     ReaderView's `.reader-scroll :global(.quran-text)` font-size override in
+     scroll mode but not in Mushaf mode — the same banner rendered at two
+     different sizes depending on the view.) Live-shaped, so --font-surah-name
+     rather than --font-quran; see app.css for why the two are separate. */
   .surah-name {
     margin: 0;
     font-family: var(--font-surah-name);
-    font-size: 22px;
+    font-size: calc(22px * var(--reader-zoom));
     font-weight: 400;
     line-height: 1.3;
     white-space: nowrap;
@@ -83,9 +87,11 @@
     color: var(--color-text-muted);
   }
 
+  /* Sized here for both the QCF glyph spans and the fallback below, so the
+     basmala scales with the banner rather than with the Ayah text. */
   .bismillah {
     margin: 22px 0 0;
-    font-size: 26px;
+    font-size: calc(26px * var(--reader-zoom));
     color: var(--color-accent);
   }
 

@@ -236,6 +236,9 @@
      column width at any given zoom level. */
   .mushaf-page {
     width: calc(min(100%, var(--reader-max-width) * var(--reader-zoom)));
+    /* Query container for .text-line's fit cap below — the lines have to be
+       sized against this column, not the viewport. */
+    container-type: inline-size;
   }
 
   .boundary-divider {
@@ -268,10 +271,23 @@
   .text-line {
     justify-content: space-between;
     flex-wrap: nowrap;
-    /* Lines are laid out edge-to-edge like a real Mushaf page and can't
-       reflow, so on narrow screens the glyphs shrink with the viewport
-       instead of overflowing into horizontal scroll. */
+    /* Same formula as the Ayah list (see ReaderView), so the two views render
+       the Quran text at the same size for the same settings — this used to be
+       a viewport clamp that ignored --font-size-quran and topped out at 27px,
+       so the same Ayah changed size when you toggled views.
+
+       Lines are laid out edge-to-edge like a real Mushaf page and can't
+       reflow, so the size is capped at what the column can actually hold.
+       The widest line in the Mushaf (page 123, line 8) measures 22.82em of
+       glyph advances, so a line fits while font-size <= 100cqi/22.82 =
+       4.38cqi; 4.3cqi keeps a margin. At the default 720px column that cap is
+       ~31px — above the 28px default, so it only bites on narrow columns,
+       where the alternative is horizontal overflow.
+
+       The preceding declaration is the pre-container-query fallback: engines
+       without cqi support drop the min() line as invalid and keep it. */
     font-size: calc(clamp(15px, 4.6vw, 27px) * var(--reader-zoom));
+    font-size: min(calc(var(--font-size-quran) * var(--reader-zoom)), 4.3cqi);
     line-height: 2.5;
     color: var(--color-text);
   }

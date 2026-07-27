@@ -4,6 +4,7 @@
   import { resolve } from '$app/paths';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
+  import { stripTashkeel } from '$lib/utils/arabic-text';
   import { isNarrowViewport } from '$lib/utils/viewport';
 
   type Mode = 'surah' | 'juz' | 'hizb';
@@ -44,9 +45,11 @@
   const filteredSurahs = $derived.by(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return surahsStore.list;
+    // Both sides unvocalised: nobody types the Mushaf's harakat into a filter box.
+    const qArabic = stripTashkeel(filter.trim());
     return surahsStore.list.filter(
       (s) =>
-        s.name_ar.includes(filter.trim()) ||
+        stripTashkeel(s.name_ar).includes(qArabic) ||
         s.transliteration.toLowerCase().includes(q) ||
         String(s.id) === q,
     );
@@ -109,7 +112,7 @@
                 <span class="surah-meta">{surah.revelation_type} · {surah.verses_count} verses</span
                 >
               </span>
-              <span class="surah-arabic quran-text">{surah.name_ar}</span>
+              <span class="surah-arabic quran-text">{stripTashkeel(surah.name_ar)}</span>
             </a>
           </li>
         {/each}
