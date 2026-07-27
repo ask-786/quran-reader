@@ -51,12 +51,15 @@ pub fn get_pub(url: &str) -> anyhow::Result<String> {
 
 /// Perform a blocking HTTP GET and return the body as a String.
 fn get(url: &str) -> anyhow::Result<String> {
-    let response = ureq::get(url)
+    let mut response = ureq::get(url)
         .call()
         .map_err(|e| anyhow::anyhow!("GET {url} failed: {e}"))?;
 
+    // read_to_string caps the body at 10 MB and errors past it rather than
+    // truncating. The largest source here is the ~1.5 MB Tanzil XML.
     let body = response
-        .into_string()
+        .body_mut()
+        .read_to_string()
         .map_err(|e| anyhow::anyhow!("Reading body from {url} failed: {e}"))?;
 
     Ok(body)
