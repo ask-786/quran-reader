@@ -50,7 +50,7 @@
     <PanelLeft size={18} />
   </button>
 
-  <h1 class="title">{heading ?? 'Quran Reader'}</h1>
+  <h1 class="title" data-tauri-drag-region>{heading ?? 'Quran Reader'}</h1>
 
   {#if hasReader}
     <button
