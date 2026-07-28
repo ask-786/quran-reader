@@ -1,6 +1,6 @@
 [package]
 name = "quran-reader"
-version = "0.1.2"
+version = "0.1.3"
 description = "A beautiful, fast, offline-first Quran reader"
 authors = ["Ahmad bin Marakkar <ahmadshabeerk786@gmail.com>"]
 edition = "2021"
