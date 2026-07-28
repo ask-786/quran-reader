@@ -81,8 +81,10 @@ The `pages/*.json` layout data this project's importer reads from the same
 repository is MIT licensed (its README says so explicitly); only the font
 files themselves carry the non-MIT KFGQPC terms above.
 
-The header/basmala font (`QCF4_QBSML.woff2`) is the same artwork and terms,
-from the same repository.
+The Surah-title banner font (`QCF4_QBSML.woff2`) is the same artwork and
+terms, from the same repository. It is vendored for completeness but not used
+at runtime — the banner is drawn live from `surah.name_ar`, and the Basmala
+glyph comes from `QCF4_Hafs_01` rather than from this font.
 
 ### Scheherazade New — `static/fonts/scheherazade-new-regular.woff2`
 

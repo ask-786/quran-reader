@@ -447,14 +447,14 @@
     align-items: baseline;
     /* Load-bearing for windowed rendering, not just spacing: this is what
        fixes a line's height independently of whether its glyphs are in the
-       DOM. The flex children are single-line spans whose height is 3.48em
-       (line-height, below) — under this floor — so the box measures 3.6em
+       DOM. The flex children are single-line spans whose height is 2.7em
+       (line-height, below) — under this floor — so the box measures 2.8em
        whether it holds a full line of Quran or nothing at all.
 
-       3.48/3.6 (was 2.5/2.6 for QCF v2) — scaled by v4's ~39% taller line
-       box at the same font-size, same reasoning as --line-height-quran in
-       app.css. Not yet confirmed against a real rendered page. */
-    min-height: 3.6em;
+       2.7/2.8 (was 2.5/2.6 for QCF v2) — sized from v4's measured ink rather
+       than its padded declared metrics, same reasoning and same 0.1em
+       headroom as before; see --line-height-quran in app.css. */
+    min-height: 2.8em;
   }
 
   .text-line {
@@ -477,7 +477,9 @@
        without cqi support drop the min() line as invalid and keep it. */
     font-size: calc(clamp(15px, 4.6vw, 27px) * var(--reader-zoom));
     font-size: min(calc(var(--font-size-quran) * var(--reader-zoom)), 4.3cqi);
-    line-height: 3.48;
+    /* 2.5 under QCF v2; 2.7 keeps the same optical gap under v4's slightly
+       taller ink — see --line-height-quran in app.css for the measurement. */
+    line-height: 2.7;
     color: var(--color-text);
   }
 
@@ -506,6 +508,14 @@
 
   .word {
     cursor: default;
+    /* QCF v4's Private Use Area glyphs are Unicode bidi class L, so a span
+       holding "word-glyph + verse-marker glyph" lays them out left-to-right
+       and puts the marker on the wrong side of its word. Forcing RTL fixes
+       the order inside each span. Order *between* words is already correct
+       here without this — these spans are flex items, so the flex container's
+       rtl direction places them, not the bidi algorithm. (The Ayah list has
+       no such luck: see the same fix on .ayah-text in AyahRow.) */
+    unicode-bidi: bidi-override;
   }
 
   .word:hover {

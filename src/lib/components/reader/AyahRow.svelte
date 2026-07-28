@@ -138,6 +138,18 @@
        them (see markup) rather than free-flowing text, so a pathologically
        long single word still has somewhere to break instead of overflowing. */
     overflow-wrap: anywhere;
+    /* Load-bearing, not cosmetic. QCF v4's glyphs live in the Private Use
+       Area, whose Unicode bidi class is L (strong left-to-right) — unlike
+       QCF v2's Arabic Presentation Forms, which are class AL and got ordered
+       right-to-left by the browser for free. Without this override every word
+       span here resolves into one continuous LTR run (the spaces between them
+       are neutrals flanked by L, so they join it), which renders the whole
+       ayah backwards. `direction: rtl` alone does NOT fix that — it sets the
+       paragraph direction, but strong-L characters still lay out LTR inside
+       it. The override forces every character to be treated as RTL, which
+       restores both the word order and the verse-marker position within each
+       span. See docs/qcf-v4-font-migration-plan.md, risk 2. */
+    unicode-bidi: bidi-override;
   }
 
   .word {

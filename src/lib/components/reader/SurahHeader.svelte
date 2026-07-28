@@ -33,7 +33,9 @@
   {#if shouldShowBismillahHeader(surah) && (basmalaWords.length || !glyphsPending)}
     <p class="bismillah" style:font-family={basmalaWords.length ? basmalaFontFamily : null}>
       {#if basmalaWords.length}
-        {#each basmalaWords as w, i (i)}<span aria-label={w.uthmani_text}>{w.glyph_v4}</span>
+        {#each basmalaWords as w, i (i)}<span class="glyph" aria-label={w.uthmani_text}
+            >{w.glyph_v4}</span
+          >
         {/each}
       {:else}
         <span class="bismillah-fallback">{BISMILLAH_TEXT}</span>
@@ -106,6 +108,15 @@
     margin: 22px 0 0;
     font-size: calc(26px * var(--reader-zoom));
     color: var(--color-accent);
+  }
+
+  /* QCF v4 renders the Basmala as one Private Use Area glyph, bidi class L.
+     A single glyph can't be mis-ordered on its own, but the override keeps
+     this consistent with the word spans elsewhere and stays correct if a
+     future font version splits the phrase across several glyphs (QCF v2
+     already used three). See AyahRow's .ayah-text for the full reasoning. */
+  .glyph {
+    unicode-bidi: bidi-override;
   }
 
   /* Only reached when the Surah's own page (and so its QCF basmala glyphs) is

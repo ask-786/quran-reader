@@ -229,7 +229,9 @@ pub struct PageLineWord {
     /// (or `'QCF_BSML'` for a basmala line's single word row).
     pub glyph_v2: String,
     /// QCF v4 glyph string. Render with the font-map.json family for this
-    /// row's page (or `'QCF4_QBSML'` for a basmala line's single word row).
+    /// row's page. A basmala line's single word row instead uses
+    /// `'QCF4_Hafs_01'`, which holds the basmala glyph for every page —
+    /// *not* `'QCF4_QBSML'`, whose copies of those codepoints are blank.
     /// Null for the handful of rows the v4 import couldn't attach a glyph to
     /// (see `mushaf::write_glyph_v4`'s doc comment in the importer).
     pub glyph_v4: Option<String>,

@@ -3,7 +3,7 @@
 # calligraphy, Madinah Mushaf 1441 AH, font build by Ahmad ElGharib) used to
 # render pixel-accurate Mushaf pages — see docs/qcf-v4-font-migration-plan.md.
 #
-# 47 per-font-group files (each covering ~13 pages) + one Surah-header/Basmala
+# 47 per-font-group files (each covering ~13 pages) + the Surah-title banner
 # font (QCF4_QBSML), replacing the 604 per-page QCF v2 files in
 # static/fonts/mushaf/ (kept in place — see the migration plan's rollback
 # section). Also fetches font-map.json, the page (1–604) -> font-group lookup
@@ -29,7 +29,12 @@ echo "Downloading font-map.json (page -> font group) …"
 curl -fsSL --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 \
   -o "$DEST/font-map.json" "$RAW_BASE/font-map.json"
 
-echo "Downloading QCF4_QBSML.woff2 (surah-header / basmala font) …"
+# QBSML is the Surah-title *banner* font only. It is not used at runtime (the
+# banner is drawn live from surah.name_ar in Scheherazade New), and it is NOT
+# the basmala font despite the name — its basmala codepoints are zero-contour
+# blanks, while QCF4_Hafs_01 carries the real artwork. Vendored anyway so the
+# v4 asset set stays complete for anyone wanting real banner glyphs later.
+echo "Downloading QCF4_QBSML.woff2 (surah-title banner font, currently unused) …"
 curl -fsSL --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 \
   -o "$DEST/QCF4_QBSML.woff2" "$RAW_BASE/fonts-woff2/QCF4_QBSML.woff2"
 

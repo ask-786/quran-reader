@@ -18,25 +18,29 @@
  * font files) and `page_line_word.glyph_v2` are both still shipped.
  */
 
-const BASMALA_FAMILY = 'QCF4_QBSML';
-let basmalaFontPromise: Promise<string> | null = null;
+/**
+ * The Basmala glyph lives in `QCF4_Hafs_01` — *not* in `QCF4_QBSML`, despite
+ * what that font's name suggests. QBSML holds the Surah-title banner glyphs,
+ * which this app never renders (SurahHeader draws the name live from
+ * `surah.name_ar` in Scheherazade New); QBSML's copies of the Basmala
+ * codepoints are zero-contour blanks, so rendering the Basmala with it
+ * silently produces an empty line.
+ *
+ * Every v4 page's `bismillah` entry names `QCF4_Hafs_01` regardless of which
+ * font group the page itself belongs to, so this is a fixed family rather
+ * than a per-page lookup. It is also pages 1–13's own group font, which is
+ * why it shares the family registry below instead of holding its own
+ * FontFace — two FontFaces for one family would double-fetch the same file.
+ */
+const BASMALA_FAMILY = 'QCF4_Hafs_01';
 
 /**
- * Basmala (and surah-header banner, in the font-map's own terms) lines use a
- * dedicated glyph font, distinct from every page's own font group. Loaded
- * once and kept for the app's lifetime — small and reused on every
- * Surah-opening page.
+ * Basmala lines use a single whole-phrase glyph. Loaded once and kept for the
+ * app's lifetime (never trimmed — see `trimPageFonts`), since it is reused on
+ * every Surah-opening page.
  */
 export function loadBasmalaFont(): Promise<string> {
-  if (!basmalaFontPromise) {
-    basmalaFontPromise = (async () => {
-      const face = new FontFace(BASMALA_FAMILY, `url(/fonts/mushaf-v4/${BASMALA_FAMILY}.woff2)`);
-      await face.load();
-      document.fonts.add(face);
-      return BASMALA_FAMILY;
-    })();
-  }
-  return basmalaFontPromise;
+  return ensureFamily(BASMALA_FAMILY);
 }
 
 /**
@@ -95,7 +99,15 @@ export function isPageFontReady(page: number): boolean {
 export function ensurePageFont(page: number): Promise<string> {
   const family = familyForPage(page);
   if (!family) return Promise.reject(new Error(`No QCF v4 font family for page ${page}`));
+  return ensureFamily(family);
+}
 
+/**
+ * Load and register one font group by family name. Concurrent callers for the
+ * same family — including a page load and the Basmala load racing each other
+ * over `QCF4_Hafs_01` — share a single fetch.
+ */
+function ensureFamily(family: string): Promise<string> {
   const hit = loaded.get(family);
   if (hit) {
     // Re-insert to mark as most recently used.
@@ -127,7 +139,11 @@ export function ensurePageFont(page: number): Promise<string> {
 export function trimPageFonts(retainedPages: Iterable<number>): void {
   if (loaded.size <= MAX_FONTS) return;
 
-  const keepFamilies = new Set<string>();
+  // The Basmala family is pinned, never trimmed. It is also pages 1–13's own
+  // group font, so without this it would be evicted as soon as the reader
+  // scrolled far enough from the start of the Mushaf — and every Surah banner
+  // from then on would render a blank Basmala, anywhere in the Mushaf.
+  const keepFamilies = new Set<string>([BASMALA_FAMILY]);
   for (const page of retainedPages) {
     const family = familyForPage(page);
     if (family) keepFamilies.add(family);
