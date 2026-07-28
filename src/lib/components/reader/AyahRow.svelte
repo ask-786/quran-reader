@@ -63,7 +63,7 @@
           class="word"
           style:font-family={w.fontFamily}
           aria-label={w.uthmani_text}
-          title={w.uthmani_text}>{w.glyph_v2}</span
+          title={w.uthmani_text}>{w.glyph_v4}</span
         >
       {/each}
     </p>

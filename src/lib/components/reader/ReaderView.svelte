@@ -3,7 +3,13 @@
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import type { Ayah, AyahGlyphWord, GlyphSpan, Surah } from '$lib/types/database';
   import { loadPages } from '$lib/api/page-cache';
-  import { ensurePageFont, loadBasmalaFont, trimPageFonts } from '$lib/utils/mushaf-fonts';
+  import {
+    ensurePageFont,
+    familyForPage,
+    loadBasmalaFont,
+    loadFontMap,
+    trimPageFonts,
+  } from '$lib/utils/mushaf-fonts';
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
@@ -327,6 +333,7 @@
       const [pageData, basmalaFamily] = await Promise.all([
         loadPages(start, end),
         loadBasmalaFont(),
+        loadFontMap(),
       ]);
       if (cancelled) return;
       basmalaFontFamily = basmalaFamily;
@@ -376,9 +383,11 @@
             const word: AyahGlyphWord = {
               uthmani_text: w.uthmani_text,
               glyph_v2: w.glyph_v2,
-              // The family name is fixed per page and the font is loaded
-              // lazily, so this can be filled in before the file has arrived.
-              fontFamily: `QCF_P${String(data.page).padStart(3, '0')}`,
+              glyph_v4: w.glyph_v4,
+              // The family name comes from font-map.json (loaded above) and
+              // the font itself loads lazily, so this can be filled in
+              // before the file has arrived.
+              fontFamily: familyForPage(data.page) ?? null,
             };
             const list = ayahWords.get(w.ayah_id);
             if (list) list.push(word);

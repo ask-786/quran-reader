@@ -1,7 +1,16 @@
 # QCF v2 → v4 Mushaf Font Migration — Plan
 
 **Date drafted:** 2026-07-28
-**Status:** proposed, not started
+**Status:** implemented on `claude/qcf-v4-font-migration-jcupky` (2026-07-28),
+not merged to master. Rendering switched to v4; `glyph_v2` and the v2 fonts
+are kept for rollback, per this plan's own Rollback section. Line-height
+retuning (step 6) is a numeric first pass only — this branch was built in a
+sandbox that can't run the actual Tauri/WebKitGTK app, so the empirical
+"look at a real rendered page" verification this plan calls for in step 1
+and the verification checklist has **not** been done. Treat this as the spike
+this plan asked for, not a finished migration — see the branch's commit
+message and PR description for the full list of what still needs human eyes
+before this could ship.
 **Goal:** replace the 604 per-page QCF v2 fonts with the 47-file QCF v4 set,
 cutting ~58 MB off the install, without changing any user-visible feature
 other than the glyphs themselves.

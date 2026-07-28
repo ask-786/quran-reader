@@ -7,6 +7,7 @@
     ensurePageFont,
     familyForPage,
     loadBasmalaFont,
+    loadFontMap,
     trimPageFonts,
   } from '$lib/utils/mushaf-fonts';
   import { surahsStore } from '$lib/stores/surahs.svelte';
@@ -163,6 +164,7 @@
         const [loaded, basmalaFamily] = await Promise.all([
           loadPages(start, end),
           loadBasmalaFont(),
+          loadFontMap(),
         ]);
         if (cancelled) return;
         basmalaFontFamily = basmalaFamily;
@@ -362,7 +364,7 @@
                         class="word"
                         data-ayah-id={w.ayah_id}
                         aria-label={w.uthmani_text}
-                        title={w.uthmani_text}>{w.glyph_v2}</span
+                        title={w.uthmani_text}>{w.glyph_v4}</span
                       >
                     {/each}
                   {/if}
@@ -445,10 +447,14 @@
     align-items: baseline;
     /* Load-bearing for windowed rendering, not just spacing: this is what
        fixes a line's height independently of whether its glyphs are in the
-       DOM. The flex children are single-line spans whose height is 2.5em
-       (line-height) — under this floor — so the box measures 2.6em whether
-       it holds a full line of Quran or nothing at all. */
-    min-height: 2.6em;
+       DOM. The flex children are single-line spans whose height is 3.48em
+       (line-height, below) — under this floor — so the box measures 3.6em
+       whether it holds a full line of Quran or nothing at all.
+
+       3.48/3.6 (was 2.5/2.6 for QCF v2) — scaled by v4's ~39% taller line
+       box at the same font-size, same reasoning as --line-height-quran in
+       app.css. Not yet confirmed against a real rendered page. */
+    min-height: 3.6em;
   }
 
   .text-line {
@@ -461,17 +467,17 @@
 
        Lines are laid out edge-to-edge like a real Mushaf page and can't
        reflow, so the size is capped at what the column can actually hold.
-       The widest line in the Mushaf (page 123, line 8) measures 22.82em of
-       glyph advances, so a line fits while font-size <= 100cqi/22.82 =
-       4.38cqi; 4.3cqi keeps a margin. At the default 720px column that cap is
-       ~31px — above the 28px default, so it only bites on narrow columns,
-       where the alternative is horizontal overflow.
+       The widest-line cap below (4.3cqi) was measured against QCF v2's glyph
+       advances (page 123, line 8: 22.82em) — v4 claims narrower glyphs (its
+       own docs cite removed inter-word gaps), so this cap is carried over
+       unverified rather than loosened; it can only bind tighter than
+       necessary, never overflow. Needs re-measuring against v4 glyphs.
 
        The preceding declaration is the pre-container-query fallback: engines
        without cqi support drop the min() line as invalid and keep it. */
     font-size: calc(clamp(15px, 4.6vw, 27px) * var(--reader-zoom));
     font-size: min(calc(var(--font-size-quran) * var(--reader-zoom)), 4.3cqi);
-    line-height: 2.5;
+    line-height: 3.48;
     color: var(--color-text);
   }
 

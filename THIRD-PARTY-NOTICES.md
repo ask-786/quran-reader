@@ -53,6 +53,37 @@ The Basmala font (`QCF_BSML.woff2`) is the same artwork, taken from
 [nuqayah/qpc-fonts](https://github.com/nuqayah/qpc-fonts), and carries the
 same restrictions.
 
+### QCF v4 Mushaf fonts — `static/fonts/mushaf-v4/QCF4_Hafs_01…47_W.woff2`
+
+|           |                                                                                                                                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Source    | [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4)                                                              |
+| Copyright | King Fahd Glorious Quran Printing Complex (KFGQPC) — Uthman Taha calligraphy, Madinah Mushaf 1441 AH edition; font build by Ahmad ElGharib |
+| Terms     | Same KFGQPC ownership and terms as QCF v2 above — see that entry.                                                                          |
+
+An in-progress migration from QCF v2 to this 47-file v4 set — see
+`docs/qcf-v4-font-migration-plan.md`. Same calligraphy, same copyright
+holder, same terms; the legal position is neither better nor worse than
+QCF v2's, and the same two caveats noted there apply here too.
+
+This source's provenance is weaker than QCF v2's: it is an independently
+repackaged, previously-unpublished build (by a font-version author, not
+KFGQPC or Quran Foundation directly), rather than a straight redistribution
+of an org-published CDN build. `docs/mushaf-page-view-status.md` records
+that this exact source was considered and **rejected** on those provenance
+grounds when QCF v2's blank-glyph bug was fixed; the v4 migration plan
+accepts that trade-off deliberately, for the ~58MB install-size reduction
+(93.4 MiB -> 35.65 MiB) a 47-file set gives over 604 per-page files. Confirm
+you're comfortable with that trade-off before shipping a release built on
+this branch.
+
+The `pages/*.json` layout data this project's importer reads from the same
+repository is MIT licensed (its README says so explicitly); only the font
+files themselves carry the non-MIT KFGQPC terms above.
+
+The header/basmala font (`QCF4_QBSML.woff2`) is the same artwork and terms,
+from the same repository.
+
 ### Scheherazade New — `static/fonts/scheherazade-new-regular.woff2`
 
 |           |                                                             |
@@ -119,6 +150,13 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 Note: the importer discards this source's `surah-header` lines (they are
 unreliable) and synthesizes all 114 headers from validated Surah data
 instead. The line and word layout is used as published.
+
+Each word's QCF v4 glyph (`page_line_word.glyph_v4`) additionally comes from
+[MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4)
+(MIT-licensed JSON; the fonts it references are proprietary — see the QCF v4
+Mushaf fonts entry above), matched onto these same rows by ayah and
+within-ayah word position. Line breaks and word boundaries are still this
+source's (zonetecde/mushaf-layout), unchanged by which font is active.
 
 ### Ayah metadata — alquran.cloud
 

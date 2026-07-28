@@ -1,5 +1,5 @@
 use crate::db::error::DbResult;
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use std::path::Path;
 
 /// The full SQLite schema applied when no seed database is available.
@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 2;
+const CURRENT_VERSION: u32 = 3;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -105,6 +105,19 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         ))?;
     }
 
+    if from_version < 3 {
+        log::info!("  → Applying migration 003: QCF v4 glyphs");
+        conn.execute_batch(include_str!("../../../database/migrations/003_qcf_v4.sql"))?;
+        // The ALTER above only adds the column — every existing row's
+        // glyph_v4 is still NULL. page_line/page_line_word carry no user
+        // data (bookmarks/notes key off ayah_id, not page/line/glyph), so
+        // rather than re-deriving glyph_v4 in place, rebuild both tables
+        // wholesale from the bundled seed DB, which already has this
+        // migration's data. Same mechanism a future content update can reuse.
+        log::info!("  → Rebuilding page_line/page_line_word from the bundled seed");
+        rebuild_mushaf_layout_from_seed(conn)?;
+    }
+
     let version = get_schema_version(conn)?;
     if version < CURRENT_VERSION {
         log::warn!(
@@ -114,6 +127,42 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         );
     }
     Ok(())
+}
+
+/// Replace `page_line`/`page_line_word` wholesale with the copies from the
+/// embedded `SEED_DB`, by writing it to a scratch file and `ATTACH`ing it —
+/// SQLite has no cross-database `INSERT ... SELECT` without a filesystem
+/// path. Assumes the seed's `ayah` table (and therefore its `ayah.id` values)
+/// matches the target's, which already holds for every existing install:
+/// Tanzil/Surah-metadata import is deterministic, and no migration before
+/// this one has ever touched `ayah`.
+fn rebuild_mushaf_layout_from_seed(conn: &Connection) -> DbResult<()> {
+    let mut seed_path = std::env::temp_dir();
+    seed_path.push(format!("quranreader-seed-{}.db", std::process::id()));
+    std::fs::write(&seed_path, SEED_DB)?;
+
+    let result = (|| -> DbResult<()> {
+        let seed_path_str = seed_path.to_string_lossy().to_string();
+        conn.execute("ATTACH DATABASE ?1 AS seed", params![seed_path_str])?;
+
+        let copy_result = (|| -> DbResult<()> {
+            conn.execute_batch(
+                "BEGIN;
+                 DELETE FROM page_line_word;
+                 DELETE FROM page_line;
+                 INSERT INTO page_line SELECT * FROM seed.page_line;
+                 INSERT INTO page_line_word SELECT * FROM seed.page_line_word;
+                 COMMIT;",
+            )?;
+            Ok(())
+        })();
+
+        conn.execute_batch("DETACH DATABASE seed;")?;
+        copy_result
+    })();
+
+    let _ = std::fs::remove_file(&seed_path);
+    result
 }
 
 /// Return basic stats useful for debugging / About screen.

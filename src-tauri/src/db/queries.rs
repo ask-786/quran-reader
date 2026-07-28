@@ -338,7 +338,7 @@ pub fn get_sajdah_ayahs(conn: &Connection) -> DbResult<Vec<Ayah>> {
 // =============================================================================
 
 /// Return the full line-by-line layout for a single Mushaf page (1–604),
-/// including every word's QCF v2 glyph string in print order.
+/// including every word's QCF v2 and QCF v4 glyph strings in print order.
 pub fn get_page(conn: &Connection, page: u32) -> DbResult<MushafPage> {
     let mut pages = get_pages(conn, page, page)?;
     pages
@@ -357,7 +357,7 @@ pub fn get_page(conn: &Connection, page: u32) -> DbResult<MushafPage> {
 pub fn get_pages(conn: &Connection, start: u32, end: u32) -> DbResult<Vec<MushafPage>> {
     let mut stmt = conn.prepare(
         "SELECT pl.page, pl.line_number, pl.line_type, pl.surah_id, pl.first_ayah_id, pl.last_ayah_id, pl.text,
-                plw.position, plw.ayah_id, plw.word_index, plw.uthmani_text, plw.glyph_v2
+                plw.position, plw.ayah_id, plw.word_index, plw.uthmani_text, plw.glyph_v2, plw.glyph_v4
          FROM page_line pl
          LEFT JOIN page_line_word plw ON plw.page_line_id = pl.id
          WHERE pl.page BETWEEN ?1 AND ?2
@@ -378,6 +378,7 @@ pub fn get_pages(conn: &Connection, start: u32, end: u32) -> DbResult<Vec<Mushaf
                 word_index: row.get(9)?,
                 uthmani_text: row.get(10)?,
                 glyph_v2: row.get(11)?,
+                glyph_v4: row.get(12)?,
             }),
             None => None,
         };

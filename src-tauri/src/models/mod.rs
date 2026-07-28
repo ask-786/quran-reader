@@ -228,6 +228,11 @@ pub struct PageLineWord {
     /// QCF v2 glyph string. Render with `font-family: 'QCF_P{page:03}'`
     /// (or `'QCF_BSML'` for a basmala line's single word row).
     pub glyph_v2: String,
+    /// QCF v4 glyph string. Render with the font-map.json family for this
+    /// row's page (or `'QCF4_QBSML'` for a basmala line's single word row).
+    /// Null for the handful of rows the v4 import couldn't attach a glyph to
+    /// (see `mushaf::write_glyph_v4`'s doc comment in the importer).
+    pub glyph_v4: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

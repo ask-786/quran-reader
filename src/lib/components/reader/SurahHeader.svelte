@@ -33,7 +33,7 @@
   {#if shouldShowBismillahHeader(surah) && (basmalaWords.length || !glyphsPending)}
     <p class="bismillah" style:font-family={basmalaWords.length ? basmalaFontFamily : null}>
       {#if basmalaWords.length}
-        {#each basmalaWords as w, i (i)}<span aria-label={w.uthmani_text}>{w.glyph_v2}</span>
+        {#each basmalaWords as w, i (i)}<span aria-label={w.uthmani_text}>{w.glyph_v4}</span>
         {/each}
       {:else}
         <span class="bismillah-fallback">{BISMILLAH_TEXT}</span>
