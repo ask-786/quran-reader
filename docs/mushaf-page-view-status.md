@@ -1,5 +1,12 @@
 # Mushaf Page View — Status (resolved)
 
+> **Superseded, 2026-07-28.** The QCF v2 fonts this document is about have
+> been removed; the page view now renders QCF v4. See
+> `docs/qcf-v4-font-migration-plan.md`. Everything below is kept as the record
+> of the v2 blank-glyph investigation — its conclusion about HarfBuzz-hostile
+> font builds is what made this project check the v4 fonts in a real WebKitGTK
+> render before trusting them, so it is still worth reading.
+
 **Date resolved:** 2026-07-25
 **Goal:** render each of the 604 Mushaf pages with the same line breaks and word
 placement as the printed Madani Mushaf (pixel-accurate glyph fonts), instead of

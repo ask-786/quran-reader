@@ -61,6 +61,15 @@
   --font-surah-name: 'Scheherazade New', serif;
 
   --font-size-quran: 28px;
+  /* Unchanged across the QCF v2 -> v4 migration, deliberately. Two successive
+     arguments said v4 needs more leading — first the plan's "declared metrics
+     are 39% taller" (3.06), then "the ink is 13% taller" (2.4) — and both
+     render looser than v2 did. The declared ascent/descent is padding v4 never
+     fills, and the ink extremes are set by a handful of outlier glyphs, not by
+     the body of the line. Comparing rendered pages is what settles it: line
+     pitch measured off a v2 build and a v4 build at the same size and zoom
+     matched to within 0.6%, so v4 wants v2's number. Don't scale this by a
+     font-metric ratio again — measure the rendered pitch. */
   --line-height-quran: 2.2;
   --letter-spacing-quran: 0;
 

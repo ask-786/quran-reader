@@ -7,6 +7,7 @@
     ensurePageFont,
     familyForPage,
     loadBasmalaFont,
+    loadFontMap,
     trimPageFonts,
   } from '$lib/utils/mushaf-fonts';
   import { surahsStore } from '$lib/stores/surahs.svelte';
@@ -163,6 +164,7 @@
         const [loaded, basmalaFamily] = await Promise.all([
           loadPages(start, end),
           loadBasmalaFont(),
+          loadFontMap(),
         ]);
         if (cancelled) return;
         basmalaFontFamily = basmalaFamily;
@@ -362,7 +364,7 @@
                         class="word"
                         data-ayah-id={w.ayah_id}
                         aria-label={w.uthmani_text}
-                        title={w.uthmani_text}>{w.glyph_v2}</span
+                        title={w.uthmani_text}>{w.glyph_v4}</span
                       >
                     {/each}
                   {/if}
@@ -446,8 +448,8 @@
     /* Load-bearing for windowed rendering, not just spacing: this is what
        fixes a line's height independently of whether its glyphs are in the
        DOM. The flex children are single-line spans whose height is 2.5em
-       (line-height) — under this floor — so the box measures 2.6em whether
-       it holds a full line of Quran or nothing at all. */
+       (line-height, below) — under this floor — so the box measures 2.6em
+       whether it holds a full line of Quran or nothing at all. */
     min-height: 2.6em;
   }
 
@@ -461,16 +463,20 @@
 
        Lines are laid out edge-to-edge like a real Mushaf page and can't
        reflow, so the size is capped at what the column can actually hold.
-       The widest line in the Mushaf (page 123, line 8) measures 22.82em of
-       glyph advances, so a line fits while font-size <= 100cqi/22.82 =
-       4.38cqi; 4.3cqi keeps a margin. At the default 720px column that cap is
-       ~31px — above the 28px default, so it only bites on narrow columns,
-       where the alternative is horizontal overflow.
+       The widest-line cap below (4.3cqi) was measured against QCF v2's glyph
+       advances (page 123, line 8: 22.82em) — v4 claims narrower glyphs (its
+       own docs cite removed inter-word gaps), so this cap is carried over
+       unverified rather than loosened; it can only bind tighter than
+       necessary, never overflow. Needs re-measuring against v4 glyphs.
 
        The preceding declaration is the pre-container-query fallback: engines
        without cqi support drop the min() line as invalid and keep it. */
     font-size: calc(clamp(15px, 4.6vw, 27px) * var(--reader-zoom));
     font-size: min(calc(var(--font-size-quran) * var(--reader-zoom)), 4.3cqi);
+    /* Carried unchanged from QCF v2: measuring line pitch off rendered v2 and
+       v4 pages put them within 0.6% at the same size, so v4's taller declared
+       metrics don't want more leading here. See --line-height-quran in
+       app.css. Keep in step with .line's min-height above. */
     line-height: 2.5;
     color: var(--color-text);
   }
@@ -500,6 +506,14 @@
 
   .word {
     cursor: default;
+    /* QCF v4's Private Use Area glyphs are Unicode bidi class L, so a span
+       holding "word-glyph + verse-marker glyph" lays them out left-to-right
+       and puts the marker on the wrong side of its word. Forcing RTL fixes
+       the order inside each span. Order *between* words is already correct
+       here without this — these spans are flex items, so the flex container's
+       rtl direction places them, not the bidi algorithm. (The Ayah list has
+       no such luck: see the same fix on .ayah-text in AyahRow.) */
+    unicode-bidi: bidi-override;
   }
 
   .word:hover {

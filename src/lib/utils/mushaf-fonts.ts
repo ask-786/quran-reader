@@ -1,106 +1,158 @@
 /**
- * Lazily loads the per-page QCF v2 Mushaf fonts (one font file per Mushaf
- * page — 604 files, ~95MB total) via the CSS Font Loading API instead of
- * declaring 604 @font-face rules up front.
+ * Lazily loads the QCF v4 Mushaf fonts (47 font groups covering all 604
+ * pages, ~13 pages per group, plus one surah-header/basmala font) via the
+ * CSS Font Loading API instead of declaring every @font-face rule up front.
  *
- * Fonts are loaded one page at a time and kept in an LRU, rather than as an
- * all-or-nothing active set. Loading a whole Surah's range up front was the
- * reader's dominant startup cost — Al-Baqara spans 48 pages, which is 5.9MB of
- * woff2 across 48 fetch-decompress-register cycles, all behind one
- * `Promise.all` barrier before a single word could be painted.
+ * Fonts are loaded one group at a time and kept in an LRU, rather than as an
+ * all-or-nothing active set. See docs/qcf-v4-font-migration-plan.md for the
+ * v2 -> v4 migration this replaced: unlike v2 (one font per page, so the
+ * family name was derivable from the page number alone), a v4 page's font
+ * family has to be looked up in font-map.json — several consecutive pages
+ * share one font group — so every export here is keyed by page but caches
+ * and fetches by *family*, and the map has to be loaded before the first
+ * lookup (see `loadFontMap`).
  *
- * Eviction is deliberately conservative: a font is only ever dropped when it
- * is outside the caller's retained set, because a page whose glyphs are still
- * in the DOM renders as tofu the moment its font leaves `document.fonts`.
+ * v2 is fully gone as of the strip commit — its 604 font files, its loader
+ * here, and `page_line_word.glyph_v2`. Rollback is a revert of that commit,
+ * not a runtime fallback; shipping both sets was a 131 MB bundle, larger than
+ * the v2-only one the migration set out to shrink.
  */
 
-const BASMALA_FAMILY = 'QCF_BSML';
-let basmalaFontPromise: Promise<string> | null = null;
+/**
+ * The Basmala glyph lives in `QCF4_Hafs_01` — *not* in `QCF4_QBSML`, despite
+ * what that font's name suggests. QBSML holds the Surah-title banner glyphs,
+ * which this app never renders (SurahHeader draws the name live from
+ * `surah.name_ar` in Scheherazade New); QBSML's copies of the Basmala
+ * codepoints are zero-contour blanks, so rendering the Basmala with it
+ * silently produces an empty line.
+ *
+ * Every v4 page's `bismillah` entry names `QCF4_Hafs_01` regardless of which
+ * font group the page itself belongs to, so this is a fixed family rather
+ * than a per-page lookup. It is also pages 1–13's own group font, which is
+ * why it shares the family registry below instead of holding its own
+ * FontFace — two FontFaces for one family would double-fetch the same file.
+ */
+const BASMALA_FAMILY = 'QCF4_Hafs_01';
 
 /**
- * Basmala lines use a dedicated glyph font, distinct from every page's own
- * font (its glyph codepoints aren't present in the per-page fonts at all).
- * Loaded once and kept for the app's lifetime — small and reused on every
- * Surah-opening page.
+ * Basmala lines use a single whole-phrase glyph. Loaded once and kept for the
+ * app's lifetime (never trimmed — see `trimPageFonts`), since it is reused on
+ * every Surah-opening page.
  */
 export function loadBasmalaFont(): Promise<string> {
-  if (!basmalaFontPromise) {
-    basmalaFontPromise = (async () => {
-      const face = new FontFace(BASMALA_FAMILY, `url(/fonts/mushaf/${BASMALA_FAMILY}.woff2)`);
-      await face.load();
-      document.fonts.add(face);
-      return BASMALA_FAMILY;
-    })();
-  }
-  return basmalaFontPromise;
+  return ensureFamily(BASMALA_FAMILY);
 }
 
 /**
- * How many page fonts to keep registered. A render window is a handful of
- * pages, so this leaves a lot of slack for scrolling back and forth without
- * refetching, while capping resident font memory at roughly 8MB.
+ * page -> font-group family, e.g. "1" -> "QCF4_Hafs_01". Populated once by
+ * `loadFontMap`; every export below that resolves a page to a family assumes
+ * it has already been awaited (every caller in PageView/ReaderView loads it
+ * alongside `loadPages`/`loadBasmalaFont`, before rendering anything that
+ * needs a family name).
  */
-const MAX_FONTS = 64;
+let fontMap: Record<string, string> = {};
+let fontMapPromise: Promise<void> | null = null;
 
-/** Insertion order is LRU order. */
-const loaded = new Map<number, FontFace>();
-const inFlight = new Map<number, Promise<string>>();
-
-export function familyForPage(page: number): string {
-  return `QCF_P${String(page).padStart(3, '0')}`;
+export function loadFontMap(): Promise<void> {
+  if (!fontMapPromise) {
+    fontMapPromise = fetch('/fonts/mushaf-v4/font-map.json')
+      .then((r) => r.json())
+      .then((map: Record<string, string>) => {
+        fontMap = map;
+      });
+  }
+  return fontMapPromise;
 }
 
-function urlForPage(page: number): string {
-  return `/fonts/mushaf/QCF_P${String(page).padStart(3, '0')}.woff2`;
+/** How many font *groups* to keep registered — see MAX_FONTS' v2 history
+ * below for why this is so much lower than 64 despite covering more pages:
+ * each v4 group is a bigger file (~761KB mean vs ~155KB), and covers ~13
+ * pages instead of 1, so 8 groups already spans roughly 100 pages — more
+ * render-window coverage than 64 v2 fonts gave, for a fraction of the
+ * resident memory (~6MB vs the ~48MB 64 v4 groups would cost). */
+const MAX_FONTS = 8;
+
+/** Insertion order is LRU order. Keyed by family, not page: several pages
+ * share one family, and page-keying would fetch the same file repeatedly. */
+const loaded = new Map<string, FontFace>();
+const inFlight = new Map<string, Promise<string>>();
+
+export function familyForPage(page: number): string | undefined {
+  return fontMap[String(page)];
 }
 
-/** True if this page's font is registered and its glyphs will render now. */
+function urlForFamily(family: string): string {
+  return `/fonts/mushaf-v4/${family}_W.woff2`;
+}
+
+/** True if this page's font group is registered and its glyphs will render now. */
 export function isPageFontReady(page: number): boolean {
-  return loaded.has(page);
+  const family = familyForPage(page);
+  return family !== undefined && loaded.has(family);
 }
 
 /**
- * Load and register one page's font, returning its family name. Concurrent
- * callers for the same page share a single load.
+ * Load and register the font group covering `page`, returning its family
+ * name. Concurrent callers for the same (or a co-grouped) page share a
+ * single load.
  */
 export function ensurePageFont(page: number): Promise<string> {
   const family = familyForPage(page);
+  if (!family) return Promise.reject(new Error(`No QCF v4 font family for page ${page}`));
+  return ensureFamily(family);
+}
 
-  const hit = loaded.get(page);
+/**
+ * Load and register one font group by family name. Concurrent callers for the
+ * same family — including a page load and the Basmala load racing each other
+ * over `QCF4_Hafs_01` — share a single fetch.
+ */
+function ensureFamily(family: string): Promise<string> {
+  const hit = loaded.get(family);
   if (hit) {
     // Re-insert to mark as most recently used.
-    loaded.delete(page);
-    loaded.set(page, hit);
+    loaded.delete(family);
+    loaded.set(family, hit);
     return Promise.resolve(family);
   }
 
-  let pending = inFlight.get(page);
+  let pending = inFlight.get(family);
   if (!pending) {
     pending = (async () => {
-      const face = new FontFace(family, `url(${urlForPage(page)})`);
+      const face = new FontFace(family, `url(${urlForFamily(family)})`);
       await face.load();
       document.fonts.add(face);
-      loaded.set(page, face);
+      loaded.set(family, face);
       return family;
-    })().finally(() => inFlight.delete(page));
-    inFlight.set(page, pending);
+    })().finally(() => inFlight.delete(family));
+    inFlight.set(family, pending);
   }
   return pending;
 }
 
 /**
- * Drop registered fonts down to the LRU cap, never touching a page in
- * `retained`. Callers pass the set of pages whose glyphs are currently
- * rendered; anything else is fair game once the cap is exceeded.
+ * Drop registered font groups down to the LRU cap, never touching a group
+ * needed by any page in `retainedPages`. Callers pass the set of pages whose
+ * glyphs are currently rendered; any group none of them need is fair game
+ * once the cap is exceeded.
  */
-export function trimPageFonts(retained: Iterable<number>): void {
-  const keep = new Set(retained);
+export function trimPageFonts(retainedPages: Iterable<number>): void {
   if (loaded.size <= MAX_FONTS) return;
 
-  for (const [page, face] of loaded) {
+  // The Basmala family is pinned, never trimmed. It is also pages 1–13's own
+  // group font, so without this it would be evicted as soon as the reader
+  // scrolled far enough from the start of the Mushaf — and every Surah banner
+  // from then on would render a blank Basmala, anywhere in the Mushaf.
+  const keepFamilies = new Set<string>([BASMALA_FAMILY]);
+  for (const page of retainedPages) {
+    const family = familyForPage(page);
+    if (family) keepFamilies.add(family);
+  }
+
+  for (const [family, face] of loaded) {
     if (loaded.size <= MAX_FONTS) break;
-    if (keep.has(page)) continue;
+    if (keepFamilies.has(family)) continue;
     document.fonts.delete(face);
-    loaded.delete(page);
+    loaded.delete(family);
   }
 }

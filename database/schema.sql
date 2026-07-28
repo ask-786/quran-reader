@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Quran Reader — Master Database Schema
--- Version: 2
+-- Version: 3
 -- Engine: SQLite 3 with FTS5
 -- =============================================================================
 -- Attribution: Quran text provided by Tanzil Project (tanzil.net) — CC BY 3.0
@@ -174,10 +174,13 @@ END;
 
 -- =============================================================================
 -- PAGE_LINE / PAGE_LINE_WORD
--- Line-by-line Mushaf layout (Madani print, King Fahd Complex QCF v2), so a
--- page can be rendered with the same line breaks and word placement as the
--- printed Mushaf instead of a reflowed list of Ayahs.
--- Source: zonetecde/mushaf-layout (ISC) + nuqayah/qpc-fonts (QCF v2 glyphs)
+-- Line-by-line Mushaf layout (Madani print, King Fahd Complex), so a page can
+-- be rendered with the same line breaks and word placement as the printed
+-- Mushaf instead of a reflowed list of Ayahs. Line breaks and word boundaries
+-- come from the QCF v2 source; each word additionally carries its QCF v4
+-- glyph, attached to the same rows (see docs/qcf-v4-font-migration-plan.md).
+-- Source: zonetecde/mushaf-layout (ISC, v2 layout + glyphs) +
+--         MohamadHajjRabee/quran-qcf4 (MIT JSON, v4 glyphs)
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS page_line (
@@ -215,8 +218,12 @@ CREATE TABLE IF NOT EXISTS page_line_word (
     word_index      INTEGER,            -- 1-based word position within the Ayah
 
     uthmani_text    TEXT    NOT NULL,   -- plain Uthmani text (search/copy/screen readers)
-    glyph_v2        TEXT    NOT NULL,   -- QCF v2 glyph string — render with font-family
-                                        -- 'QCF_P{page:03}' (or 'QCF_BSML' for basmala)
+    glyph_v4        TEXT,               -- QCF v4 glyph string — render with the page's
+                                        -- font-map.json family (or 'QCF4_Hafs_01' for basmala,
+                                        -- which carries the basmala glyph for every page, not
+                                        -- 'QCF4_QBSML' — that font's copies are blank).
+                                        -- Nullable: see mushaf.rs's write_glyph_v4 for which
+                                        -- rows don't get one.
 
     UNIQUE (page_line_id, position)
 );
@@ -296,3 +303,4 @@ USING fts5(
 
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 INSERT OR IGNORE INTO schema_version (version) VALUES (2);
+INSERT OR IGNORE INTO schema_version (version) VALUES (3);

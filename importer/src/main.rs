@@ -39,6 +39,18 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    if std::env::args().any(|a| a == "--import-mushaf-v4") {
+        let db_path = db_output_path();
+        log::info!("=== Importing QCF v4 glyphs ===");
+        log::info!("Database: {}", db_path.display());
+        log::info!("[1/2] Fetching QCF v4 page layout (604 pages) …");
+        let pages = mushaf::fetch_all_pages_v4().context("Failed to fetch QCF v4 layout")?;
+        log::info!("[2/2] Writing glyph_v4 onto existing page_line_word rows …");
+        mushaf::write_glyph_v4(&db_path, &pages).context("Failed to write QCF v4 glyphs")?;
+        log::info!("=== QCF v4 import complete ===");
+        return Ok(());
+    }
+
     log::info!("=== Quran Importer ===");
     log::info!("Phase 4 — Import Pipeline");
     log::info!("");

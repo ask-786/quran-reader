@@ -162,7 +162,8 @@ export interface PageLineWord {
   ayah_id: number | null;
   word_index: number | null; // 1-based word position within the ayah
   uthmani_text: string; // plain text — search/copy/screen readers
-  glyph_v2: string; // QCF v2 glyph string — render with the line's font-family
+  glyph_v4: string | null; // QCF v4 glyph string — render with the page's font-map family.
+  // Null for the handful of rows the v4 import couldn't attach a glyph to.
 }
 
 export interface PageLine {
@@ -186,7 +187,7 @@ export interface MushafPage {
 
 export interface GlyphSpan {
   uthmani_text: string;
-  glyph_v2: string;
+  glyph_v4: string | null;
 }
 
 /**

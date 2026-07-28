@@ -1,7 +1,14 @@
 # QCF v2 → v4 Mushaf Font Migration — Plan
 
 **Date drafted:** 2026-07-28
-**Status:** proposed, not started
+**Status:** implemented on `claude/qcf-v4-font-migration-jcupky` (2026-07-28),
+not merged to master. Rendering is on v4, checked in the real Tauri/WebKitGTK
+app, and the line heights are matched to the v0.1.1 release by measured pitch
+(see risk 1). QCF v2 is fully removed — the 604 font files, the v2 font
+loader, and `page_line_word.glyph_v2` — so the install-size win this plan
+exists for is realised. What remains unverified is the rest of the
+verification checklist below, in particular the in-place upgrade path and a
+sweep of all 604 pages.
 **Goal:** replace the 604 per-page QCF v2 fonts with the 47-file QCF v4 set,
 cutting ~58 MB off the install, without changing any user-visible feature
 other than the glyphs themselves.
@@ -93,6 +100,15 @@ At the same `font-size`, v4 occupies 39% more vertical space. A naive swap
 will overflow the page and blow the 15-line grid. `--font-size-quran` and its
 breakpoints (28 / 24 / 21 px in `src/app.css`) plus the page-view line height
 need retuning together, against a real rendered page.
+
+**Resolved, and this risk was overstated.** The line heights were first scaled
+by that 39% (2.2 → 3.06, 2.5 → 3.06-equivalent), then by a "measured ink is
+13% taller" figure (2.4 / 2.7); both render visibly looser than v2. The
+declared ascent/descent is padding v4 doesn't fill, and the ink extremes come
+from a few outlier glyphs rather than the body of a line. Measuring line pitch
+off rendered v2 and v4 pages at the same size and zoom put them within 0.6%,
+so both line heights are back at v2's values (2.2 and 2.5) and stay there.
+Anything derived from font metrics needs confirming against rendered pitch.
 
 ### 2. The bidi class of the glyph codepoints changes
 
@@ -220,10 +236,14 @@ vendoring over a live CDN dependency.
 
 ## Rollback
 
-While `glyph_v2` and the v2 fonts are both still present, rollback is a
-one-line change in the render component. After the follow-up commit that
-drops them, rollback is a revert of that commit. Do not drop v2 until at
-least one release has shipped on v4.
+Revert the strip commit. This plan originally said to keep v2 alive for one
+shipped release, with rollback as a one-line render-component change — that
+advice was wrong on its own terms. Shipping both font sets means a ~131 MB
+bundle, _larger_ than the 115 MB v2-only install this migration set out to
+shrink, so "keep a live fallback for one release" and "cut 58 MB" cannot both
+happen. The fallback that survives is the non-mushaf reading path
+(`uthmani_text` in Scheherazade New), which is untouched and needs no QCF font
+at all.
 
 ## Open questions
 
