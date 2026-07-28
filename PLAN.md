@@ -786,10 +786,10 @@ quran-reader/
 │
 ├── static/
 │   └── fonts/
-│       └── mushaf/        (vendored QCF v2 page fonts — see scripts/)
+│       └── mushaf-v4/     (vendored QCF v4 font groups — see scripts/)
 │
 ├── scripts/
-│   └── vendor-mushaf-fonts.sh
+│   └── vendor-mushaf-fonts-v4.sh
 │
 ├── docs/
 │

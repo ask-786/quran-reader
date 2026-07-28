@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 3;
+const CURRENT_VERSION: u32 = 4;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -97,6 +97,15 @@ fn get_schema_version(conn: &Connection) -> DbResult<u32> {
 
 /// Run incremental migrations from `from_version` up to `CURRENT_VERSION`.
 /// Each migration is a separate SQL block; add new arms as the schema evolves.
+///
+/// **Every schema change runs before any data rebuild**, and the two phases
+/// are kept apart deliberately. `rebuild_mushaf_layout_from_seed` copies with
+/// `INSERT ... SELECT *`, which matches columns by position, so it is only
+/// correct once the local `page_line_word` has the same shape as the seed's.
+/// Interleaving the two broke exactly that: with the rebuild sitting inside
+/// the 003 arm, a v2 install would rebuild while it still had the `glyph_v2`
+/// that 004 drops and the seed no longer carries — an 8-column table fed from
+/// a 7-column select.
 fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
     if from_version < 2 {
         log::info!("  → Applying migration 002: mushaf page layout");
@@ -108,12 +117,23 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
     if from_version < 3 {
         log::info!("  → Applying migration 003: QCF v4 glyphs");
         conn.execute_batch(include_str!("../../../database/migrations/003_qcf_v4.sql"))?;
-        // The ALTER above only adds the column — every existing row's
-        // glyph_v4 is still NULL. page_line/page_line_word carry no user
-        // data (bookmarks/notes key off ayah_id, not page/line/glyph), so
-        // rather than re-deriving glyph_v4 in place, rebuild both tables
-        // wholesale from the bundled seed DB, which already has this
-        // migration's data. Same mechanism a future content update can reuse.
+    }
+
+    if from_version < 4 {
+        log::info!("  → Applying migration 004: drop QCF v2 glyphs");
+        conn.execute_batch(include_str!(
+            "../../../database/migrations/004_drop_glyph_v2.sql"
+        ))?;
+    }
+
+    // 003's ALTER only adds the column — every row it applied to still has a
+    // NULL glyph_v4. page_line/page_line_word carry no user data (bookmarks
+    // and notes key off ayah_id, not page/line/glyph), so rather than
+    // re-deriving glyph_v4 in place, rebuild both tables wholesale from the
+    // bundled seed, which already has that data. Same mechanism a future
+    // content update can reuse. Installs already at v3 have been through this
+    // once and only needed 004's ALTER, so they skip it.
+    if from_version < 3 {
         log::info!("  → Rebuilding page_line/page_line_word from the bundled seed");
         rebuild_mushaf_layout_from_seed(conn)?;
     }

@@ -128,15 +128,7 @@ cd importer && cargo run --release
 
 See [`importer/README.md`](importer/README.md) for details.
 
-**Mushaf fonts** — re-downloads the 604 QCF v2 page fonts (~95MB):
-
-```bash
-./scripts/vendor-mushaf-fonts.sh
-```
-
-**Mushaf fonts (QCF v4)** — re-downloads the 47 QCF v4 font-group files
-(~36MB); see `docs/qcf-v4-font-migration-plan.md` for why both font versions
-are currently vendored:
+**Mushaf fonts** — re-downloads the 47 QCF v4 font-group files (~36MB):
 
 ```bash
 ./scripts/vendor-mushaf-fonts-v4.sh
@@ -151,8 +143,7 @@ src/              SvelteKit frontend (components, stores, routes)
 src-tauri/        Rust backend — SQLite access, Tauri commands
 importer/         Standalone importer that builds quran.db
 database/         schema.sql, migrations, and the built quran.db
-static/fonts/     Vendored fonts (604 QCF v2 page fonts, 47 QCF v4 font
-                  groups, + Scheherazade New)
+static/fonts/     Vendored fonts (47 QCF v4 font groups + Scheherazade New)
 scripts/          Font vendoring
 docs/             Research and design notes
 ```
@@ -161,14 +152,13 @@ docs/             Research and design notes
 
 ## Data sources
 
-| Source                                                                                                       | Provides                           | License                                             |
-| ------------------------------------------------------------------------------------------------------------ | ---------------------------------- | --------------------------------------------------- |
-| [Tanzil Project](https://tanzil.net)                                                                         | Uthmani and simple Arabic text     | CC BY 3.0                                           |
-| [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout)                                        | Mushaf page line layout            | ISC                                                 |
-| [alquran.cloud](https://alquran.cloud)                                                                       | Per-ayah juz/hizb/page metadata    | Open                                                |
-| [spa5k/quran_data](https://github.com/spa5k/quran_data)                                                      | Surah metadata                     | Open                                                |
-| [KFGQPC](http://dm.qurancomplex.gov.sa/copyright-2/) via [Quran Foundation](https://verses.quran.foundation) | QCF v2 Mushaf glyph fonts          | Restricted — see below                              |
-| [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4)                                | QCF v4 Mushaf glyph fonts + layout | JSON: MIT · fonts: Restricted, same terms as QCF v2 |
+| Source                                                                        | Provides                           | License                                            |
+| ----------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------- |
+| [Tanzil Project](https://tanzil.net)                                          | Uthmani and simple Arabic text     | CC BY 3.0                                          |
+| [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout)         | Mushaf page line layout            | ISC                                                |
+| [alquran.cloud](https://alquran.cloud)                                        | Per-ayah juz/hizb/page metadata    | Open                                               |
+| [spa5k/quran_data](https://github.com/spa5k/quran_data)                       | Surah metadata                     | Open                                               |
+| [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | QCF v4 Mushaf glyph fonts + layout | JSON: MIT · fonts: Restricted (KFGQPC) — see below |
 
 ---
 
@@ -177,9 +167,8 @@ docs/             Research and design notes
 The source code is [MIT licensed](LICENSE).
 
 The bundled fonts and Quran data are not covered by the MIT license — they
-are third-party works under their own terms. The QCF v2 and QCF v4 Mushaf
-fonts in particular may be used, copied and distributed, but not sold or
-modified.
+are third-party works under their own terms. The QCF v4 Mushaf fonts in
+particular may be used, copied and distributed, but not sold or modified.
 
 See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) before forking,
 redistributing, or selling a build.

@@ -218,8 +218,6 @@ CREATE TABLE IF NOT EXISTS page_line_word (
     word_index      INTEGER,            -- 1-based word position within the Ayah
 
     uthmani_text    TEXT    NOT NULL,   -- plain Uthmani text (search/copy/screen readers)
-    glyph_v2        TEXT    NOT NULL,   -- QCF v2 glyph string — render with font-family
-                                        -- 'QCF_P{page:03}' (or 'QCF_BSML' for basmala)
     glyph_v4        TEXT,               -- QCF v4 glyph string — render with the page's
                                         -- font-map.json family (or 'QCF4_Hafs_01' for basmala,
                                         -- which carries the basmala glyph for every page, not

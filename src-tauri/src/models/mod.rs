@@ -214,7 +214,7 @@ pub struct SearchResult {
 
 // =============================================================================
 // MUSHAF PAGE LAYOUT
-// Line-by-line Madani print layout (QCF v2 glyphs) for a single Mushaf page.
+// Line-by-line Madani print layout (QCF v4 glyphs) for a single Mushaf page.
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,9 +225,6 @@ pub struct PageLineWord {
     pub word_index: Option<u32>,
     /// Plain Uthmani text — search/copy/screen-reader fallback.
     pub uthmani_text: String,
-    /// QCF v2 glyph string. Render with `font-family: 'QCF_P{page:03}'`
-    /// (or `'QCF_BSML'` for a basmala line's single word row).
-    pub glyph_v2: String,
     /// QCF v4 glyph string. Render with the font-map.json family for this
     /// row's page. A basmala line's single word row instead uses
     /// `'QCF4_Hafs_01'`, which holds the basmala glyph for every page —

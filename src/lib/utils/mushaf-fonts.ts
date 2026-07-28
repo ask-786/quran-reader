@@ -12,10 +12,10 @@
  * and fetches by *family*, and the map has to be loaded before the first
  * lookup (see `loadFontMap`).
  *
- * The v2 loader below is kept, unused, so a rollback to v2 rendering is a
- * font-loader import swap in the render components rather than a rewrite —
- * see the migration plan's Rollback section. `static/fonts/mushaf/` (the v2
- * font files) and `page_line_word.glyph_v2` are both still shipped.
+ * v2 is fully gone as of the strip commit — its 604 font files, its loader
+ * here, and `page_line_word.glyph_v2`. Rollback is a revert of that commit,
+ * not a runtime fallback; shipping both sets was a 131 MB bundle, larger than
+ * the v2-only one the migration set out to shrink.
  */
 
 /**
@@ -154,77 +154,5 @@ export function trimPageFonts(retainedPages: Iterable<number>): void {
     if (keepFamilies.has(family)) continue;
     document.fonts.delete(face);
     loaded.delete(family);
-  }
-}
-
-// =============================================================================
-// QCF v2 (legacy) — unused by the render components, kept so rollback is an
-// import swap rather than a rewrite. See the module doc comment above.
-// =============================================================================
-
-const BASMALA_FAMILY_V2 = 'QCF_BSML';
-let basmalaFontPromiseV2: Promise<string> | null = null;
-
-export function loadBasmalaFontV2(): Promise<string> {
-  if (!basmalaFontPromiseV2) {
-    basmalaFontPromiseV2 = (async () => {
-      const face = new FontFace(BASMALA_FAMILY_V2, `url(/fonts/mushaf/${BASMALA_FAMILY_V2}.woff2)`);
-      await face.load();
-      document.fonts.add(face);
-      return BASMALA_FAMILY_V2;
-    })();
-  }
-  return basmalaFontPromiseV2;
-}
-
-const MAX_FONTS_V2 = 64;
-const loadedV2 = new Map<number, FontFace>();
-const inFlightV2 = new Map<number, Promise<string>>();
-
-export function familyForPageV2(page: number): string {
-  return `QCF_P${String(page).padStart(3, '0')}`;
-}
-
-function urlForPageV2(page: number): string {
-  return `/fonts/mushaf/QCF_P${String(page).padStart(3, '0')}.woff2`;
-}
-
-export function isPageFontReadyV2(page: number): boolean {
-  return loadedV2.has(page);
-}
-
-export function ensurePageFontV2(page: number): Promise<string> {
-  const family = familyForPageV2(page);
-
-  const hit = loadedV2.get(page);
-  if (hit) {
-    loadedV2.delete(page);
-    loadedV2.set(page, hit);
-    return Promise.resolve(family);
-  }
-
-  let pending = inFlightV2.get(page);
-  if (!pending) {
-    pending = (async () => {
-      const face = new FontFace(family, `url(${urlForPageV2(page)})`);
-      await face.load();
-      document.fonts.add(face);
-      loadedV2.set(page, face);
-      return family;
-    })().finally(() => inFlightV2.delete(page));
-    inFlightV2.set(page, pending);
-  }
-  return pending;
-}
-
-export function trimPageFontsV2(retained: Iterable<number>): void {
-  const keep = new Set(retained);
-  if (loadedV2.size <= MAX_FONTS_V2) return;
-
-  for (const [page, face] of loadedV2) {
-    if (loadedV2.size <= MAX_FONTS_V2) break;
-    if (keep.has(page)) continue;
-    document.fonts.delete(face);
-    loadedV2.delete(page);
   }
 }

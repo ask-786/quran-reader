@@ -382,7 +382,6 @@
             if (w.ayah_id === null) continue;
             const word: AyahGlyphWord = {
               uthmani_text: w.uthmani_text,
-              glyph_v2: w.glyph_v2,
               glyph_v4: w.glyph_v4,
               // The family name comes from font-map.json (loaded above) and
               // the font itself loads lazily, so this can be filled in

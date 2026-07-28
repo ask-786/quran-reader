@@ -30,18 +30,18 @@ struct LineJson {
     // so they aren't even deserialized here.
     #[serde(default, rename = "verseRange")]
     verse_range: Option<String>,
-    #[serde(default, rename = "qpcV2")]
-    qpc_v2: Option<String>, // basmala lines carry the glyph string directly
     #[serde(default)]
     words: Option<Vec<WordJson>>,
 }
 
+// This source's `qpcV2` glyph strings are deliberately not deserialized. It
+// remains the authority for *layout* — which words fall on which line, and
+// where the lines break — but the glyphs themselves now come from the v4 pass
+// below, so reading qpcV2 would only be to throw it away.
 #[derive(Debug, Deserialize)]
 struct WordJson {
     location: String, // "surah:ayah:word", e.g. "2:255:1"
     word: String,
-    #[serde(rename = "qpcV2")]
-    qpc_v2: String,
 }
 
 /// Download all 604 page layout files. One request per page — this is a
@@ -107,8 +107,8 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
         )?;
         let mut word_stmt = tx.prepare(
             "INSERT INTO page_line_word
-             (page_line_id, position, ayah_id, word_index, uthmani_text, glyph_v2)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+             (page_line_id, position, ayah_id, word_index, uthmani_text)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
         )?;
 
         for page in pages {
@@ -138,20 +138,17 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
                         };
                         line_count += 1;
 
-                        let glyph = line.qpc_v2.as_deref().with_context(|| {
-                            format!(
-                                "page {} line {}: basmala missing qpcV2",
-                                page.page, line.line
-                            )
-                        })?;
-
+                        // A basmala line's glyph used to be validated here, via
+                        // the source's own qpcV2 field. The v4 pass's closing
+                        // "still have no glyph_v4" count now covers this — and
+                        // covers it better, since it checks the glyph actually
+                        // being rendered rather than the one being discarded.
                         word_stmt.execute(params![
                             page_line_id,
                             0i64,
                             Option::<i64>::None,
                             Option::<i64>::None,
                             basmala_text,
-                            glyph,
                         ])?;
                         word_count += 1;
                     }
@@ -189,7 +186,6 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
                                 ayah_id,
                                 word_index,
                                 w.word,
-                                w.qpc_v2,
                             ])?;
                             word_count += 1;
                         }
@@ -560,8 +556,7 @@ pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
 
                     match w.word_type.as_str() {
                         "word" => {
-                            let Some((ayah_id, position)) =
-                                resolve_ayah_position(w, &ayah_ids)
+                            let Some((ayah_id, position)) = resolve_ayah_position(w, &ayah_ids)
                             else {
                                 continue;
                             };
@@ -573,8 +568,7 @@ pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
                             }
                         }
                         "end" => {
-                            let Some((ayah_id, position)) =
-                                resolve_ayah_position(w, &ayah_ids)
+                            let Some((ayah_id, position)) = resolve_ayah_position(w, &ayah_ids)
                             else {
                                 continue;
                             };
