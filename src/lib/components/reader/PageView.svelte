@@ -15,6 +15,7 @@
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
+  import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { observeCenteredAyah } from '$lib/utils/centered-ayah';
   import SurahHeader from './SurahHeader.svelte';
 
@@ -279,6 +280,14 @@
       if (lineId) document.getElementById(lineId)?.scrollIntoView({ block: 'center' });
       updateProgress();
     })();
+  });
+
+  // Page jumps and top/bottom shortcuts drive this view's scroller from the
+  // layout's key handler and the jump buttons. Here a page boundary is simply
+  // the page box itself.
+  $effect(() => {
+    if (!container) return;
+    return readerScroll.register(container, '.mushaf-page');
   });
 
   $effect(() => {

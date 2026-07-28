@@ -6,7 +6,6 @@
   } from '$lib/stores/auto-scroll.svelte';
 
   const RANGE = AUTO_SCROLL_SPEED_MAX - AUTO_SCROLL_SPEED_MIN;
-  const KEY_STEP = 10;
 
   let track = $state<HTMLDivElement>();
   let dragging = $state(false);
@@ -38,15 +37,21 @@
     dragging = false;
   }
 
+  // While this slider has focus its arrow keys set the speed, so they must not
+  // also reach the layout's shortcuts (where the same keys page the Mushaf) —
+  // hence stopPropagation on everything handled here.
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      autoScrollStore.setSpeed(autoScrollStore.speed + KEY_STEP);
+      e.stopPropagation();
+      autoScrollStore.faster();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      autoScrollStore.setSpeed(autoScrollStore.speed - KEY_STEP);
+      e.stopPropagation();
+      autoScrollStore.slower();
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      e.stopPropagation();
       autoScrollStore.toggle();
     }
   }
