@@ -447,14 +447,10 @@
     align-items: baseline;
     /* Load-bearing for windowed rendering, not just spacing: this is what
        fixes a line's height independently of whether its glyphs are in the
-       DOM. The flex children are single-line spans whose height is 2.7em
-       (line-height, below) — under this floor — so the box measures 2.8em
-       whether it holds a full line of Quran or nothing at all.
-
-       2.7/2.8 (was 2.5/2.6 for QCF v2) — sized from v4's measured ink rather
-       than its padded declared metrics, same reasoning and same 0.1em
-       headroom as before; see --line-height-quran in app.css. */
-    min-height: 2.8em;
+       DOM. The flex children are single-line spans whose height is 2.5em
+       (line-height, below) — under this floor — so the box measures 2.6em
+       whether it holds a full line of Quran or nothing at all. */
+    min-height: 2.6em;
   }
 
   .text-line {
@@ -477,9 +473,11 @@
        without cqi support drop the min() line as invalid and keep it. */
     font-size: calc(clamp(15px, 4.6vw, 27px) * var(--reader-zoom));
     font-size: min(calc(var(--font-size-quran) * var(--reader-zoom)), 4.3cqi);
-    /* 2.5 under QCF v2; 2.7 keeps the same optical gap under v4's slightly
-       taller ink — see --line-height-quran in app.css for the measurement. */
-    line-height: 2.7;
+    /* Carried unchanged from QCF v2: measuring line pitch off rendered v2 and
+       v4 pages put them within 0.6% at the same size, so v4's taller declared
+       metrics don't want more leading here. See --line-height-quran in
+       app.css. Keep in step with .line's min-height above. */
+    line-height: 2.5;
     color: var(--color-text);
   }
 

@@ -103,6 +103,15 @@ will overflow the page and blow the 15-line grid. `--font-size-quran` and its
 breakpoints (28 / 24 / 21 px in `src/app.css`) plus the page-view line height
 need retuning together, against a real rendered page.
 
+**Resolved, and this risk was overstated.** The line heights were first scaled
+by that 39% (2.2 → 3.06, 2.5 → 3.06-equivalent), then by a "measured ink is
+13% taller" figure (2.4 / 2.7); both render visibly looser than v2. The
+declared ascent/descent is padding v4 doesn't fill, and the ink extremes come
+from a few outlier glyphs rather than the body of a line. Measuring line pitch
+off rendered v2 and v4 pages at the same size and zoom put them within 0.6%,
+so both line heights are back at v2's values (2.2 and 2.5) and stay there.
+Anything derived from font metrics needs confirming against rendered pitch.
+
 ### 2. The bidi class of the glyph codepoints changes
 
 - v2 glyphs are Arabic Presentation Forms (`U+FC41…`), bidi class **AL** —
