@@ -157,8 +157,18 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
 /// Tanzil/Surah-metadata import is deterministic, and no migration before
 /// this one has ever touched `ayah`.
 fn rebuild_mushaf_layout_from_seed(conn: &Connection) -> DbResult<()> {
+    // Unique per call, not just per process: the pid alone collides when two
+    // upgrades run concurrently in one process, which is exactly what the
+    // tests below do.
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
     let mut seed_path = std::env::temp_dir();
-    seed_path.push(format!("quranreader-seed-{}.db", std::process::id()));
+    seed_path.push(format!(
+        "quranreader-seed-{}-{nonce}.db",
+        std::process::id()
+    ));
     std::fs::write(&seed_path, SEED_DB)?;
 
     let result = (|| -> DbResult<()> {
@@ -208,4 +218,230 @@ pub struct DbStats {
     pub bookmark_count: u32,
     pub note_count: u32,
     pub schema_version: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::params;
+
+    /// Reshape a copy of `SEED_DB` into what a v0.1.1 install's database looks
+    /// like on disk: schema v2, `page_line_word` carrying `glyph_v2` and no
+    /// `glyph_v4`. Faithful because v0.1.1's `ayah`, `surah` and `page_line`
+    /// tables are byte-identical to the current seed's (verified by EXCEPT in
+    /// both directions), so only `page_line_word`'s shape actually differs.
+    ///
+    /// Set `QURAN_TEST_V2_DB` to run against a genuine v0.1.1 file instead —
+    /// `git show v0.1.1:database/quran.db > /tmp/v011.db`.
+    fn v011_install(path: &Path) {
+        if let Ok(real) = std::env::var("QURAN_TEST_V2_DB") {
+            std::fs::copy(real, path).unwrap();
+        } else {
+            std::fs::write(path, SEED_DB).unwrap();
+            let conn = Connection::open(path).unwrap();
+            conn.execute_batch(
+                "ALTER TABLE page_line_word DROP COLUMN glyph_v4;
+                 ALTER TABLE page_line_word ADD COLUMN glyph_v2 TEXT NOT NULL DEFAULT 'x';
+                 DELETE FROM schema_version WHERE version >= 3;",
+            )
+            .unwrap();
+        }
+    }
+
+    /// The upgrade path an AUR user takes from the v0.1.1 release. This is the
+    /// case that can silently produce a blank Mushaf: `connection.rs` only
+    /// seeds when the file is absent, so an upgrading user keeps their own
+    /// database and every glyph they render has to come from a migration.
+    #[test]
+    fn upgrade_from_v011_populates_v4_glyphs_and_keeps_user_data() {
+        let dir = std::env::temp_dir().join(format!("quranreader-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quran.db");
+        let _ = std::fs::remove_file(&path);
+        v011_install(&path);
+
+        // Ayat al-Kursi — a stable, easily recognised verse to prove the
+        // bookmark still points at the same words after the layout tables have
+        // been deleted and rebuilt underneath it.
+        let (kursi_id, before_version): (i64, u32) = {
+            let conn = Connection::open(&path).unwrap();
+            let id: i64 = conn
+                .query_row(
+                    "SELECT id FROM ayah WHERE surah_id = 2 AND ayah_number = 255",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            conn.execute(
+                "INSERT INTO bookmark (ayah_id, label) VALUES (?1, 'kursi')",
+                params![id],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO note (ayah_id, content) VALUES (?1, 'my note')",
+                params![id],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('last_read_ayah_id', ?1)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![id.to_string()],
+            )
+            .unwrap();
+            (id, get_schema_version(&conn).unwrap())
+        };
+        assert_eq!(
+            before_version, 2,
+            "fixture should start as a v0.1.1 install"
+        );
+
+        // The upgrade itself, through the real entry point.
+        let conn = open(&path).unwrap();
+
+        assert_eq!(get_schema_version(&conn).unwrap(), 4);
+
+        let cols: Vec<String> = conn
+            .prepare("SELECT name FROM pragma_table_info('page_line_word')")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert!(!cols.iter().any(|c| c == "glyph_v2"), "glyph_v2 dropped");
+        assert!(cols.iter().any(|c| c == "glyph_v4"), "glyph_v4 present");
+
+        // A blank Mushaf is precisely "rows exist but glyph_v4 is NULL", so
+        // assert on the glyph data rather than just the row count.
+        let (rows, null_v4): (u32, u32) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE glyph_v4 IS NULL) FROM page_line_word",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 77_539);
+        assert_eq!(null_v4, 0, "every word row must render");
+
+        // User data survives, and still resolves to the same verse.
+        let (b_surah, b_ayah): (u32, u32) = conn
+            .query_row(
+                "SELECT a.surah_id, a.ayah_number FROM bookmark b
+                 JOIN ayah a ON a.id = b.ayah_id WHERE b.label = 'kursi'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (b_surah, b_ayah),
+            (2, 255),
+            "bookmark still on Ayat al-Kursi"
+        );
+
+        let note: String = conn
+            .query_row(
+                "SELECT content FROM note WHERE ayah_id = ?1",
+                params![kursi_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(note, "my note");
+
+        let last_read: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'last_read_ayah_id'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(last_read, kursi_id.to_string(), "reading position survives");
+
+        // And the bookmarked verse actually has glyphs to render.
+        let kursi_words: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM page_line_word WHERE ayah_id = ?1 AND glyph_v4 IS NOT NULL",
+                params![kursi_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(kursi_words > 0, "bookmarked ayah renders");
+
+        let integrity: String = conn
+            .query_row("PRAGMA integrity_check", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(integrity, "ok");
+        let mut fk = conn.prepare("PRAGMA foreign_key_check").unwrap();
+        assert!(
+            fk.query([]).unwrap().next().unwrap().is_none(),
+            "no dangling ayah_id references after the layout rebuild"
+        );
+        drop(fk);
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The other half of the release: someone installing for the first time,
+    /// who gets `SEED_DB` written out whole and must skip migrations entirely.
+    #[test]
+    fn fresh_install_seeds_at_current_version() {
+        let dir = std::env::temp_dir().join(format!("quranreader-fresh-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("quran.db");
+        assert!(!path.exists());
+
+        let conn = open(&path).unwrap();
+
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
+        let (rows, null_v4): (u32, u32) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE glyph_v4 IS NULL) FROM page_line_word",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 77_539);
+        assert_eq!(null_v4, 0);
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// v0.1.0 predates the Mushaf layout entirely — its database has no
+    /// `page_line`/`page_line_word` at all, so 002 creates them empty and the
+    /// rebuild is the only thing that ever fills them.
+    #[test]
+    fn upgrade_from_v010_creates_and_fills_layout_tables() {
+        let dir = std::env::temp_dir().join(format!("quranreader-v010-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quran.db");
+        let _ = std::fs::remove_file(&path);
+
+        std::fs::write(&path, SEED_DB).unwrap();
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "DROP TABLE page_line_word;
+                 DROP TABLE page_line;
+                 DELETE FROM schema_version WHERE version >= 2;",
+            )
+            .unwrap();
+            assert_eq!(get_schema_version(&conn).unwrap(), 1);
+        }
+
+        let conn = open(&path).unwrap();
+
+        assert_eq!(get_schema_version(&conn).unwrap(), 4);
+        let (rows, null_v4): (u32, u32) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE glyph_v4 IS NULL) FROM page_line_word",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 77_539);
+        assert_eq!(null_v4, 0);
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
