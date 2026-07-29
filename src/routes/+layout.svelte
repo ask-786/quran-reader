@@ -120,7 +120,9 @@
       // reader is what you're in. With a Surah link in the sidebar focused,
       // these same keys scroll that list natively, and taking them over there
       // would leave the list with no keyboard scrolling at all.
-      if (!target.closest('.sidebar-slot')) {
+      // `instanceof Element` because a keydown with nothing focused can be
+      // targeted at the document itself, which has no closest().
+      if (!(target instanceof Element) || !target.closest('.sidebar-slot')) {
         switch (e.key) {
           case 'ArrowDown':
           case 'PageDown':
