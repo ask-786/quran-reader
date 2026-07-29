@@ -1,9 +1,12 @@
+import { uiStore } from './ui.svelte';
+
 export const AUTO_SCROLL_SPEED_MIN = 0;
 export const AUTO_SCROLL_SPEED_MAX = 100;
 /** One nudge of the speed, shared by the handle's arrow keys and the shortcuts. */
 export const AUTO_SCROLL_SPEED_STEP = 10;
 
 const DEFAULT_SPEED = 40;
+/** Rate at full speed and 100% reader zoom; see the scaling in `tick`. */
 const MAX_PX_PER_SECOND = 40;
 // Higher = snappier ramp to the target speed; frame-rate independent (exponential ease).
 const EASE_RATE = 6;
@@ -58,7 +61,17 @@ class AutoScrollStore {
    * every N frames instead of gliding.
    */
   tick(dt: number): { whole: number; fraction: number } {
-    const target = (this.speed / AUTO_SCROLL_SPEED_MAX) * MAX_PX_PER_SECOND;
+    // Scaled by reader zoom so a handle position means a *reading* pace rather
+    // than a pixel rate: every line is twice as tall at 200% zoom, so a fixed
+    // px/s would read half as fast for the same setting. Zoom changes ease in
+    // through the same ramp below as a speed change does.
+    //
+    // Exact in the Ayah list, where the text size is a plain multiple of the
+    // zoom. In the Mushaf view the line size is additionally capped to what
+    // the column can hold (see `.text-line` in PageView), so once the column
+    // has grown to fill the window the lines stop growing while this keeps
+    // scaling — a high zoom in a narrow window still runs somewhat fast.
+    const target = (this.speed / AUTO_SCROLL_SPEED_MAX) * MAX_PX_PER_SECOND * uiStore.readerZoom;
     const alpha = 1 - Math.exp(-EASE_RATE * dt);
     this.#currentPxPerSecond += (target - this.#currentPxPerSecond) * alpha;
 
