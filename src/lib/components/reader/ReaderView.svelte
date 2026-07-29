@@ -18,6 +18,7 @@
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
+  import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { observeCenteredAyah } from '$lib/utils/centered-ayah';
 
   let {
@@ -552,6 +553,14 @@
       }
       updateProgress();
     })();
+  });
+
+  // Page jumps and top/bottom shortcuts drive this view's scroller from the
+  // layout's key handler and the jump buttons; rows carry the page they belong
+  // to, so a page boundary resolves to the first row tagged with it.
+  $effect(() => {
+    if (!container) return;
+    return readerScroll.register(container, '.ayah-row');
   });
 
   $effect(() => {

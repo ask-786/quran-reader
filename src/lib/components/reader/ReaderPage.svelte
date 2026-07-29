@@ -6,6 +6,7 @@
   import AutoScrollHandle from './AutoScrollHandle.svelte';
   import ProgressIndicator from './ProgressIndicator.svelte';
   import ReaderZoomControl from './ReaderZoomControl.svelte';
+  import ReaderJumpControl from './ReaderJumpControl.svelte';
   import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
 
@@ -82,8 +83,9 @@
   {/if}
   <ProgressIndicator />
   <AutoScrollHandle />
-  <div class="zoom-control-slot">
+  <div class="control-slot">
     <ReaderZoomControl />
+    <ReaderJumpControl />
   </div>
 </div>
 
@@ -96,15 +98,19 @@
     overflow: hidden;
   }
 
-  .zoom-control-slot {
+  .control-slot {
     position: absolute;
     top: 16px;
     right: 30px;
     z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
   }
 
   @media (max-width: 480px) {
-    .zoom-control-slot {
+    .control-slot {
       display: none;
     }
   }

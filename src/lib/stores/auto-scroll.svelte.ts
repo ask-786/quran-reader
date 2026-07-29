@@ -1,5 +1,7 @@
 export const AUTO_SCROLL_SPEED_MIN = 0;
 export const AUTO_SCROLL_SPEED_MAX = 100;
+/** One nudge of the speed, shared by the handle's arrow keys and the shortcuts. */
+export const AUTO_SCROLL_SPEED_STEP = 10;
 
 const DEFAULT_SPEED = 40;
 const MAX_PX_PER_SECOND = 40;
@@ -25,6 +27,15 @@ class AutoScrollStore {
     this.speed = 0;
     this.#currentPxPerSecond = 0;
     this.#accumulator = 0;
+  }
+
+  faster() {
+    this.setSpeed(this.speed + AUTO_SCROLL_SPEED_STEP);
+  }
+
+  /** Stops at zero, easing down through `tick` rather than cutting out. */
+  slower() {
+    this.setSpeed(this.speed - AUTO_SCROLL_SPEED_STEP);
   }
 
   setSpeed(value: number) {
