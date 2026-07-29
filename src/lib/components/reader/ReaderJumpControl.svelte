@@ -26,9 +26,11 @@
   .jump-group {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    box-sizing: border-box;
+    width: 100%;
     gap: 2px;
-    padding: 4px;
+    padding: 3px;
     border-radius: var(--radius);
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
@@ -39,8 +41,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 100%;
+    height: 22px;
+    padding: 0;
     border-radius: var(--radius);
     background: transparent;
     border: none;

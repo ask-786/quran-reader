@@ -98,6 +98,8 @@
     overflow: hidden;
   }
 
+  /* The slot owns the width so the zoom and jump controls always match: just
+     wide enough for the widest zoom label ("200%") and nothing more. */
   .control-slot {
     position: absolute;
     top: 16px;
@@ -105,7 +107,8 @@
     z-index: 6;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    width: 34px;
     gap: 8px;
   }
 
