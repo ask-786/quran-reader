@@ -24,6 +24,7 @@ data ships inside the binary.
 
 - Browse by Surah, Juz, Hizb or page
 - Go-to overlay (`Ctrl`/`Cmd`+`G`): `255`, `2:255`, or `p255`
+- Keyboard-driven sidebar search (`/`): type, arrow through the results, `Enter`
 - Deep links: `/surah/2?ayah=255`, `/juz/30`, `/hizb/59`, `/page/604`
 - Reopens where you left off
 
@@ -47,6 +48,7 @@ data ships inside the binary.
 | Key                            | Action                                                                    |
 | ------------------------------ | ------------------------------------------------------------------------- |
 | `Ctrl`/`Cmd`+`G`               | Go to ayah or page                                                        |
+| `/` or `Ctrl`/`Cmd`+`F`        | Search the sidebar (`↑` / `↓` to pick, `Enter` to open)                   |
 | `f`                            | Toggle focus mode                                                         |
 | `m`                            | Switch between Mushaf and scrolling view                                  |
 | `n` / `p`                      | Next / previous surah, juz, hizb or page                                  |
@@ -56,7 +58,7 @@ data ships inside the binary.
 | `Shift`+`↑` / `Shift`+`↓`      | Auto-scroll faster / slower                                               |
 | `+` / `-` / `0`                | Reader zoom in / out / reset (normal and focus view keep separate levels) |
 | `Ctrl`/`Cmd`+`+` / `-` / `0`   | App zoom in / out / reset                                                 |
-| `Esc`                          | Close the overlay, or leave focus mode                                    |
+| `Esc`                          | Clear the search, close the overlay, or leave focus mode                  |
 
 ---
 
