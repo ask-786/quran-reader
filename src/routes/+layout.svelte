@@ -77,6 +77,15 @@
         uiStore.toggleGoTo();
         return;
       }
+      // The platform-standard find key, pointed at the only text search there
+      // is. Unlike `/` below it works from inside a text field too, so the
+      // go-to overlay has to give way to it.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        uiStore.closeGoTo();
+        uiStore.focusSearch();
+        return;
+      }
 
       // App zoom takes the platform-standard Ctrl/Cmd +/-/0, so it has to be
       // handled ahead of the modifier guard below. `=` and `_` are the
@@ -104,6 +113,14 @@
       if (uiStore.goToOpen || e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Bare `/`, the vim/browser convention. Safe as an unmodified key because
+      // the text-field guard above has already bowed out of any input.
+      if (e.key === '/') {
+        e.preventDefault();
+        uiStore.focusSearch();
         return;
       }
 

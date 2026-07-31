@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
   import { resolve } from '$app/paths';
   import { surahsStore } from '$lib/stores/surahs.svelte';
@@ -20,9 +20,34 @@
 
   let mode = $state<Mode>('surah');
   let filter = $state('');
+  let inputEl = $state<HTMLInputElement>();
+  // The keyboard cursor over the result list. -1 is "not navigating yet": the
+  // list stays unmarked while you type, and only an arrow key picks a row.
+  let activeIndex = $state(-1);
+  let inputFocused = $state(false);
 
   onMount(() => {
     surahsStore.init();
+  });
+
+  $effect(() => {
+    if (!uiStore.searchFocusPending) return;
+    uiStore.searchFocusPending = false;
+    // A tick, because the shortcut may have just opened a collapsed sidebar or
+    // left focus mode, and this input isn't in the DOM until that lands.
+    tick().then(() => {
+      inputEl?.focus();
+      inputEl?.select();
+    });
+  });
+
+  // Any change to what's listed retires the cursor — the row it pointed at is
+  // gone or has moved, and re-typing means you're choosing again, not yet
+  // navigating.
+  $effect(() => {
+    filter;
+    mode;
+    activeIndex = -1;
   });
 
   function selectMode(next: Mode) {
@@ -68,6 +93,67 @@
   const placeholder = $derived(
     mode === 'surah' ? 'Find a surah…' : mode === 'juz' ? 'Jump to a Juz…' : 'Jump to a Hizb…',
   );
+
+  // How many rows the cursor has to work with, whichever mode is showing.
+  const resultCount = $derived(
+    mode === 'surah'
+      ? filteredSurahs.length
+      : mode === 'juz'
+        ? filteredJuz.length
+        : filteredHizb.length,
+  );
+
+  const optionId = (i: number) => `sidebar-option-${i}`;
+
+  function moveCursor(delta: number) {
+    if (resultCount === 0) return;
+    if (activeIndex < 0) {
+      // Entering the list from the input: down lands on the first result, up on
+      // the last.
+      activeIndex = delta > 0 ? 0 : resultCount - 1;
+    } else {
+      // Clamped, not wrapped: with 114 surahs, falling off the top and landing
+      // at the bottom loses your place more than it helps.
+      activeIndex = Math.min(Math.max(activeIndex + delta, 0), resultCount - 1);
+    }
+    tick().then(() =>
+      document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: 'nearest' }),
+    );
+  }
+
+  function onInputKeydown(e: KeyboardEvent) {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        moveCursor(1);
+        return;
+      case 'ArrowUp':
+        e.preventDefault();
+        moveCursor(-1);
+        return;
+      case 'Enter': {
+        // Nothing is picked until an arrow key picks it, so a bare Enter after
+        // typing does nothing rather than opening a result you never looked at.
+        if (activeIndex < 0) return;
+        const option = document.getElementById(optionId(activeIndex));
+        if (!option) return;
+        e.preventDefault();
+        // Hand the keyboard back to the reader — the point of choosing a result
+        // is to go read it, and the reader's own keys are all bare letters that
+        // a focused input would swallow.
+        inputEl?.blur();
+        // Clicking the link itself rather than routing by hand, so the keyboard
+        // and the mouse go through one code path.
+        option.click();
+        return;
+      }
+      case 'Escape':
+        // First press clears a filter, second leaves the box.
+        if (filter) filter = '';
+        else inputEl?.blur();
+        return;
+    }
+  }
 </script>
 
 <aside class="sidebar scrollbar-thin">
@@ -85,8 +171,23 @@
         class="filter-input"
         type="text"
         {placeholder}
+        bind:this={inputEl}
         bind:value={filter}
+        onkeydown={onInputKeydown}
+        onfocus={() => (inputFocused = true)}
+        onblur={() => {
+          inputFocused = false;
+          // Don't leave a cursor parked out of sight, ready to fire on the next
+          // Enter — coming back to the box starts from "not navigating" again.
+          activeIndex = -1;
+        }}
         aria-label={placeholder}
+        autocomplete="off"
+        role="combobox"
+        aria-expanded="true"
+        aria-controls="sidebar-results"
+        aria-autocomplete="list"
+        aria-activedescendant={inputFocused && activeIndex >= 0 ? optionId(activeIndex) : undefined}
       />
     </div>
   </div>
@@ -97,12 +198,16 @@
     {:else if surahsStore.error}
       <p class="hint hint-error">Failed to load surahs.</p>
     {:else}
-      <ul class="item-list">
-        {#each filteredSurahs as surah (surah.id)}
+      <ul class="item-list" id="sidebar-results" role="listbox">
+        {#each filteredSurahs as surah, i (surah.id)}
           <li>
             <a
               class="surah-item"
               class:active={surah.id === activeSurahId}
+              class:cursor={inputFocused && i === activeIndex}
+              id={optionId(i)}
+              role="option"
+              aria-selected={inputFocused && i === activeIndex}
               href={resolve('/surah/[id]', { id: String(surah.id) })}
               onclick={selectItem}
             >
@@ -119,12 +224,16 @@
       </ul>
     {/if}
   {:else if mode === 'juz'}
-    <ul class="item-list">
-      {#each filteredJuz as n (n)}
+    <ul class="item-list" id="sidebar-results" role="listbox">
+      {#each filteredJuz as n, i (n)}
         <li>
           <a
             class="unit-item"
             class:active={n === activeJuz}
+            class:cursor={inputFocused && i === activeIndex}
+            id={optionId(i)}
+            role="option"
+            aria-selected={inputFocused && i === activeIndex}
             href={resolve('/juz/[id]', { id: String(n) })}
             onclick={selectItem}
           >
@@ -135,12 +244,16 @@
       {/each}
     </ul>
   {:else}
-    <ul class="item-list">
-      {#each filteredHizb as n (n)}
+    <ul class="item-list" id="sidebar-results" role="listbox">
+      {#each filteredHizb as n, i (n)}
         <li>
           <a
             class="unit-item"
             class:active={n === activeHizb}
+            class:cursor={inputFocused && i === activeIndex}
+            id={optionId(i)}
+            role="option"
+            aria-selected={inputFocused && i === activeIndex}
             href={resolve('/hizb/[id]', { id: String(n) })}
             onclick={selectItem}
           >
@@ -249,6 +362,8 @@
     text-decoration: none;
     color: var(--color-text);
     transition: background var(--transition);
+    /* Clears the sticky header when the keyboard cursor scrolls an item in. */
+    scroll-margin: 92px 0 8px;
   }
 
   .surah-item:hover,
@@ -259,6 +374,15 @@
   .surah-item.active,
   .unit-item.active {
     background: var(--color-bg-hover);
+  }
+
+  /* Outlined rather than filled, so it stays legible on the .active item —
+     where you are and what you're about to pick are different things. */
+  .surah-item.cursor,
+  .unit-item.cursor {
+    background: var(--color-bg-hover);
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
   }
 
   .surah-item.active .surah-translit,
