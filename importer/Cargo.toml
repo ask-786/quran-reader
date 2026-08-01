@@ -10,7 +10,7 @@ name = "quran-importer"
 path = "src/main.rs"
 
 [dependencies]
-rusqlite   = { version = "0.32", features = ["bundled"] }
+rusqlite   = { version = "0.40", features = ["bundled"] }
 ureq       = { version = "3", features = [] }
 quick-xml  = { version = "0.41" }
 serde      = { version = "1", features = ["derive"] }
