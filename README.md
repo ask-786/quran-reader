@@ -119,6 +119,21 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 CI runs all of the above plus a compile on Linux, Windows and macOS. Commits
 are linted by husky (`lint-staged` + conventional commits via commitlint).
 
+### Releasing
+
+The version lives in four files that must agree — `package.json`,
+`src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`
+— and the release workflow rechecks them against the tag before building:
+
+```bash
+./scripts/bump-version.sh patch --commit   # or minor / major / an explicit X.Y.Z
+git push origin master && git push origin vX.Y.Z
+```
+
+The tag push builds Linux, macOS and Windows bundles into a **draft** release.
+Publishing that draft is what triggers the AUR workflow, which updates
+`packaging/aur/` with the new version and `.deb` checksum on its own.
+
 ---
 
 ## Regenerating the data
@@ -152,7 +167,7 @@ src-tauri/        Rust backend — SQLite access, Tauri commands
 importer/         Standalone importer that builds quran.db
 database/         schema.sql, migrations, and the built quran.db
 static/fonts/     Vendored fonts (47 QCF v4 font groups + Scheherazade New)
-scripts/          Font vendoring
+scripts/          Font vendoring, icon generation, version bumping
 docs/             Research and design notes
 ```
 
