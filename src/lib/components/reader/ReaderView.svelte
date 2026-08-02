@@ -168,9 +168,23 @@
   function pageChanged(i: number) {
     return i > 0 && ayahs[i].page !== ayahs[i - 1].page;
   }
-  function juzChanged(i: number) {
-    return i > 0 && ayahs[i].juz !== ayahs[i - 1].juz;
-  }
+
+  /**
+   * Page -> the Juz that finished on it, keyed off the last Ayah of that Juz
+   * rather than the first of the next. That page's footer is where it gets
+   * reported, so the four Juz ending partway down a page (before 3:93, 5:82,
+   * 9:93 and 46:1) roll forward onto the next footer instead of splitting a
+   * page with a rule of their own. Mirrors `juzCompletedOnPage` in PageView —
+   * see there for why forward is the only truthful direction.
+   */
+  const juzCompletedOnPage = $derived.by(() => {
+    const map = new SvelteMap<number, number>();
+    for (let i = 1; i < ayahs.length; i++) {
+      if (ayahs[i].juz === ayahs[i - 1].juz) continue;
+      map.set(ayahs[i - 1].page, ayahs[i - 1].juz);
+    }
+    return map;
+  });
 
   function onCenteredAyah(id: number) {
     // Published immediately so a Mushaf/list toggle can pick it up, while
@@ -593,6 +607,21 @@
 <div bind:this={container} class="reader-scroll scrollbar-none">
   <div bind:this={content} class="reader-content">
     {#each ayahs as ayah, i (ayah.id)}
+      <!-- The page number labels the page *above* it, matching the footer under
+           each page box in Mushaf view — the same number in the same place, so
+           the two views never disagree about which page you left. Both halves
+           report what has just been finished, never what is about to start: a
+           row mixing the two ("21 · Juz 2") reads as two facts pointing in
+           opposite directions. -->
+      {#if pageChanged(i)}
+        <div class="page-footer" class:juz-boundary={juzCompletedOnPage.has(ayahs[i - 1].page)}>
+          <span>{ayahs[i - 1].page}</span>
+          {#if juzCompletedOnPage.has(ayahs[i - 1].page)}
+            <span class="sep">·</span>
+            <span class="juz-no">Juz {juzCompletedOnPage.get(ayahs[i - 1].page)} complete</span>
+          {/if}
+        </div>
+      {/if}
       {#if segments.has(i)}
         {@const seg = segments.get(i)}
         {#if seg?.surah}
@@ -604,14 +633,6 @@
           />
         {/if}
       {/if}
-      {#if pageChanged(i)}
-        <div class="boundary-divider">
-          <span
-            >Page {ayah.page}{#if juzChanged(i)}
-              · Juz {ayah.juz}{/if}</span
-          >
-        </div>
-      {/if}
       <AyahRow
         {ayah}
         words={renderedPages.has(ayah.page) ? (ayahWords.get(ayah.id) ?? []) : []}
@@ -619,6 +640,19 @@
         translation={showTranslation ? (translations[ayah.id] ?? null) : null}
       />
     {/each}
+    <!-- The loop only numbers a page when the next one starts, so the last
+         page of the range needs its footer here — including any Juz that
+         finished on it, which for a Juz-scoped route is the whole point. -->
+    {#if ayahs.length > 0}
+      {@const lastPageOfRange = ayahs[ayahs.length - 1].page}
+      <div class="page-footer" class:juz-boundary={juzCompletedOnPage.has(lastPageOfRange)}>
+        <span>{lastPageOfRange}</span>
+        {#if juzCompletedOnPage.has(lastPageOfRange)}
+          <span class="sep">·</span>
+          <span class="juz-no">Juz {juzCompletedOnPage.get(lastPageOfRange)} complete</span>
+        {/if}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -659,7 +693,10 @@
     will-change: transform;
   }
 
-  .boundary-divider {
+  /* Matches the footer under each page box in Mushaf view: the number labels
+     the page above it, and a Juz opening below turns the rule gold rather
+     than adding a second marker of its own. */
+  .page-footer {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -667,15 +704,24 @@
     margin: 20px 0;
     color: var(--color-text-faint);
     font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
-  .boundary-divider::before,
-  .boundary-divider::after {
+  .page-footer::before,
+  .page-footer::after {
     content: '';
     flex: 1;
     height: 1px;
     background: var(--color-border);
+  }
+
+  .page-footer.juz-boundary::before,
+  .page-footer.juz-boundary::after {
+    background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+
+  .juz-no {
+    color: var(--color-accent);
+    text-transform: uppercase;
   }
 </style>

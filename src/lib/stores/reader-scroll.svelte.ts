@@ -17,9 +17,17 @@
 const AT_PAGE_START_EPSILON = 40;
 
 class ReaderScrollStore {
-  #container: HTMLElement | null = null;
+  // Reactive, unlike the selector below: the context bar attaches its own
+  // scroll listener to whichever view is mounted, and has to be handed the new
+  // element when a Mushaf/list toggle swaps it out.
+  #container = $state<HTMLElement | null>(null);
   /** Selector for the elements the registered view tags with `data-page`. */
   #anchorSelector = '';
+
+  /** The mounted view's scroller, for chrome that reacts to scrolling. */
+  get container() {
+    return this.#container;
+  }
 
   /**
    * Called by the mounted view once its container exists. Returns the

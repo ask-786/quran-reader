@@ -5,6 +5,7 @@
   import PageView from './PageView.svelte';
   import AutoScrollHandle from './AutoScrollHandle.svelte';
   import ProgressIndicator from './ProgressIndicator.svelte';
+  import ReaderContextBar from './ReaderContextBar.svelte';
   import ReaderZoomControl from './ReaderZoomControl.svelte';
   import ReaderJumpControl from './ReaderJumpControl.svelte';
   import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
@@ -81,6 +82,7 @@
   {:else}
     <ReaderView {ayahs} scrollToAyahId={viewTarget} />
   {/if}
+  <ReaderContextBar {ayahs} />
   <ProgressIndicator />
   <AutoScrollHandle />
   <div class="control-slot">
