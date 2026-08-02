@@ -631,8 +631,7 @@ pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
                                 unmatched += 1;
                                 continue;
                             };
-                            let Some((ayah_id, position)) =
-                                resolve_ayah_position(next, &ayah_ids)
+                            let Some((ayah_id, position)) = resolve_ayah_position(next, &ayah_ids)
                             else {
                                 unmatched += 1;
                                 continue;
