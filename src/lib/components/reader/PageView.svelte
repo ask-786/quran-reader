@@ -65,15 +65,6 @@
   const firstPage = $derived(ayahs[0]?.page ?? 1);
   const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
 
-  // Page -> Juz, derived from this Surah's own Ayahs. Pages that also carry a
-  // neighbouring Surah's content are still keyed off what we know, matching
-  // how ReaderView derives its boundary dividers.
-  const juzByPage = $derived.by(() => {
-    const map = new SvelteMap<number, number>();
-    for (const a of ayahs) if (!map.has(a.page)) map.set(a.page, a.juz);
-    return map;
-  });
-
   /**
    * Ayah id -> the id of the line element its first word sits on. Scroll
    * targets have to resolve through this rather than through a word span:
@@ -90,6 +81,69 @@
           map.set(w.ayah_id, `line-${p.page}-${line.line_number}`);
         }
       }
+    }
+    return map;
+  });
+
+  /**
+   * Page -> the Juz that finished on it, read by that page's own footer.
+   * Labelled by the Juz it closes rather than the one it opens: a page number
+   * reports the page you just finished, so a Juz sharing that rule has to
+   * report the Juz you just finished too — one row pointing two directions at
+   * once ("21 · Juz 2", meaning page 21 ended and Juz 2 begins) is the kind of
+   * thing a reader has to stop and decode.
+   *
+   * Twenty-six of the thirty end exactly at a page boundary. The other four end
+   * partway down a page (Juz 3 after line 1 of page 62, Juz 6 after line 11 of
+   * 121, Juz 10 after line 12 of 201, Juz 25 after line 8 of 502), and those
+   * roll *forward* onto the foot of the page they ended on rather than getting
+   * a rule of their own: a rule cutting between two lines breaks up a page that
+   * should read as one printed sheet, and the ۞ ornament at the head of the
+   * following line already marks the exact spot, as it does in print.
+   *
+   * Forward is the only direction that stays true. By the foot of page 62 Juz 3
+   * really is finished, so the row is late but never wrong; hanging it on page
+   * 61's footer instead would announce a Juz as complete while a line of it was
+   * still to come.
+   *
+   * The loaded range is a contiguous run of Ayahs, so a Juz change from one
+   * Ayah to the next is a true boundary and no bookkeeping beyond the previous
+   * value is needed. It also means a range opening mid-Juz never claims a
+   * boundary it didn't cross.
+   */
+  const juzCompletedOnPage = $derived.by(() => {
+    const map = new SvelteMap<number, number>();
+
+    const pageOfLine = new SvelteMap<string, number>();
+    // A page's first *text* line, so a Juz opening after a Surah header and its
+    // Basmala still counts as opening the page rather than interrupting it.
+    const opensPage = new SvelteSet<string>();
+    for (const p of pages) {
+      let seenText = false;
+      for (const l of p.lines) {
+        if (l.line_type !== 'text') continue;
+        const id = `line-${p.page}-${l.line_number}`;
+        pageOfLine.set(id, p.page);
+        if (!seenText) {
+          opensPage.add(id);
+          seenText = true;
+        }
+      }
+    }
+
+    let prev = ayahs[0]?.juz;
+    for (const a of ayahs) {
+      if (a.juz === prev) continue;
+      const completed = prev;
+      prev = a.juz;
+      const line = lineForAyah.get(a.id);
+      if (completed === undefined || line === undefined) continue;
+      const page = pageOfLine.get(line);
+      if (page === undefined) continue;
+      // A boundary that opens a page closed the page before it; one that lands
+      // mid-page closed nothing yet — that page's own foot is the first honest
+      // place to say so.
+      map.set(opensPage.has(line) ? page - 1 : page, completed);
     }
     return map;
   });
@@ -325,15 +379,7 @@
       <p class="state-message">Loading…</p>
     {:else}
       <div bind:this={content} class="page-content">
-        {#each pages as p, i (p.page)}
-          {#if i > 0}
-            <div class="boundary-divider">
-              <span
-                >Page {p.page}{#if juzByPage.get(p.page) !== juzByPage.get(pages[i - 1].page)}
-                  · Juz {juzByPage.get(p.page)}{/if}</span
-              >
-            </div>
-          {/if}
+        {#each pages as p (p.page)}
           <div class="mushaf-page" data-page={p.page} dir="rtl">
             {#each p.lines as line, li (line.line_number)}
               {#if line.line_type === 'surah_header'}
@@ -380,6 +426,22 @@
                 </div>
               {/if}
             {/each}
+            <!-- Inside the page box, not between pages: the printed Mushaf
+                 puts the folio number at the foot of the page it numbers.
+                 Every page gets one, including the first of the range — the
+                 old between-pages divider was skipped at i === 0, so opening
+                 a Surah mid-Mushaf left its first page unnumbered.
+
+                 When a Juz finished on this page, the row carries that as well
+                 rather than letting the Juz draw a marker of its own. Both
+                 halves report the same thing: what you have just finished. -->
+            <div class="page-footer" class:juz-boundary={juzCompletedOnPage.has(p.page)} dir="ltr">
+              <span>{p.page}</span>
+              {#if juzCompletedOnPage.has(p.page)}
+                <span class="sep">·</span>
+                <span class="juz-no">Juz {juzCompletedOnPage.get(p.page)} complete</span>
+              {/if}
+            </div>
           </div>
         {/each}
       </div>
@@ -430,25 +492,44 @@
     container-type: inline-size;
   }
 
-  .boundary-divider {
+  /* Was carried by the old between-pages divider's margin; now that the page
+     box owns its own footer, the box owns the separation too. */
+  .mushaf-page + .mushaf-page {
+    margin-top: 28px;
+  }
+
+  .page-footer {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: calc(min(100%, var(--reader-max-width) * var(--reader-zoom)));
-    margin: 20px 0;
+    /* Spaced in the page's own em, so it tracks reader zoom with the text
+       above it instead of drifting as the column grows. */
+    margin-top: 0.6em;
     color: var(--color-text-faint);
+    font-family: var(--font-ui);
     font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
-  .boundary-divider::before,
-  .boundary-divider::after {
+  .page-footer::before,
+  .page-footer::after {
     content: '';
     flex: 1;
     height: 1px;
     background: var(--color-border);
+  }
+
+  /* Same row, same rule — only the colour changes, so a Juz boundary reads as
+     a page boundary that matters rather than as a different kind of thing. */
+  .page-footer.juz-boundary::before,
+  .page-footer.juz-boundary::after {
+    background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+
+  .juz-no {
+    color: var(--color-accent);
+    text-transform: uppercase;
   }
 
   .line {
