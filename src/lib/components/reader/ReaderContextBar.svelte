@@ -35,29 +35,50 @@
   const current = $derived(ayahs.find((a) => a.id === readerPosition.ayahId) ?? ayahs[0]);
   const surah = $derived(current ? surahsStore.get(current.surah_id) : undefined);
 
+  // The two announced values, each in its own $derived. The announcement effect
+  // below must depend on *these* and not on `current`: `current` is a fresh Ayah
+  // on every line the reader passes, so an effect reading it would re-run — and
+  // re-announce — all the way down the page instead of at the two boundaries
+  // anyone cares about.
+  const surahId = $derived(current?.surah_id);
+  const juz = $derived(current?.juz);
+
   let visible = $state(false);
+  /**
+   * True while the bar is up because the reader scrolled up looking for it, as
+   * opposed to because it announced itself. A held reveal waits for them to
+   * scroll back down; an announcement retreats on its own.
+   */
+  let held = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  function reveal(transient: boolean) {
+  function announce() {
+    // A bar already up on request has nothing to add, and starting a hide timer
+    // under it would snatch it away while the reader is still looking.
+    if (held) return;
     clearTimeout(timer);
     visible = true;
-    // A reveal the reader asked for by scrolling up stays until they scroll
-    // back down; one the bar volunteered retreats on its own.
-    if (transient) timer = setTimeout(() => (visible = false), ANNOUNCE_MS);
+    timer = setTimeout(() => (visible = false), ANNOUNCE_MS);
+  }
+
+  function hold() {
+    clearTimeout(timer);
+    held = true;
+    visible = true;
   }
 
   function conceal() {
     clearTimeout(timer);
+    held = false;
     visible = false;
   }
 
-  // Announce on entering a new Surah or Juz. Deliberately reads only the two
-  // values it announces — `visible` is written here and must not be tracked,
-  // or every reveal would re-trigger the effect that caused it.
+  // Announce on entering a new Surah or Juz — including the first run, which
+  // says where the reader has just landed.
   $effect(() => {
-    void current?.surah_id;
-    void current?.juz;
-    reveal(true);
+    void surahId;
+    void juz;
+    announce();
   });
 
   $effect(() => {
@@ -81,11 +102,15 @@
       if (delta < 0) {
         down = 0;
         up -= delta;
-        if (up > SHOW_ON_UP_PX) reveal(false);
+        if (up > SHOW_ON_UP_PX) hold();
       } else {
         up = 0;
         down += delta;
-        if (down > HIDE_ON_DOWN_PX) conceal();
+        // Only a held reveal is dismissed by reading on. A Surah or Juz is
+        // almost always crossed on the way *down*, so letting this reach an
+        // announcement would cut it off a line or two after it appeared; that
+        // one has its own timer and is left to serve it.
+        if (down > HIDE_ON_DOWN_PX && held) conceal();
       }
     }
 
