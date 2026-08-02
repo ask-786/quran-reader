@@ -43,8 +43,26 @@ fn main() -> Result<()> {
         let db_path = db_output_path();
         log::info!("=== Importing QCF v4 glyphs ===");
         log::info!("Database: {}", db_path.display());
-        log::info!("[1/2] Fetching QCF v4 page layout (604 pages) …");
-        let pages = mushaf::fetch_all_pages_v4().context("Failed to fetch QCF v4 layout")?;
+
+        // `--mushaf-v4-dir <path>` reads the layout from a local directory of
+        // 001.json … 604.json instead of making 604 sequential requests. Get
+        // one with:  npm pack quran-qcf4 && tar xzf quran-qcf4-*.tgz
+        // then point at `package/pages`.
+        let local_dir = std::env::args()
+            .skip_while(|a| a != "--mushaf-v4-dir")
+            .nth(1)
+            .map(PathBuf::from);
+
+        let pages = match local_dir {
+            Some(dir) => {
+                log::info!("[1/2] Loading QCF v4 page layout from {} …", dir.display());
+                mushaf::load_all_pages_v4(&dir).context("Failed to load QCF v4 layout")?
+            }
+            None => {
+                log::info!("[1/2] Fetching QCF v4 page layout (604 pages) …");
+                mushaf::fetch_all_pages_v4().context("Failed to fetch QCF v4 layout")?
+            }
+        };
         log::info!("[2/2] Writing glyph_v4 onto existing page_line_word rows …");
         mushaf::write_glyph_v4(&db_path, &pages).context("Failed to write QCF v4 glyphs")?;
         log::info!("=== QCF v4 import complete ===");

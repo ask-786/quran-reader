@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 4;
+const CURRENT_VERSION: u32 = 5;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -126,14 +126,23 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         ))?;
     }
 
-    // 003's ALTER only adds the column — every row it applied to still has a
-    // NULL glyph_v4. page_line/page_line_word carry no user data (bookmarks
-    // and notes key off ayah_id, not page/line/glyph), so rather than
-    // re-deriving glyph_v4 in place, rebuild both tables wholesale from the
-    // bundled seed, which already has that data. Same mechanism a future
-    // content update can reuse. Installs already at v3 have been through this
-    // once and only needed 004's ALTER, so they skip it.
-    if from_version < 3 {
+    if from_version < 5 {
+        log::info!("  → Applying migration 005: rub-el-hizb ornament glyphs");
+        conn.execute_batch(include_str!(
+            "../../../database/migrations/005_rub_el_hizb_glyphs.sql"
+        ))?;
+    }
+
+    // page_line/page_line_word carry no user data (bookmarks and notes key off
+    // ayah_id, not page/line/glyph), so glyph content is delivered by
+    // rebuilding both tables wholesale from the bundled seed rather than by
+    // re-deriving anything in place. 003 needed it because its ALTER left
+    // every glyph_v4 NULL; 005 needs it because the seed now carries 199
+    // rub-el-hizb ornaments the old one didn't.
+    //
+    // One rebuild covers both — an install coming from v2 would otherwise do
+    // the same wholesale copy twice on the same upgrade.
+    if from_version < 5 {
         log::info!("  → Rebuilding page_line/page_line_word from the bundled seed");
         rebuild_mushaf_layout_from_seed(conn)?;
     }
@@ -298,7 +307,7 @@ mod tests {
         // The upgrade itself, through the real entry point.
         let conn = open(&path).unwrap();
 
-        assert_eq!(get_schema_version(&conn).unwrap(), 4);
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
 
         let cols: Vec<String> = conn
             .prepare("SELECT name FROM pragma_table_info('page_line_word')")
@@ -321,6 +330,22 @@ mod tests {
             .unwrap();
         assert_eq!(rows, 77_539);
         assert_eq!(null_v4, 0, "every word row must render");
+
+        // Migration 005: the rub-el-hizb ornament reaches an existing install.
+        // `uthmani_text` has always carried ۞ on these 199 rows; before 005 the
+        // glyph beside it drew only the word, so the ornament never rendered.
+        // A glyph pair ("<ornament> <word>") is what fixes that, and only the
+        // seed rebuild can deliver it.
+        let ornaments: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM page_line_word
+                 WHERE uthmani_text LIKE '%' || char(1758) || '%'
+                   AND glyph_v4 LIKE '% %'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(ornaments, 199, "every ۞ must have a glyph to render with");
 
         // User data survives, and still resolves to the same verse.
         let (b_surah, b_ayah): (u32, u32) = conn
@@ -430,7 +455,7 @@ mod tests {
 
         let conn = open(&path).unwrap();
 
-        assert_eq!(get_schema_version(&conn).unwrap(), 4);
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
         let (rows, null_v4): (u32, u32) = conn
             .query_row(
                 "SELECT COUNT(*), COUNT(*) FILTER (WHERE glyph_v4 IS NULL) FROM page_line_word",

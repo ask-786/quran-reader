@@ -442,6 +442,28 @@ struct WordV4Json {
     sura: Option<u32>,
 }
 
+/// Load all 604 QCF v4 page-layout files from a local directory of
+/// `001.json` … `604.json` — the layout the upstream repo and its npm package
+/// (`quran-qcf4`) both use, so extracting either one gives a usable directory.
+///
+/// Preferred over `fetch_all_pages_v4` when you have the files: one 604-file
+/// read beats 604 sequential HTTPS requests, and it makes the pass repeatable
+/// offline rather than dependent on a CDN staying reachable for ten minutes.
+pub fn load_all_pages_v4(dir: &Path) -> Result<Vec<PageV4Json>> {
+    let mut pages = Vec::with_capacity(604);
+
+    for n in 1..=604u32 {
+        let path = dir.join(format!("{n:03}.json"));
+        let body = std::fs::read_to_string(&path)
+            .with_context(|| format!("Reading QCF v4 layout {}", path.display()))?;
+        let page: PageV4Json = serde_json::from_str(&body)
+            .with_context(|| format!("Parsing QCF v4 layout {}", path.display()))?;
+        pages.push(page);
+    }
+
+    Ok(pages)
+}
+
 /// Download all 604 QCF v4 page-layout files. The JSON itself is MIT
 /// licensed; the fonts it references are not (see THIRD-PARTY-NOTICES.md).
 pub fn fetch_all_pages_v4() -> Result<Vec<PageV4Json>> {
@@ -485,10 +507,21 @@ pub fn fetch_all_pages_v4() -> Result<Vec<PageV4Json>> {
 /// Surah of the text line immediately following it on the same page —
 /// basmala rows carry no `ayah_id`/`surah_id` of their own.
 ///
-/// v4's `"quarter"` (rub-el-hizb ۞) entries have no v2 row to attach to — the
-/// v2 pipeline never rendered them either, so leaving them unset is parity,
-/// not a regression. `"surah_header"` entries are skipped too: the banner
-/// text is live-rendered from `surah.name_ar`, not from page-glyph data (see
+/// v4's `"quarter"` (rub-el-hizb ۞) entries carry a `verse_key` but no
+/// `position` of their own — the ornament is glued to the word that follows
+/// it on the line, so it's resolved through that word and *prepended* onto
+/// its glyph, the mirror of how `"end"` appends onto the word before it. v2
+/// never rendered these at all, which is why `uthmani_text` has long read
+/// `۞ سَيَقُولُ` while the glyph beside it rendered only the word.
+///
+/// The prepends run in a second pass, after every `"word"` entry has been
+/// written. A quarter precedes its word in the line, so applying it inline
+/// would be overwritten moments later by that word's own `UPDATE` — and
+/// deferring keeps the whole function idempotent, since a re-run resets each
+/// glyph to the bare word before anything is attached to it again.
+///
+/// `"surah_header"` entries are still skipped: the banner text is
+/// live-rendered from `surah.name_ar`, not from page-glyph data (see
 /// `SurahHeader.svelte`), for both font versions.
 pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
     let conn = Connection::open(db_path).context("Opening database for QCF v4 glyphs")?;
@@ -533,7 +566,10 @@ pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
     let mut word_updates = 0u32;
     let mut basmala_updates = 0u32;
+    let mut quarter_updates = 0u32;
     let mut unmatched = 0u32;
+    // (glyph, ayah_id, word_index) for the second pass — see the doc comment.
+    let mut quarters: Vec<(String, i64, u32)> = Vec::new();
 
     {
         let mut update_word = tx.prepare(
@@ -548,7 +584,7 @@ pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
 
         for page in pages {
             for line in &page.lines {
-                for w in &line.words {
+                for (i, w) in line.words.iter().enumerate() {
                     let Some(ch) = char::from_u32(w.code) else {
                         continue;
                     };
@@ -585,9 +621,44 @@ pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
                             update_basmala.execute(params![glyph, word_id])?;
                             basmala_updates += 1;
                         }
-                        _ => {} // "surah_header", "quarter" — see doc comment above
+                        "quarter" => {
+                            // No `position` of its own: the ornament belongs to
+                            // whichever word comes next on the line, and is
+                            // resolved through that word's key.
+                            let Some(next) =
+                                line.words[i + 1..].iter().find(|n| n.word_type == "word")
+                            else {
+                                unmatched += 1;
+                                continue;
+                            };
+                            let Some((ayah_id, position)) =
+                                resolve_ayah_position(next, &ayah_ids)
+                            else {
+                                unmatched += 1;
+                                continue;
+                            };
+                            quarters.push((glyph, ayah_id, position));
+                        }
+                        _ => {} // "surah_header" — see doc comment above
                     }
                 }
+            }
+        }
+    }
+
+    // Second pass: every word glyph is now written, so prepending a rub-el-hizb
+    // ornament can't be clobbered by the word it belongs to.
+    {
+        let mut prepend_quarter = tx.prepare(
+            "UPDATE page_line_word SET glyph_v4 = ?1 || ' ' || glyph_v4
+             WHERE ayah_id = ?2 AND word_index = ?3 AND glyph_v4 IS NOT NULL",
+        )?;
+        for (glyph, ayah_id, position) in &quarters {
+            let n = prepend_quarter.execute(params![glyph, ayah_id, position])?;
+            if n == 0 {
+                unmatched += 1;
+            } else {
+                quarter_updates += n as u32;
             }
         }
     }
@@ -595,7 +666,7 @@ pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
     tx.commit().context("Committing QCF v4 glyph update")?;
 
     log::info!(
-        "      Updated {word_updates} word glyphs, {basmala_updates} basmala glyphs ({unmatched} v4 words unmatched to any v2 row)"
+        "      Updated {word_updates} word glyphs, {basmala_updates} basmala glyphs, {quarter_updates} rub-el-hizb ornaments ({unmatched} v4 entries unmatched to any v2 row)"
     );
 
     let still_null: u32 = conn.query_row(
