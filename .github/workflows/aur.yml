@@ -25,6 +25,24 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     steps:
+      # First, so a typo costs a second rather than a container spin-up plus a
+      # pacman sync. The failure mode this catches is pasting the release title
+      # ("Quran Reader v0.1.7") into the dispatch input: the tag reaches a `sed`
+      # that writes it into PKGBUILD, and bash then runs "Quran" as a command.
+      #
+      # Read through env, not `${{ }}` inline, so the input cannot close the
+      # quoting and inject shell. Every later step interpolates the tag
+      # directly, which is safe only because nothing gets past this pattern.
+      - name: Validate the tag
+        env:
+          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH (e.g. v0.1.7)."
+            exit 1
+          fi
+
       # Before checkout: without git, actions/checkout falls back to a tarball
       # download and the repository has no history to commit back to.
       - name: Install packaging tools
