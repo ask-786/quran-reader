@@ -556,33 +556,87 @@ Typography
 
 # Phase 10 — Translation
 
+> Editions, sources, licensing and the full implementation breakdown live in
+> `docs/translation-tafsir-plan.md`. Summary of what was decided:
+>
+> - Editions are chosen against a **Shāfiʿī in fiqh, Ashʿarī in creed** filter,
+>   and every edition carries `school`/`creed` metadata so the picker can say
+>   whose reading it is. Editions outside that filter stay available, always
+>   labelled, never a default.
+> - Bundled means embedded in every installer, so only public-domain or
+>   plainly-redistributable editions get bundled; everything else is a
+>   downloadable content pack. Nothing phones home on its own.
+
 Support
 
-- [ ] Multiple translations
+- [ ] Multiple translations — `translation_ids` (ordered JSON array) replaces
+      `preferred_translation_id`, which migrates on load
 - [ ] Enable/Disable
-- [ ] Parallel translations
+- [ ] Parallel translations — `ReaderView`/`AyahRow` already have the
+      single-translation prop plumbed and unfilled; widen it to N editions,
+      each with its own text direction
 
 Languages
 
-- [ ] English
-- [ ] Malayalam
-- [ ] Arabic
+- [ ] English — **Pickthall bundled** (public domain, traditional Sunni,
+      creed-neutral). The Clear Qur'an (Khattab) reads better but is
+      © Book of Signs Foundation, so it ships as a download, not in the
+      installer. Hilālī-Khān and Mawdūdī are excluded from defaults
+- [ ] Malayalam — no Sunni/Samastha edition exists in open data. The Ahlus-Sunna
+      work (_Fatḥ al-Raḥmān_, K.V. Muhammed Musliyar, 1970) is in print only;
+      the three digitised editions are two Mujāhid and one Jamāʿat-e-Islāmī.
+      Ship Cheriyamundam **labelled**, and build a documented custom-edition
+      import path so the Sunni text can be added if it can be obtained
+- [ ] Arabic — better served by tafsir than by an Arabic "translation"; the
+      slot stays empty deliberately
+
+Groundwork
+
+- [ ] Migration 006 — `slug`/`name_native`/`direction`/`school`/`creed`/
+      `source_url`/`license`/`sort_order` on `translation` and `tafsir`
+- [ ] `fts_translation` has **no sync triggers** today (declared in
+      `schema.sql`, never kept up to date) — add them, and an `fts_tafsir`
+      alongside, so Phase 7's translation search has something real to query
+- [ ] `--font-malayalam` (Noto Sans Malayalam) — Malayalam has no reliable
+      system fallback on Linux and renders as boxes without it
 
 ---
 
 # Phase 11 — Tafsir
 
+> See `docs/translation-tafsir-plan.md`.
+
 Support
 
 - [ ] Multiple Tafsir
-- [ ] Expandable panel
+- [ ] Expandable panel — a right-side resizable **drawer** that follows the
+      current Ayah, not an inline accordion: it doesn't perturb the reserved-
+      height windowing in `ReaderView`, and it works in Mushaf `PageView` too
+      (which also closes the Phase 5 word-action gap)
 - [ ] Switch Tafsir
+- [ ] Content packs — standalone `.qrpack` SQLite files published as release
+      assets, verified by sha256 on install, `is_bundled` guarding uninstall
 
-Possible Tafsir
+Tafsir — chosen
 
-- [ ] Ibn Kathir
-- [ ] As-Sa'di
-- [ ] Al-Jalalayn
+- [ ] **Al-Jalalayn (Arabic + English) — bundled default.** Al-Maḥallī and
+      al-Suyūṭī were both Egyptian Shāfiʿīs; it entered the Kerala dars
+      syllabus through the Ponnani school and has been taught there since; and
+      at 2.94 MB Arabic / 2.50 MB English it is the only serious classical
+      tafsir small enough to bundle. Two findings: the Arabic edition has
+      **6,010 entries, not 6,236** — 226 āyāt genuinely carry no gloss, so
+      validation must not demand a full set and the UI needs an
+      "no separate commentary" state; and of the two English editions in the
+      source, use `tafsir-al-jalalayn` (Hamza, punctuation intact), not
+      `en-al-jalalayn` (punctuation stripped)
+- [ ] **Shāfiʿī shelf, download-only** (all too large to bundle):
+      al-Baghawī ≈41 MB, al-Bayḍāwī ≈11 MB, al-Māwardī ≈14 MB,
+      al-Wāḥidī ≈8 MB, al-Qushayrī ≈9 MB, al-Rāzī ≈90 MB,
+      al-Suyūṭī's al-Durr al-Manthūr ≈60 MB
+- [ ] **Ibn Kathir** — Shāfiʿī in fiqh, Atharī in creed; the common English
+      abridgement is Darussalam-edited. Offer it, label it, list the Arabic
+      and the abridgement as separate editions
+- [ ] **As-Sa'di** — Ḥanbalī/Salafī. Available and labelled, not a default
 
 ---
 
