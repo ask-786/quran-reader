@@ -8,8 +8,10 @@
   import ReaderContextBar from './ReaderContextBar.svelte';
   import ReaderZoomControl from './ReaderZoomControl.svelte';
   import ReaderJumpControl from './ReaderJumpControl.svelte';
+  import TafsirPanel from '$lib/components/tafsir/TafsirPanel.svelte';
   import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
 
   let {
     ayahs,
@@ -77,23 +79,41 @@
 </script>
 
 <div class="reader-page">
-  {#if renderedMode === 'mushaf'}
-    <PageView {ayahs} scrollToAyahId={viewTarget} />
-  {:else}
-    <ReaderView {ayahs} scrollToAyahId={viewTarget} />
-  {/if}
-  <ReaderContextBar {ayahs} />
-  <ProgressIndicator />
-  <AutoScrollHandle />
-  <div class="control-slot">
-    <ReaderZoomControl />
-    <ReaderJumpControl />
+  <!-- The reader and its overlays share a positioned box that the tafsir
+       drawer sits beside rather than on top of: the corner controls anchor to
+       the right edge of *this* element, so a drawer overlapping them would put
+       the zoom buttons underneath itself. -->
+  <div class="reader-main">
+    {#if renderedMode === 'mushaf'}
+      <PageView {ayahs} scrollToAyahId={viewTarget} />
+    {:else}
+      <ReaderView {ayahs} scrollToAyahId={viewTarget} />
+    {/if}
+    <ReaderContextBar {ayahs} />
+    <ProgressIndicator />
+    <AutoScrollHandle />
+    <div class="control-slot">
+      <ReaderZoomControl />
+      <ReaderJumpControl />
+    </div>
   </div>
+  {#if tafsirStore.open}
+    <TafsirPanel />
+  {/if}
 </div>
 
 <style>
   .reader-page {
     position: relative;
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .reader-main {
+    position: relative;
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     height: 100%;

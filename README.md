@@ -4,9 +4,9 @@ An offline-first Quran reader for desktop, built with [Tauri 2](https://tauri.ap
 SvelteKit and Rust. No account, no network calls, no telemetry — the Quran
 data ships inside the binary.
 
-> **Status: early.** Reading, navigation and the Mushaf page view work and
-> are used daily. Search, translations, tafsir and audio are not built yet.
-> See [PLAN.md](PLAN.md) for what exists and what doesn't.
+> **Status: early.** Reading, navigation, the Mushaf page view and English
+> tafsir work and are used daily. Search, translations and audio are not built
+> yet. See [PLAN.md](PLAN.md) for what exists and what doesn't.
 
 ---
 
@@ -17,8 +17,17 @@ data ships inside the binary.
 - **Mushaf page view** — renders all 604 pages of the Madani Mushaf with the
   same line breaks and word placement as the printed original, using the
   official KFGQPC (Uthman Taha) glyph fonts
-- **Scrolling reader** — continuous Surah reading, per-ayah bookmark and
-  copy actions, page/juz boundary markers
+- **Scrolling reader** — continuous Surah reading, per-ayah bookmark, copy
+  and tafsir actions, page/juz boundary markers
+
+**Tafsir**
+
+- **Tafsīr al-Jalālayn** (English, tr. Feras Hamza) is bundled — a side panel
+  that follows the verse you are reading, in both views (`t`)
+- Editions are Shāfiʿī in fiqh and Ashʿarī in creed, and each is labelled with
+  both. A commentary's school decides how it reads the legal verses and its
+  creed decides how it reads the attribute verses; neither is visible in the
+  text, so the reader is told rather than left to guess
 
 **Navigation**
 
@@ -55,6 +64,7 @@ data ships inside the binary.
 | `↓` / `↑` (or `PgDn` / `PgUp`) | Next / previous Mushaf page                                               |
 | `Home` / `End`                 | Jump to the start / end of what's open                                    |
 | `a`                            | Start or stop auto-scroll                                                 |
+| `t`                            | Open or close the tafsir panel                                            |
 | `Shift`+`↑` / `Shift`+`↓`      | Auto-scroll faster / slower                                               |
 | `+` / `-` / `0`                | Reader zoom in / out / reset (normal and focus view keep separate levels) |
 | `Ctrl`/`Cmd`+`+` / `-` / `0`   | App zoom in / out / reset                                                 |
@@ -151,6 +161,14 @@ cd importer && cargo run --release
 
 See [`importer/README.md`](importer/README.md) for details.
 
+**Tafsir** — fetches one commentary edition and writes it into the existing
+`database/quran.db` (`--bundle` marks it as shipping with the app):
+
+```bash
+cd importer && cargo run --release -- --list-tafsir
+cd importer && cargo run --release -- --import-tafsir tafsir-al-jalalayn --bundle
+```
+
 **Mushaf fonts** — re-downloads the 47 QCF v4 font-group files (~36MB):
 
 ```bash
@@ -182,6 +200,7 @@ docs/             Research and design notes
 | [alquran.cloud](https://alquran.cloud)                                        | Per-ayah juz/hizb/page metadata    | Open                                               |
 | [spa5k/quran_data](https://github.com/spa5k/quran_data)                       | Surah metadata                     | Open                                               |
 | [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | QCF v4 Mushaf glyph fonts + layout | JSON: MIT · fonts: Restricted (KFGQPC) — see below |
+| [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api)                       | Tafsīr al-Jalālayn (English)       | Text: © Royal Aal al-Bayt Institute — see below    |
 
 ---
 

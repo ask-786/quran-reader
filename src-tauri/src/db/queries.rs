@@ -4,7 +4,7 @@
 
 use crate::db::error::{DbError, DbResult};
 use crate::models::*;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
 // =============================================================================
 // SURAH QUERIES
@@ -510,6 +510,81 @@ pub fn get_translation_for_surah(
 }
 
 // =============================================================================
+// TAFSIR QUERIES
+// =============================================================================
+
+/// Return the installed tafsir editions, bundled ones first.
+pub fn get_tafsirs(conn: &Connection) -> DbResult<Vec<Tafsir>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, language, author, title, version, is_bundled,
+                slug, translator, name_native, direction, school, creed
+         FROM tafsir
+         ORDER BY is_bundled DESC, sort_order ASC, id ASC",
+    )?;
+
+    let tafsirs = stmt
+        .query_map([], |row| {
+            Ok(Tafsir {
+                id: row.get(0)?,
+                language: row.get(1)?,
+                author: row.get(2)?,
+                title: row.get(3)?,
+                version: row.get(4)?,
+                is_bundled: row.get(5)?,
+                slug: row.get(6)?,
+                translator: row.get(7)?,
+                name_native: row.get(8)?,
+                direction: row.get(9)?,
+                school: row.get(10)?,
+                creed: row.get(11)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(tafsirs)
+}
+
+/// Commentary on a single Ayah, or `None` when this edition passes over it.
+///
+/// A miss is an ordinary result, not an error: al-Jalalayn glosses 6,010 of
+/// the 6,236 Ayahs in its Arabic edition, saying nothing about verses that
+/// need no comment. The caller shows that as an empty state rather than a
+/// blank panel.
+pub fn get_tafsir_for_ayah(
+    conn: &Connection,
+    tafsir_id: u32,
+    ayah_id: u32,
+) -> DbResult<Option<TafsirEntry>> {
+    conn.query_row(
+        "SELECT t.tafsir_id, t.ayah_id, a.surah_id, a.ayah_number, t.text,
+                gs.surah_id, gs.ayah_number, ge.surah_id, ge.ayah_number
+         FROM tafsir_ayah t
+         JOIN ayah a       ON a.id  = t.ayah_id
+         LEFT JOIN ayah gs ON gs.id = t.group_start_ayah_id
+         LEFT JOIN ayah ge ON ge.id = t.group_end_ayah_id
+         WHERE t.tafsir_id = ?1 AND t.ayah_id = ?2",
+        params![tafsir_id, ayah_id],
+        |row| {
+            let verse_key = |surah: Option<u32>, ayah: Option<u32>| match (surah, ayah) {
+                (Some(s), Some(a)) => Some(format!("{s}:{a}")),
+                _ => None,
+            };
+            Ok(TafsirEntry {
+                tafsir_id: row.get(0)?,
+                ayah_id: row.get(1)?,
+                surah_id: row.get(2)?,
+                ayah_number: row.get(3)?,
+                text: row.get(4)?,
+                group_start_key: verse_key(row.get(5)?, row.get(6)?),
+                group_end_key: verse_key(row.get(7)?, row.get(8)?),
+            })
+        },
+    )
+    .optional()
+    .map_err(Into::into)
+}
+
+// =============================================================================
 // BOOKMARK QUERIES
 // =============================================================================
 
@@ -676,6 +751,14 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
             .get("show_translation")
             .map(|v| v == "true")
             .unwrap_or(true),
+        // Empty string is how "not chosen yet" is stored, and parse() turns it
+        // into None for free.
+        tafsir_id: map.get("tafsir_id").and_then(|v| v.parse().ok()),
+        show_tafsir: map.get("show_tafsir").map(|v| v == "true").unwrap_or(false),
+        tafsir_panel_width: map
+            .get("tafsir_panel_width")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(420),
         show_transliteration: map
             .get("show_transliteration")
             .map(|v| v == "true")

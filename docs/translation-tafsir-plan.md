@@ -1,23 +1,29 @@
 # Translation & Tafsir — Implementation Plan (Phases 10 & 11)
 
 **Date drafted:** 2026-08-04
-**Status:** plan only. Nothing here is implemented.
+**Status:** Phase 11 (tafsir) is implemented for **English**, on
+`claude/tafseer-implementation-plan-ntg1kx`. Tafsīr al-Jalālayn (tr. Feras
+Hamza) ships in the seed database and the drawer works in both reading views,
+verified in the real Tauri/WebKitGTK app. Phase 10 (translation) is untouched
+apart from the schema groundwork in migration 006. The Arabic side of the
+tafsir, the download packs and the wider Shāfiʿī shelf are still ahead — see
+"Phasing" for what is ticked.
 **Goal:** put a translation under every Ayah and a tafsir one keystroke away,
 choosing editions that a Shāfiʿī reader can rely on, without abandoning
 offline-first or letting the installer grow unchecked.
 
 ## TL;DR — the decisions
 
-| Question        | Decision                                                                                                                                      |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Default tafsir  | **Tafsīr al-Jalālayn**, Arabic + English, bundled (~5.4 MB of text)                                                                           |
-| Why that one    | Both authors are Egyptian Shāfiʿīs, Ashʿarī in creed, and it is _the_ tafsīr of the Kerala dars tradition since the Ponnani school            |
-| Further tafsirs | al-Baghawī, al-Bayḍāwī, Ibn Kathīr, al-Māwardī, al-Wāḥidī, al-Rāzī, al-Suyūṭī — all Shāfiʿī, all **download-on-demand** (too large to bundle) |
-| Default English | **Pickthall** bundled (public domain), **The Clear Qur'an** (Khattab) offered as a download                                                   |
-| Malayalam       | Ship Cheriyamundam labelled with its affiliation, _and_ build a bring-your-own-edition import path — the Sunni work isn't digitised           |
-| Never a default | Hilālī-Khān, Mawdūdī/Tafhīm, Fī Ẓilāl, al-Saʿdī, al-Muyassar/al-Mukhtaṣar — available if asked for, always labelled                           |
-| Tafsir UI       | Side drawer that follows the current Ayah; works in the scrolling reader _and_ Mushaf page view                                               |
-| Delivery        | Bundled editions live in the seed DB; everything else is a signed content pack downloaded into the app data dir                               |
+| Question        | Decision                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default tafsir  | **Tafsīr al-Jalālayn**, English (tr. Feras Hamza), bundled — 2.13 MB of text. **Shipped.** Arabic deferred with the rest of the Arabic side       |
+| Why that one    | Both authors are Egyptian Shāfiʿīs, Ashʿarī in creed, and it is _the_ tafsīr of the Kerala dars tradition since the Ponnani school                |
+| Further tafsirs | al-Baghawī, al-Bayḍāwī, al-Māwardī, al-Wāḥidī, al-Rāzī, al-Suyūṭī — all Shāfiʿī, all **download-on-demand** (too large to bundle)                 |
+| Default English | **Pickthall** bundled (public domain), **The Clear Qur'an** (Khattab) offered as a download — Phase 10, not started                               |
+| Malayalam       | Nothing shippable: every digitised edition is Mujāhid or Jamāʿat-e-Islāmī, and the Sunni work isn't digitised. A custom-import path is the route  |
+| Not carried     | Hilālī-Khān, Mawdūdī/Tafhīm, Fī Ẓilāl, al-Saʿdī, al-Muyassar/al-Mukhtaṣar, al-Qurṭubī, al-Nasafī — not offered at all, not "offered with a label" |
+| Tafsir UI       | Side drawer that follows the current Ayah; works in the scrolling reader _and_ Mushaf page view                                                   |
+| Delivery        | Bundled editions live in the seed DB; everything else is a signed content pack downloaded into the app data dir                                   |
 
 Every figure below was measured, not assumed — method is given where it matters.
 
@@ -40,12 +46,21 @@ given edition reads as _yours_:
 
 The Shāfiʿī school of fiqh runs with Ashʿarī creed, and that is the Kerala
 Sunni (Samastha) position. So the filter here is **Shāfiʿī in fiqh, Ashʿarī
-in creed**, with anything outside it available but labelled — never the
-default, and never unlabelled.
+in creed**, and it is a filter on what exists in the app at all — not a
+labelling scheme over an everything-shelf. An edition outside it is not
+offered.
 
-That labelling is a schema decision, not just a UI one: `school` and `creed`
-columns on `tafsir` and `translation` (see Part 3), so the picker can tell the
-reader whose reading they are about to open.
+The labels still matter, and they are a schema decision rather than a UI one:
+`school` and `creed` columns on `tafsir` and `translation` (see Part 3), shown
+in the picker so the reader knows what they are opening rather than having to
+take it on trust. They are informational, not a warning badge on something
+that shouldn't be there.
+
+In practice this lives in one place: the `EDITIONS` list in
+`importer/src/tafsir.rs`. Nothing can reach the app without an entry there,
+and adding one is a decision about the app's purpose rather than a
+data-sourcing convenience — which is why the omissions are recorded in that
+file too.
 
 ## Tafsir candidates
 
@@ -64,19 +79,21 @@ Sizes are actual downloaded bytes. Where marked ≈, a 9-surah sample
 | Mafātīḥ al-Ghayb                 | Fakhr al-Dīn al-Rāzī (d. 606)            | **Shāfiʿī / Ashʿarī**                  | ar      | ≈90 MB          | Download pack (large)       |
 | al-Durr al-Manthūr               | al-Suyūṭī (d. 911)                       | **Shāfiʿī**                            | ar      | ≈60 MB          | Download pack               |
 | Laṭāʾif al-Ishārāt               | al-Qushayrī (d. 465)                     | **Shāfiʿī / Ashʿarī**                  | en      | ≈9 MB           | Download pack (sufi/ishārī) |
-| Tafsīr Ibn Kathīr                | Ibn Kathīr (d. 774)                      | Shāfiʿī in fiqh, Atharī in creed       | ar / en | ≈75 MB / ≈32 MB | Download pack, labelled     |
-| al-Jāmiʿ li-Aḥkām al-Qurʾān      | al-Qurṭubī (d. 671)                      | Mālikī                                 | ar      | ≈55 MB          | Available, labelled         |
-| Madārik al-Tanzīl                | al-Nasafī (d. 710)                       | Ḥanafī / Māturīdī                      | ar      | ≈20 MB          | Available, labelled         |
-| Taysīr al-Karīm al-Raḥmān        | al-Saʿdī (d. 1376)                       | Ḥanbalī / Salafī                       | ar+     | ≈12 MB          | Available, labelled         |
-| al-Mukhtaṣar / al-Muyassar       | Saudi committee                          | Salafī                                 | many    | ≈6 MB           | Available, labelled         |
-| Fī Ẓilāl al-Qurʾān               | Sayyid Quṭb                              | Ikhwānī                                | ur      | —               | Available, labelled         |
+| Tafsīr Ibn Kathīr                | Ibn Kathīr (d. 774)                      | Shāfiʿī in fiqh, Atharī in creed       | ar / en | ≈75 MB / ≈32 MB | Open question — see below   |
+| al-Jāmiʿ li-Aḥkām al-Qurʾān      | al-Qurṭubī (d. 671)                      | Mālikī                                 | ar      | ≈55 MB          | Not carried                 |
+| Madārik al-Tanzīl                | al-Nasafī (d. 710)                       | Ḥanafī / Māturīdī                      | ar      | ≈20 MB          | Not carried                 |
+| Taysīr al-Karīm al-Raḥmān        | al-Saʿdī (d. 1376)                       | Ḥanbalī / Salafī                       | ar+     | ≈12 MB          | Not carried                 |
+| al-Mukhtaṣar / al-Muyassar       | Saudi committee                          | Salafī                                 | many    | ≈6 MB           | Not carried                 |
+| Fī Ẓilāl al-Qurʾān               | Sayyid Quṭb                              | Ikhwānī                                | ur      | —               | Not carried                 |
 
-**Ibn Kathīr deserves a note.** He was a Shāfiʿī faqīh, so by madhhab he
-passes the filter; his creed is Atharī and the ubiquitous English abridgement
-is a Darussalam edition with Salafi editorial framing on exactly the verses
-where creed shows. Fine to offer, wrong as a default here. The Arabic original
-and the English abridgement should be listed as separate editions with
-separate labels, because they are not the same book.
+**Ibn Kathīr is the one genuine borderline case.** He was a Shāfiʿī faqīh, so
+he passes the madhhab half of the filter; his creed is Atharī, and the
+ubiquitous English abridgement is a Darussalam edition with Salafi editorial
+framing on exactly the verses where creed shows. Under a rule of "Shāfiʿī
+_and_ Ashʿarī" he does not qualify, so he is left out — but that is a
+judgement call, not an oversight, and it is the one worth revisiting
+deliberately. If he is added, the Arabic original and the English abridgement
+belong in the list as separate editions, because they are not the same book.
 
 ## Why Jalālayn is the right default
 
@@ -112,16 +129,16 @@ separate labels, because they are not the same book.
 
 ## Translations
 
-| Edition                               | Translator                                                   | Position                          | Size    | Licence              | Verdict                |
-| ------------------------------------- | ------------------------------------------------------------ | --------------------------------- | ------- | -------------------- | ---------------------- |
-| **The Meaning of the Glorious Koran** | Marmaduke Pickthall (1930)                                   | Traditional Sunni, creed-neutral  | 1.04 MB | Public domain        | **Bundle — default**   |
-| The Clear Qur'an                      | Mustafa Khattab (Al-Azhar)                                   | Mainstream Sunni                  | 1.08 MB | © Book of Signs Fdn. | Download pack          |
-| The Holy Qur'an                       | Abdullah Yusuf Ali (1934)                                    | Traditional, sufi-inflected notes | 1.11 MB | PD (author d. 1953)  | Optional               |
-| The Study Quran                       | Nasr et al.                                                  | Traditional/Ashʿarī, heavy notes  | 1.01 MB | © HarperOne          | Do not bundle          |
-| The Noble Qur'an                      | Hilālī & Khān                                                | Salafī, heavy interpolation       | —       | —                    | Excluded from defaults |
-| Towards Understanding…                | Mawdūdī                                                      | Jamāʿat-e-Islāmī                  | —       | —                    | Excluded from defaults |
-| **Malayalam**                         | Cheriyamundam Abdul Hameed Madani & Kunhi Mohammed Parappoor | Mujāhid / Salafī                  | 3.41 MB | via Tanzil           | Ship **labelled**      |
-| Malayalam                             | Muhammad Karakunnu & Vanidas Elayavoor                       | Jamāʿat-e-Islāmī                  | 3.01 MB | via Tanzil           | Available, labelled    |
+| Edition                               | Translator                                                   | Position                          | Size    | Licence              | Verdict              |
+| ------------------------------------- | ------------------------------------------------------------ | --------------------------------- | ------- | -------------------- | -------------------- |
+| **The Meaning of the Glorious Koran** | Marmaduke Pickthall (1930)                                   | Traditional Sunni, creed-neutral  | 1.04 MB | Public domain        | **Bundle — default** |
+| The Clear Qur'an                      | Mustafa Khattab (Al-Azhar)                                   | Mainstream Sunni                  | 1.08 MB | © Book of Signs Fdn. | Download pack        |
+| The Holy Qur'an                       | Abdullah Yusuf Ali (1934)                                    | Traditional, sufi-inflected notes | 1.11 MB | PD (author d. 1953)  | Optional             |
+| The Study Quran                       | Nasr et al.                                                  | Traditional/Ashʿarī, heavy notes  | 1.01 MB | © HarperOne          | Do not bundle        |
+| The Noble Qur'an                      | Hilālī & Khān                                                | Salafī, heavy interpolation       | —       | —                    | Not carried          |
+| Towards Understanding…                | Mawdūdī                                                      | Jamāʿat-e-Islāmī                  | —       | —                    | Not carried          |
+| Malayalam                             | Cheriyamundam Abdul Hameed Madani & Kunhi Mohammed Parappoor | Mujāhid / Salafī                  | 3.41 MB | via Tanzil           | Not carried          |
+| Malayalam                             | Muhammad Karakunnu & Vanidas Elayavoor                       | Jamāʿat-e-Islāmī                  | 3.01 MB | via Tanzil           | Not carried          |
 
 **Pickthall over Clear Qur'an as the bundled default is a licensing call, not
 a quality one.** Khattab's English is markedly better to read; his text is
@@ -141,16 +158,18 @@ actually want — _Fatḥ al-Raḥmān fī Tafsīr al-Qurʾān_, K.V. Muhammed M
 Moulavi's widely-used commentary is likewise Mujāhid, despite being the one
 most Malayalam Quran apps ship.
 
-So the plan does two things rather than pretend the problem away:
+Under the rule this app actually follows — carry only what is Shāfiʿī in fiqh
+and Ashʿarī in creed, rather than carry everything and label it — that
+conclusion is uncomfortable but clear: **no Malayalam translation can ship at
+all today.** Labelling Cheriyamundam's affiliation was the earlier answer and
+it is not available any more; the edition is either fit to offer or it isn't.
 
-1. Ship Cheriyamundam (the most widely used, most literal of the three) with
-   `school`/`creed` metadata visible in the picker, so the reader knows whose
-   reading it is.
-2. Build a documented **custom edition import** path — a CSV/JSON of 6,236
-   lines plus a metadata block — so _Fatḥ al-Raḥmān_ (or any other edition)
-   can be added locally by whoever can obtain and digitise it with permission.
-   That path is worth building regardless; it is also the only route this app
-   has to the tradition it is being built for.
+So the one thing left to build is the **custom edition import** path — a
+CSV/JSON of 6,236 lines plus a metadata block — so _Fatḥ al-Raḥmān_ (or any
+other edition) can be added by whoever can obtain and digitise it with
+permission. That is now the only route this app has to Malayalam, which makes
+it worth building on its own, and it is the route to the tradition the app is
+being built for.
 
 ---
 
@@ -421,42 +440,57 @@ beyond making sure the indexes are correct and populated.
 - [ ] **10.3** Translation picker in the settings panel (multi-select,
       ordered, school/creed labelled); `translation_ids` migration from
       `preferred_translation_id`
-- [ ] **10.4** Malayalam: `--font-malayalam`, Cheriyamundam as a pack,
-      `--import-custom` path documented in `importer/README.md`
+- [ ] **10.4** Malayalam: `--font-malayalam` (Noto Sans Malayalam), and the
+      `--import-custom` path documented in `importer/README.md` — which, given
+      that no Malayalam edition passes the filter, is the whole of Malayalam
+      support rather than a fallback for it
 
 Acceptance: a fresh install shows Pickthall under every āya with no network;
-two translations can be shown at once; a Malayalam pack installs and renders
-with correct glyphs on a clean Linux box.
+two translations can be shown at once.
 
 ## Phase 11 — Tafsir
 
-- [ ] **11.1** `--import-tafsir`; Jalālayn AR + EN imported; gap handling and
-      coverage validation; HTML normalisation
-- [ ] **11.2** Tafsir queries + commands; `TafsirPanel` drawer following the
-      current Ayah; `t` shortcut; empty-commentary state
-- [ ] **11.3** Drawer in `PageView` (word-level trigger, which also unblocks
-      the Phase 5 word-action gap)
+- [x] **11.1** `--import-tafsir` with an editions registry, coverage
+      validation and plain-text normalisation; Jalālayn **English** imported
+      into the seed (6,236 entries, 2.13 MB of text; DB 10.5 → 14.4 MB after a
+      VACUUM). Arabic deferred with the rest of the Arabic side
+- [x] **11.2** Migration 006 + a seed-copy on upgrade (with a test); tafsir
+      queries and commands; `TafsirPanel` drawer following the current Ayah;
+      toolbar toggle, `t`, per-Ayah button with pin-until-scroll;
+      empty-commentary state built (unused until the Arabic edition lands)
+- [ ] **11.3** Word-level trigger in `PageView` — the drawer already works
+      there by following the centred Ayah, but tapping a word does nothing
+      (the Phase 5 word-action gap)
 - [ ] **11.4** Pack infrastructure: `--build-pack`, `packs.json`, install/
-      uninstall commands, library UI, release-workflow publishing
+      uninstall commands, library UI, release-workflow publishing. Carries a
+      constraint recorded in `copy_bundled_tafsir_from_seed`: pack installs
+      must allocate `tafsir.id` outside the seed's range
 - [ ] **11.5** Shāfiʿī shelf published as packs: al-Baghawī, al-Bayḍāwī,
-      al-Māwardī, al-Wāḥidī, al-Qushayrī; Ibn Kathīr and the labelled others
+      al-Māwardī, al-Wāḥidī, al-Qushayrī
+- [ ] **11.6** Verify the English Jalālayn's redistribution terms, or move it
+      out of the seed and into a download (see Part 2)
 
-Acceptance: Jalālayn opens on any āya offline; the 226 gap āyāt show the
-empty state rather than a blank panel; a pack installs, survives an app
-restart, and uninstalls without touching bundled rows.
+Acceptance: Jalālayn opens on any āya offline ✓; the drawer follows the reader
+in both views ✓; a pack installs, survives an app restart, and uninstalls
+without touching bundled rows (not yet).
 
 ---
 
 # Open questions
 
-These are preference calls, not technical ones. The plan assumes the first
-answer in each case and nothing downstream breaks if one is changed.
+Decided since drafting:
 
-1. **Malayalam.** Ship Cheriyamundam labelled (assumed), or hold Malayalam
-   until a Sunni edition can be obtained?
-2. **English default.** Pickthall bundled with Clear Qur'an as a download
-   (assumed), or pursue permission for Clear Qur'an and bundle it?
-3. **How wide should the labelled-but-not-default shelf be?** Every edition
-   listed is available in the same dataset; the cost is only curation.
-4. **Inline tafsir.** Drawer only (assumed), or inline expansion in the
-   scrolling reader as well, accepting the windowing work?
+- **Scope.** English tafsir first; translations deferred.
+- **What the app carries.** Only Shāfiʿī/Ashʿarī works — not an
+  everything-shelf with labels. That is why the Malayalam section ends where
+  it does, and why Ibn Kathīr sits outside `EDITIONS`.
+- **Tafsir UI.** Drawer, built.
+
+Still open:
+
+1. **Ibn Kathīr.** Shāfiʿī in fiqh, Atharī in creed — in or out? The only
+   entry where the two halves of the filter disagree.
+2. **English translation default** (Phase 10): Pickthall bundled with The
+   Clear Qur'an as a download, or pursue permission and bundle Khattab?
+3. **Inline tafsir.** Drawer only, or an inline expansion in the scrolling
+   reader as well, accepting the height-invalidation work?

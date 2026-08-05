@@ -66,8 +66,10 @@
 - [ ] Phase 7 — Search (backend done, no UI)
 - [ ] Phase 8 — Bookmarks (toggle done, no list UI)
 - [ ] Phase 9 — Settings
-- [ ] Phase 10 — Translations
-- [ ] Phase 11 — Tafsir
+- [ ] Phase 10 — Translations (schema groundwork landed with Phase 11; no
+      translation imported yet)
+- [ ] Phase 11 — Tafsir (English done — al-Jalalayn bundled, drawer in both
+      views; Arabic editions and download packs left)
 - [ ] Phase 12 — Audio
 - [ ] Phase 13 — Release
 - [x] Phase 14 — Reading Experience Enhancements
@@ -592,11 +594,13 @@ Languages
 
 Groundwork
 
-- [ ] Migration 006 — `slug`/`name_native`/`direction`/`school`/`creed`/
+- [x] Migration 006 — `slug`/`name_native`/`direction`/`school`/`creed`/
       `source_url`/`license`/`sort_order` on `translation` and `tafsir`
-- [ ] `fts_translation` has **no sync triggers** today (declared in
-      `schema.sql`, never kept up to date) — add them, and an `fts_tafsir`
-      alongside, so Phase 7's translation search has something real to query
+      (landed with Phase 11; the translation half is unused until this phase)
+- [x] `fts_translation` had **no sync triggers** (declared in `schema.sql` in
+      001, never kept up to date, so silently stale since) — added in 006
+      alongside a new `fts_tafsir`, so Phase 7's search has something real to
+      query
 - [ ] `--font-malayalam` (Noto Sans Malayalam) — Malayalam has no reliable
       system fallback on Linux and renders as boxes without it
 
@@ -604,39 +608,67 @@ Groundwork
 
 # Phase 11 — Tafsir
 
-> See `docs/translation-tafsir-plan.md`.
+> English is done and in the app: Tafsīr al-Jalālayn (Hamza) ships in the seed
+> database, with a drawer that follows the verse you are reading in both views.
+> See `docs/translation-tafsir-plan.md` for how the editions were chosen.
 
 Support
 
-- [ ] Multiple Tafsir
-- [ ] Expandable panel — a right-side resizable **drawer** that follows the
+- [x] Multiple Tafsir — schema, importer registry and picker all take N
+      editions; one is installed today
+- [x] Expandable panel — a right-side resizable **drawer** that follows the
       current Ayah, not an inline accordion: it doesn't perturb the reserved-
-      height windowing in `ReaderView`, and it works in Mushaf `PageView` too
-      (which also closes the Phase 5 word-action gap)
-- [ ] Switch Tafsir
+      height windowing in `ReaderView`, and it works in Mushaf `PageView` too.
+      Toolbar toggle, `t`, and a per-Ayah button in the scrolling reader that
+      pins one verse until the reader scrolls off it
+- [ ] Word-level trigger in Mushaf `PageView` — the panel follows the page's
+      centred Ayah there, but tapping a word still does nothing (the Phase 5
+      word-action gap is still open)
+- [x] Switch Tafsir — edition picker in the panel header, shown once more than
+      one edition is installed; each labelled with its school and creed
 - [ ] Content packs — standalone `.qrpack` SQLite files published as release
-      assets, verified by sha256 on install, `is_bundled` guarding uninstall
+      assets, verified by sha256 on install, `is_bundled` guarding uninstall.
+      Note the constraint recorded in `copy_bundled_tafsir_from_seed`: pack
+      installs must allocate `tafsir.id` outside the seed's range, or the
+      positional copy on upgrade collides with a user's edition
 
-Tafsir — chosen
+What the app will carry
 
-- [ ] **Al-Jalalayn (Arabic + English) — bundled default.** Al-Maḥallī and
-      al-Suyūṭī were both Egyptian Shāfiʿīs; it entered the Kerala dars
+> Only works of the **Shāfiʿī school and Ashʿarī creed**. Not "everything,
+> labelled" — a commentary's madhhab decides how it reads the āyāt al-aḥkām
+> and its creed decides how it reads the attribute verses, and neither is
+> visible in the text, so an edition outside that is not offered at all. The
+> school/creed labels exist to tell the reader what they are opening, not to
+> caveat something that shouldn't be there. The list lives in `EDITIONS`
+> (`importer/src/tafsir.rs`).
+
+- [x] **Al-Jalalayn (English, tr. Feras Hamza) — bundled default.** Al-Maḥallī
+      and al-Suyūṭī were both Egyptian Shāfiʿīs; it entered the Kerala dars
       syllabus through the Ponnani school and has been taught there since; and
-      at 2.94 MB Arabic / 2.50 MB English it is the only serious classical
-      tafsir small enough to bundle. Two findings: the Arabic edition has
-      **6,010 entries, not 6,236** — 226 āyāt genuinely carry no gloss, so
-      validation must not demand a full set and the UI needs an
-      "no separate commentary" state; and of the two English editions in the
-      source, use `tafsir-al-jalalayn` (Hamza, punctuation intact), not
-      `en-al-jalalayn` (punctuation stripped)
+      at 2.13 MB of text it is the only serious classical tafsir small enough
+      to bundle. Of the two English editions in the source, this is
+      `tafsir-al-jalalayn` (punctuation and brackets intact), not
+      `en-al-jalalayn` (punctuation stripped). Seed DB: 10.5 → 14.4 MB
+- [ ] **Al-Jalalayn (Arabic)** — deferred with the rest of the Arabic side:
+      nothing bundled is fit for running Arabic prose yet (see the note in
+      `src/app.css` — needs `--font-arabic-prose`). Note for whoever lands it:
+      the Arabic edition has **6,010 entries, not 6,236** — 226 āyāt genuinely
+      carry no gloss, which is why the importer validates a coverage floor
+      rather than a complete set, and why the panel has a
+      "no separate commentary on this verse" state already built
 - [ ] **Shāfiʿī shelf, download-only** (all too large to bundle):
       al-Baghawī ≈41 MB, al-Bayḍāwī ≈11 MB, al-Māwardī ≈14 MB,
       al-Wāḥidī ≈8 MB, al-Qushayrī ≈9 MB, al-Rāzī ≈90 MB,
       al-Suyūṭī's al-Durr al-Manthūr ≈60 MB
-- [ ] **Ibn Kathir** — Shāfiʿī in fiqh, Atharī in creed; the common English
-      abridgement is Darussalam-edited. Offer it, label it, list the Arabic
-      and the abridgement as separate editions
-- [ ] **As-Sa'di** — Ḥanbalī/Salafī. Available and labelled, not a default
+- [ ] **Ibn Kathir — open question.** Shāfiʿī in fiqh, so he passes the
+      madhhab half, but Atharī in creed, and the common English abridgement is
+      Darussalam-edited. Left out under the rule above; carrying him is a
+      judgement call, not an oversight
+- [ ] Verify the English Jalalayn's redistribution terms before the next
+      release — © 2007 Royal Aal al-Bayt Institute, free to read on
+      altafsir.com, terms unread (the site was unreachable). Same standard as
+      the QCF fonts: bundling in signed installers is what needs the
+      permission. See `THIRD-PARTY-NOTICES.md`
 
 ---
 

@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Bookmark, BookmarkCheck, Copy, Check } from 'lucide-svelte';
+  import { Bookmark, BookmarkCheck, ScrollText, Copy, Check } from 'lucide-svelte';
   import type { Ayah, AyahGlyphWord } from '$lib/types/database';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
 
   let {
     ayah,
@@ -55,6 +56,14 @@
       </button>
       <button class="action-btn" onclick={copyText} aria-label="Copy ayah text">
         {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
+      </button>
+      <button
+        class="action-btn"
+        onclick={() => tafsirStore.openForAyah(ayah.id)}
+        aria-label="Show tafsir for this ayah"
+        title="Tafsir"
+      >
+        <ScrollText size={15} />
       </button>
     </div>
 

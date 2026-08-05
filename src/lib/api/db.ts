@@ -8,6 +8,8 @@ import type {
   Surah,
   Ayah,
   Translation,
+  Tafsir,
+  TafsirEntry,
   Bookmark,
   Note,
   Settings,
@@ -132,4 +134,22 @@ export function setSetting(key: string, value: string): Promise<void> {
 
 export function getTranslations(): Promise<Translation[]> {
   return invoke('get_translations');
+}
+
+// =============================================================================
+// TAFSIR
+// =============================================================================
+
+/** Installed editions, bundled first. */
+export function getTafsirs(): Promise<Tafsir[]> {
+  return invoke('get_tafsirs');
+}
+
+/**
+ * Commentary on one Ayah, or null where this edition passes over it — an
+ * ordinary outcome, not an error. Al-Jalalayn's Arabic glosses 6,010 of the
+ * 6,236 Ayahs; the panel shows the gap rather than an empty box.
+ */
+export function getTafsirForAyah(tafsirId: number, ayahId: number): Promise<TafsirEntry | null> {
+  return invoke('get_tafsir_for_ayah', { tafsirId, ayahId });
 }

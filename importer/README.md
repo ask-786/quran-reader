@@ -23,6 +23,7 @@ validates it, and writes a ready-to-ship `quran.db` SQLite database.
 | [Tanzil Project](https://tanzil.net)                    | Uthmani Arabic text, Simple Arabic text                   | CC BY 3.0 |
 | [alquran.cloud](https://alquran.cloud)                  | Per-ayah metadata (juz, hizb, page, ruku, manzil, sajdah) | Open      |
 | [spa5k/quran_data](https://github.com/spa5k/quran_data) | Surah names, revelation types, verse counts               | Open      |
+| [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) | Tafsir editions (per-Surah JSON)                          | Per text  |
 
 ---
 
@@ -34,6 +35,41 @@ cargo run --release
 ```
 
 The database is written to `../database/quran.db` (relative to the workspace root).
+
+---
+
+## Tafsir
+
+A separate pass that writes a commentary edition into an existing
+`quran.db` — it does not rebuild the Quran data.
+
+```bash
+cargo run --release -- --list-tafsir
+cargo run --release -- --import-tafsir tafsir-al-jalalayn --bundle
+
+# Re-run from a local directory of 1.json … 114.json instead of 114 requests:
+cargo run --release -- --import-tafsir tafsir-al-jalalayn --bundle --tafsir-dir ./cache
+```
+
+`--bundle` marks the edition `is_bundled`, which means it ships inside the
+committed seed database and survives an in-place upgrade. Leave it off for an
+edition that is only being written locally.
+
+**Which editions exist is a deliberate list, not a passthrough.** See
+`EDITIONS` in `src/tafsir.rs`: this reader carries commentary of the Shāfiʿī
+school and Ashʿarī creed, because a tafsir's madhhab decides how it reads the
+legal verses and its creed decides how it reads the attribute verses, and
+neither is visible in the text. Adding a slug is a decision about the app, not
+a data-sourcing convenience.
+
+Two behaviours worth knowing before adding an edition:
+
+- **Missing verses are normal.** Al-Jalalayn's Arabic passes over 226 of the
+  6,236 Ayahs with no gloss. The importer logs coverage and refuses anything
+  under 90%, rather than demanding a complete set.
+- **Markup is stripped, not sanitised.** Entries are reduced to plain text, so
+  the renderer never has to trust the database. An edition whose formatting
+  carries meaning would need that decision revisited on both sides.
 
 ---
 
