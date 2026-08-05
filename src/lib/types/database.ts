@@ -79,12 +79,27 @@ export interface Tafsir {
   title: string;
   version: string;
   is_bundled: boolean;
+  slug: string | null;
+  /** Set when this edition is a translation of the work rather than the original. */
+  translator: string | null;
+  name_native: string | null;
+  direction: 'ltr' | 'rtl';
+  /** Madhhab and creed of the commentary — shown in the picker, since neither
+   *  is visible in the text and both decide how it reads whole classes of verse. */
+  school: string | null;
+  creed: string | null;
 }
 
-export interface TafsirAyah {
+export interface TafsirEntry {
   tafsir_id: number;
   ayah_id: number;
+  surah_id: number;
+  ayah_number: number;
   text: string;
+  /** Verse keys ("2:1" / "2:5") when the edition comments on a run of verses
+   *  at once. Both null for per-Ayah editions such as al-Jalalayn. */
+  group_start_key: string | null;
+  group_end_key: string | null;
 }
 
 // =============================================================================
@@ -126,6 +141,10 @@ export interface Settings {
   reader_width: ReaderWidth;
   preferred_translation_id: number | null;
   show_translation: boolean;
+  /** Null until an edition is chosen; the app falls back to the first bundled one. */
+  tafsir_id: number | null;
+  show_tafsir: boolean;
+  tafsir_panel_width: number;
   show_transliteration: boolean;
   show_ayah_numbers: boolean;
   app_zoom: number;

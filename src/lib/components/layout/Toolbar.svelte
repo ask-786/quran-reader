@@ -17,9 +17,11 @@
     ZoomOut,
     Focus,
     Search,
+    ScrollText,
   } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import type { Theme } from '$lib/types/database';
 
   const THEMES: Theme[] = ['dark', 'light', 'sepia'];
@@ -96,6 +98,16 @@
   </div>
 
   {#if hasReader}
+    <button
+      class="icon-btn"
+      class:active={tafsirStore.open}
+      onclick={() => tafsirStore.toggle()}
+      aria-pressed={tafsirStore.open}
+      aria-label="Toggle tafsir panel"
+      title="Tafsir (t)"
+    >
+      <ScrollText size={18} />
+    </button>
     <button
       class="icon-btn"
       onclick={() => uiStore.toggleFocusMode()}
@@ -189,6 +201,12 @@
   .icon-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text);
+  }
+
+  /* Toggles, unlike the one-shot buttons around them, have to show that they
+     are currently on. */
+  .icon-btn.active {
+    color: var(--color-accent);
   }
 
   .icon-btn.small {

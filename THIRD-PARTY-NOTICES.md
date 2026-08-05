@@ -143,6 +143,33 @@ Mushaf fonts entry above), matched onto these same rows by ayah and
 within-ayah word position. Line breaks and word boundaries are still this
 source's (zonetecde/mushaf-layout), unchanged by which font is active.
 
+### Tafsir — Tafsīr al-Jalālayn (English)
+
+|            |                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Work       | Tafsīr al-Jalālayn, by Jalāl al-Dīn al-Maḥallī (d. 864/1459) and Jalāl al-Dīn al-Suyūṭī (d. 911/1505)                          |
+| Translator | Feras Hamza                                                                                                                    |
+| Publisher  | © 2007 Royal Aal al-Bayt Institute for Islamic Thought, Amman                                                                  |
+| Source     | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `tafsir-al-jalalayn`), which mirrors quran.com / altafsir.com |
+| License    | **Unverified — see below**                                                                                                     |
+
+The Arabic original is a classical work in the public domain. This English
+translation is not: it is Feras Hamza's, published by the Royal Aal al-Bayt
+Institute and distributed free of charge on
+[altafsir.com](https://www.altafsir.com). Its redistribution terms could not
+be confirmed when this notice was written — altafsir.com was unreachable from
+the build environment (HTTP 403), so the front matter stating the permissions
+has not been read directly.
+
+**Open task before the next release:** read those terms from the primary
+source and either record them here or move this edition out of the bundled
+database and into a download the user requests. The same standard as the QCF
+font entry above — bundling in signed installers is the part that needs the
+permission, not the reading of the text.
+
+The importer reduces each entry to plain text (markup stripped, entities
+decoded) and does not otherwise alter the translation.
+
 ### Ayah metadata — alquran.cloud
 
 |        |                                                      |

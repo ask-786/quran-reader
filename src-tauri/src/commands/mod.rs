@@ -229,3 +229,25 @@ pub fn get_translations(state: State<AppDb>) -> Result<Vec<Translation>, String>
     let conn = db!(state);
     queries::get_translations(&conn).map_err(e)
 }
+
+// =============================================================================
+// TAFSIR COMMANDS
+// =============================================================================
+
+#[tauri::command]
+pub fn get_tafsirs(state: State<AppDb>) -> Result<Vec<Tafsir>, String> {
+    let conn = db!(state);
+    queries::get_tafsirs(&conn).map_err(e)
+}
+
+/// `Ok(None)` means this edition has no comment on that Ayah — an ordinary
+/// result, not a failure. See `queries::get_tafsir_for_ayah`.
+#[tauri::command]
+pub fn get_tafsir_for_ayah(
+    state: State<AppDb>,
+    tafsir_id: u32,
+    ayah_id: u32,
+) -> Result<Option<TafsirEntry>, String> {
+    let conn = db!(state);
+    queries::get_tafsir_for_ayah(&conn, tafsir_id, ayah_id).map_err(e)
+}

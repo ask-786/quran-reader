@@ -93,6 +93,8 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::get_translations,
+            commands::get_tafsirs,
+            commands::get_tafsir_for_ayah,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

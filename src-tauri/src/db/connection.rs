@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 6;
+const CURRENT_VERSION: u32 = 7;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -140,6 +140,11 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         ))?;
     }
 
+    if from_version < 7 {
+        log::info!("  → Applying migration 007: tafsir metadata, grouping, FTS");
+        conn.execute_batch(include_str!("../../../database/migrations/007_tafsir.sql"))?;
+    }
+
     // page_line/page_line_word carry no user data (bookmarks and notes key off
     // ayah_id, not page/line/glyph), so glyph content is delivered by
     // rebuilding both tables wholesale from the bundled seed rather than by
@@ -152,6 +157,15 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
     if from_version < 5 {
         log::info!("  → Rebuilding page_line/page_line_word from the bundled seed");
         rebuild_mushaf_layout_from_seed(conn)?;
+    }
+
+    // Same delivery mechanism as the glyphs above, for the same reason: an
+    // upgrading install keeps its own database file, so bundled *content* only
+    // reaches it by being copied out of the embedded seed. Runs after 007 has
+    // reshaped the local tables, since the copy is positional.
+    if from_version < 7 {
+        log::info!("  → Copying bundled tafsir editions from the seed");
+        copy_bundled_tafsir_from_seed(conn)?;
     }
 
     let version = get_schema_version(conn)?;
@@ -173,6 +187,68 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
 /// Tanzil/Surah-metadata import is deterministic, and no migration before
 /// this one has ever touched `ayah`.
 fn rebuild_mushaf_layout_from_seed(conn: &Connection) -> DbResult<()> {
+    with_seed_attached(conn, |conn| {
+        conn.execute_batch(
+            "BEGIN;
+             DELETE FROM page_line_word;
+             DELETE FROM page_line;
+             INSERT INTO page_line SELECT * FROM seed.page_line;
+             INSERT INTO page_line_word SELECT * FROM seed.page_line_word;
+             COMMIT;",
+        )?;
+        Ok(())
+    })
+}
+
+/// Copy the bundled tafsir editions out of the embedded `SEED_DB`, for the
+/// same reason the layout tables are copied above: an upgrading install keeps
+/// its own database file, so content that ships with the app only reaches it
+/// this way.
+///
+/// Only `is_bundled = 1` rows are touched on either side. Editions the user
+/// installed themselves are not the app's to delete, and the day packs exist
+/// this is the line that keeps an upgrade from taking them with it. That day
+/// also brings a constraint this copy cannot enforce on its own: pack installs
+/// must allocate `tafsir.id` outside the range the seed uses, or a positional
+/// copy will collide with a user's edition on the primary key. Nothing can hit
+/// that yet — there is no way to install an edition before this migration
+/// exists — but the allocation rule has to land with the installer.
+///
+/// The copy is positional (`SELECT *`), so it is only correct once migration
+/// 007 has given the local tables the same shape as the seed's — see the
+/// ordering note on `run_migrations`.
+fn copy_bundled_tafsir_from_seed(conn: &Connection) -> DbResult<()> {
+    with_seed_attached(conn, |conn| {
+        conn.execute_batch(
+            "BEGIN;
+             DELETE FROM tafsir_ayah
+               WHERE tafsir_id IN (SELECT id FROM tafsir WHERE is_bundled = 1);
+             DELETE FROM tafsir WHERE is_bundled = 1;
+             INSERT INTO tafsir SELECT * FROM seed.tafsir WHERE is_bundled = 1;
+             INSERT INTO tafsir_ayah SELECT * FROM seed.tafsir_ayah
+               WHERE tafsir_id IN (SELECT id FROM seed.tafsir WHERE is_bundled = 1);
+             COMMIT;",
+        )?;
+        // The triggers kept the index in step row by row; this makes the whole
+        // table's index self-consistent again after a wholesale delete+insert.
+        conn.execute_batch("INSERT INTO fts_tafsir(fts_tafsir) VALUES ('rebuild');")?;
+        Ok(())
+    })
+}
+
+/// Write `SEED_DB` to a scratch file, `ATTACH` it as `seed`, run `f`, then
+/// detach and clean up whether or not `f` succeeded. SQLite has no
+/// cross-database `INSERT ... SELECT` without a filesystem path, which is the
+/// only reason the scratch file exists.
+///
+/// Every caller assumes the seed's `ayah` table (and therefore its `ayah.id`
+/// values) matches the target's. That holds for every existing install: the
+/// Tanzil/Surah-metadata import is deterministic and no migration has ever
+/// touched `ayah`.
+fn with_seed_attached<F>(conn: &Connection, f: F) -> DbResult<()>
+where
+    F: FnOnce(&Connection) -> DbResult<()>,
+{
     // Unique per call, not just per process: the pid alone collides when two
     // upgrades run concurrently in one process, which is exactly what the
     // tests below do.
@@ -191,20 +267,10 @@ fn rebuild_mushaf_layout_from_seed(conn: &Connection) -> DbResult<()> {
         let seed_path_str = seed_path.to_string_lossy().to_string();
         conn.execute("ATTACH DATABASE ?1 AS seed", params![seed_path_str])?;
 
-        let copy_result = (|| -> DbResult<()> {
-            conn.execute_batch(
-                "BEGIN;
-                 DELETE FROM page_line_word;
-                 DELETE FROM page_line;
-                 INSERT INTO page_line SELECT * FROM seed.page_line;
-                 INSERT INTO page_line_word SELECT * FROM seed.page_line_word;
-                 COMMIT;",
-            )?;
-            Ok(())
-        })();
+        let inner = f(conn);
 
         conn.execute_batch("DETACH DATABASE seed;")?;
-        copy_result
+        inner
     })();
 
     let _ = std::fs::remove_file(&seed_path);
@@ -243,9 +309,16 @@ mod tests {
 
     /// Reshape a copy of `SEED_DB` into what a v0.1.1 install's database looks
     /// like on disk: schema v2, `page_line_word` carrying `glyph_v2` and no
-    /// `glyph_v4`. Faithful because v0.1.1's `ayah`, `surah` and `page_line`
-    /// tables are byte-identical to the current seed's (verified by EXCEPT in
-    /// both directions), so only `page_line_word`'s shape actually differs.
+    /// `glyph_v4`, no reading-position tables, and no trace of migration 007 —
+    /// no edition-metadata columns, no tafsir content, no `fts_tafsir`.
+    /// Faithful because v0.1.1's `ayah`, `surah` and `page_line` tables are
+    /// byte-identical to the current seed's (verified by EXCEPT in both
+    /// directions), so only the shapes undone here actually differ.
+    ///
+    /// Undoing 006 and 007 is what makes the fixture exercise them at all: the
+    /// seed ships fully migrated now, and `ALTER TABLE ADD COLUMN` on a column
+    /// that already exists is an error, so a fixture that kept them would fail
+    /// the upgrade for a reason no real install can hit.
     ///
     /// Set `QURAN_TEST_V2_DB` to run against a genuine v0.1.1 file instead —
     /// `git show v0.1.1:database/quran.db > /tmp/v011.db`.
@@ -261,7 +334,70 @@ mod tests {
                  DELETE FROM schema_version WHERE version >= 3;",
             )
             .unwrap();
+            undo_007(&conn);
+            undo_006(&conn);
         }
+    }
+
+    /// Undo migration 006 on a copy of the seed, so a fixture standing in for
+    /// a pre-006 install actually looks like one — no reading-position tables,
+    /// and the three retired `settings` keys back at their v1 defaults, which
+    /// is what 006 reads the old position out of.
+    fn undo_006(conn: &Connection) {
+        conn.execute_batch(
+            "DROP TABLE IF EXISTS reading_session;
+             DROP TABLE IF EXISTS reading_position;
+             INSERT OR IGNORE INTO settings (key, value) VALUES
+                 ('last_read_surah_id', '1'),
+                 ('last_read_ayah_id', '1'),
+                 ('scroll_position', '0');
+             DELETE FROM schema_version WHERE version >= 6;",
+        )
+        .unwrap();
+    }
+
+    /// Undo migration 007 on a copy of the seed, so a fixture standing in for
+    /// a pre-007 install actually looks like one.
+    ///
+    /// Every fixture built from `SEED_DB` needs this, not just the tafsir test:
+    /// the seed carries 007's columns now, and `ALTER TABLE ADD COLUMN` on an
+    /// existing column is an error, so without this the migration fails for a
+    /// reason no real install can hit.
+    fn undo_007(conn: &Connection) {
+        conn.execute_batch(
+            "DELETE FROM tafsir_ayah;
+             DELETE FROM tafsir;
+             DROP TRIGGER IF EXISTS fts_tafsir_insert;
+             DROP TRIGGER IF EXISTS fts_tafsir_delete;
+             DROP TRIGGER IF EXISTS fts_tafsir_update;
+             DROP TABLE IF EXISTS fts_tafsir;
+             DROP TRIGGER IF EXISTS fts_translation_insert;
+             DROP TRIGGER IF EXISTS fts_translation_delete;
+             DROP TRIGGER IF EXISTS fts_translation_update;
+             DROP INDEX IF EXISTS idx_tafsir_slug;
+             DROP INDEX IF EXISTS idx_translation_slug;
+             ALTER TABLE tafsir_ayah DROP COLUMN group_start_ayah_id;
+             ALTER TABLE tafsir_ayah DROP COLUMN group_end_ayah_id;
+             ALTER TABLE tafsir DROP COLUMN slug;
+             ALTER TABLE tafsir DROP COLUMN translator;
+             ALTER TABLE tafsir DROP COLUMN name_native;
+             ALTER TABLE tafsir DROP COLUMN direction;
+             ALTER TABLE tafsir DROP COLUMN school;
+             ALTER TABLE tafsir DROP COLUMN creed;
+             ALTER TABLE tafsir DROP COLUMN source_url;
+             ALTER TABLE tafsir DROP COLUMN license;
+             ALTER TABLE tafsir DROP COLUMN sort_order;
+             ALTER TABLE translation DROP COLUMN slug;
+             ALTER TABLE translation DROP COLUMN name_native;
+             ALTER TABLE translation DROP COLUMN direction;
+             ALTER TABLE translation DROP COLUMN school;
+             ALTER TABLE translation DROP COLUMN creed;
+             ALTER TABLE translation DROP COLUMN source_url;
+             ALTER TABLE translation DROP COLUMN license;
+             ALTER TABLE translation DROP COLUMN sort_order;
+             DELETE FROM schema_version WHERE version >= 7;",
+        )
+        .unwrap();
     }
 
     /// The upgrade path an AUR user takes from the v0.1.1 release. This is the
@@ -429,10 +565,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The upgrade every current user takes: v0.1.7 shipped schema v5, so an
-    /// installed copy is sitting at v5 and the only thing between it and this
-    /// build is migration 006. It is the shortest path in the table and the
-    /// most travelled, which is exactly why it is worth pinning: the reading
+    /// The upgrade every v0.1.7 user takes: that release shipped schema v5, so
+    /// an installed copy is sitting at v5 with only 006 and 007 between it and
+    /// this build. It is the shortest path in the table and the most
+    /// travelled, which is exactly why it is worth pinning: the reading
     /// position it carries across is the one piece of user data 006 touches.
     #[test]
     fn upgrade_from_v017_carries_the_reading_position_across() {
@@ -441,11 +577,15 @@ mod tests {
         let path = dir.join("quran.db");
         let _ = std::fs::remove_file(&path);
 
-        // A v0.1.7 install: the bundled seed (v4) with 005 applied, which is
-        // what that release's own `open()` would have left on disk.
+        // A v0.1.7 install: the bundled seed wound back to v4 and 005 applied,
+        // which is what that release's own `open()` would have left on disk.
+        // The seed ships fully migrated now, so the winding back is what makes
+        // this a v5 fixture rather than a copy of the current schema.
         std::fs::write(&path, SEED_DB).unwrap();
         let kursi_id: i64 = {
             let conn = Connection::open(&path).unwrap();
+            undo_007(&conn);
+            undo_006(&conn);
             conn.execute_batch(include_str!(
                 "../../../database/migrations/005_rub_el_hizb_glyphs.sql"
             ))
@@ -518,7 +658,7 @@ mod tests {
             .unwrap();
         assert_eq!(retired, 0, "the retired keys are gone");
 
-        // The rest of the install is untouched: 006 is additive, and the layout
+        // The rest of the install is untouched: 006 and 007 are additive, and the layout
         // rebuild must not fire again for a database that already has v5 data.
         let bookmarks: u32 = conn
             .query_row(
@@ -576,6 +716,73 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Tafsir is content, not schema, so migration 007's ALTERs leave an
+    /// upgrading install with the right columns and nothing in them. This is
+    /// the half that actually puts al-Jalalayn in front of an existing user.
+    #[test]
+    fn upgrade_installs_bundled_tafsir() {
+        let dir = std::env::temp_dir().join(format!("quranreader-tafsir-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quran.db");
+        let _ = std::fs::remove_file(&path);
+        v011_install(&path);
+
+        {
+            let conn = Connection::open(&path).unwrap();
+            let editions: u32 = conn
+                .query_row("SELECT COUNT(*) FROM tafsir", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(editions, 0, "fixture starts with no commentary");
+        }
+
+        let conn = open(&path).unwrap();
+
+        let (slug, is_bundled, school, creed): (String, bool, String, String) = conn
+            .query_row(
+                "SELECT slug, is_bundled, school, creed FROM tafsir",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(slug, "tafsir-al-jalalayn");
+        assert!(is_bundled, "seed editions must survive the next upgrade");
+        assert_eq!((school.as_str(), creed.as_str()), ("shafii", "ashari"));
+
+        let entries: u32 = conn
+            .query_row("SELECT COUNT(*) FROM tafsir_ayah", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(entries, 6236);
+
+        // The index is rebuilt after the copy, not left holding the pre-copy
+        // rowids — searching tafsir is what Phase 7 will query.
+        let indexed: u32 = conn
+            .query_row("SELECT COUNT(*) FROM fts_tafsir", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(indexed, entries);
+
+        // Spot-check a verse whose commentary is unmistakable.
+        let kursi: String = conn
+            .query_row(
+                "SELECT t.text FROM tafsir_ayah t JOIN ayah a ON a.id = t.ayah_id
+                 WHERE a.surah_id = 2 AND a.ayah_number = 255",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            kursi.contains("the Living") && kursi.contains("kursī"),
+            "Ayat al-Kursi's gloss should read like al-Jalalayn: {kursi:.80}"
+        );
+
+        let integrity: String = conn
+            .query_row("PRAGMA integrity_check", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(integrity, "ok");
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// v0.1.0 predates the Mushaf layout entirely — its database has no
     /// `page_line`/`page_line_word` at all, so 002 creates them empty and the
     /// rebuild is the only thing that ever fills them.
@@ -595,6 +802,8 @@ mod tests {
                  DELETE FROM schema_version WHERE version >= 2;",
             )
             .unwrap();
+            undo_007(&conn);
+            undo_006(&conn);
             assert_eq!(get_schema_version(&conn).unwrap(), 1);
         }
 
