@@ -104,7 +104,6 @@ pub struct TranslationAyah {
 // TAFSIR
 // =============================================================================
 
-#[allow(dead_code)] // wired up by Phase 11 — Tafsir (PLAN.md)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tafsir {
     pub id: u32,
@@ -113,14 +112,34 @@ pub struct Tafsir {
     pub title: String,
     pub version: String,
     pub is_bundled: bool,
+    /// Stable source id, e.g. "tafsir-al-jalalayn".
+    pub slug: Option<String>,
+    /// Set when the edition is a translation of the work rather than the original.
+    pub translator: Option<String>,
+    pub name_native: Option<String>,
+    /// "ltr" | "rtl" — the edition's own language, not the app's.
+    pub direction: String,
+    /// Madhhab and creed of the commentary. Surfaced in the picker: which
+    /// school a tafsir belongs to decides how it reads the legal verses, and
+    /// its creed decides how it reads the attribute verses, neither of which
+    /// is visible in the text itself.
+    pub school: Option<String>,
+    pub creed: Option<String>,
 }
 
-#[allow(dead_code)] // wired up by Phase 11 — Tafsir (PLAN.md)
+/// A single commentary entry, joined with the Ayah it belongs to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TafsirAyah {
+pub struct TafsirEntry {
     pub tafsir_id: u32,
     pub ayah_id: u32,
+    pub surah_id: u32,
+    pub ayah_number: u32,
     pub text: String,
+    /// Verse keys ("2:1" / "2:5") when this edition comments on a run of
+    /// verses at once, so the panel can label the run instead of implying the
+    /// text belongs to this Ayah alone. Both null for per-Ayah editions.
+    pub group_start_key: Option<String>,
+    pub group_end_key: Option<String>,
 }
 
 // =============================================================================
@@ -164,6 +183,11 @@ pub struct Settings {
     pub last_read_ayah_id: u32,
     pub preferred_translation_id: Option<u32>,
     pub show_translation: bool,
+    /// None until a tafsir is chosen; the app then falls back to the first
+    /// bundled edition.
+    pub tafsir_id: Option<u32>,
+    pub show_tafsir: bool,
+    pub tafsir_panel_width: u32,
     pub show_transliteration: bool,
     pub show_ayah_numbers: bool,
     pub scroll_position: u32,
@@ -184,6 +208,9 @@ impl Default for Settings {
             last_read_ayah_id: 1,
             preferred_translation_id: None,
             show_translation: true,
+            tafsir_id: None,
+            show_tafsir: false,
+            tafsir_panel_width: 420,
             show_transliteration: false,
             show_ayah_numbers: true,
             scroll_position: 0,
