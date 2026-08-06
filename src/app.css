@@ -2,6 +2,7 @@
  * Global styles: theme variables, bundled fonts, typography base.
  * Attribution: Quran text — Tanzil Project (tanzil.net) CC BY 3.0
  *              Scheherazade New — SIL Global, SIL OFL 1.1
+ *              Noto Naskh Arabic — The Noto Project Authors, SIL OFL 1.1
  *              Inter — Rasmus Andersson, SIL OFL 1.1 (via @fontsource-variable/inter)
  */
 
@@ -17,11 +18,10 @@
    left rendering a single character (the sajdah mark), which turned out to be
    a duplicate of one already baked into the page glyphs.
 
-   Consequence for whoever lands tafsir/translations: there is now NO bundled
-   font suitable for running Arabic prose. Scheherazade New is a Quranic face
-   and is the wrong tool for flowing paragraphs — bundle a general Arabic text
-   font (Noto Naskh Arabic is the obvious re-add) under its own
-   --font-arabic-prose variable rather than reusing either variable below.
+   Running Arabic prose is NOT this font's job — that note used to say no
+   bundled font could do it at all, and Noto Naskh Arabic below is the answer,
+   under its own --font-arabic-prose. Do not reuse this variable or
+   --font-quran for paragraphs.
 
    Not subsetted: the OFL reserves the name "Scheherazade", so this ships as a
    pure ttf->woff2 format conversion, unmodified otherwise. */
@@ -31,6 +31,43 @@
   font-weight: 400;
   font-display: swap;
   src: url('/fonts/scheherazade-new-regular.woff2') format('woff2');
+}
+
+/* Running Arabic prose — the Arabic tafsir, and any Arabic translation later.
+   A text face, not a Quranic one: Scheherazade New is cut for muṣḥaf setting
+   and reads wrong at paragraph length.
+
+   Two files rather than one, because the Arabic subset alone is not enough.
+   The Arabic Jalālayn uses ASCII punctuation (: " . [ ] ( ) - !) about 1,600
+   times, all of which falls outside the Arabic subset's unicode-range and
+   would otherwise resolve to the generic serif mid-sentence — visibly
+   mismatched inside an RTL paragraph. The ranges are fontsource's own, and
+   both files are its unmodified build artifacts.
+
+   Subsetting IS permitted here, unlike Scheherazade above: Noto Naskh Arabic
+   carries no Reserved Font Name (checked against the package's own LICENSE —
+   the copyright line has no RFN clause), so these subset builds may ship as
+   they are. */
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-naskh-arabic-arabic-regular.woff2') format('woff2');
+  unicode-range:
+    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E,
+    U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-naskh-arabic-latin-regular.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
@@ -59,6 +96,12 @@
      line-justification stagger. Verified by rendering all 114 names + the
      Bismillah through WebKitGTK. */
   --font-surah-name: 'Scheherazade New', serif;
+
+  /* Flowing Arabic paragraphs: the Arabic tafsir today, Arabic translations
+     later. Kept apart from both variables above on purpose — see the
+     @font-face note. The serif fallback only ever answers for characters
+     outside both subsets above, which for the bundled editions is nothing. */
+  --font-arabic-prose: 'Noto Naskh Arabic', serif;
 
   --font-size-quran: 28px;
   /* Unchanged across the QCF v2 -> v4 migration, deliberately. Two successive

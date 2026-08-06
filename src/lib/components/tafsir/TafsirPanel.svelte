@@ -320,11 +320,14 @@
     color: var(--color-text);
   }
 
-  /* No bundled font here is fit for running Arabic prose (see app.css), so an
-     Arabic edition falls through to the system stack until one is added. */
+  /* Noto Naskh Arabic, bundled for exactly this (see the --font-arabic-prose
+     note in app.css). Larger and looser than the Latin text above because
+     vocalised Arabic carries marks above and below the line: at the Latin
+     size the harakat collide with the line below. */
   .text.rtl p {
-    font-size: 17px;
-    line-height: 2;
+    font-family: var(--font-arabic-prose);
+    font-size: 18px;
+    line-height: 2.05;
   }
 
   .state {

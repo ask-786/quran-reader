@@ -45,7 +45,8 @@ A separate pass that writes a commentary edition into an existing
 
 ```bash
 cargo run --release -- --list-tafsir
-cargo run --release -- --import-tafsir tafsir-al-jalalayn --bundle
+cargo run --release -- --import-tafsir tafsir-al-jalalayn --bundle      # English
+cargo run --release -- --import-tafsir ar-tafsir-al-jalalayn --bundle   # Arabic
 
 # Re-run from a local directory of 1.json … 114.json instead of 114 requests:
 cargo run --release -- --import-tafsir tafsir-al-jalalayn --bundle --tafsir-dir ./cache
@@ -65,8 +66,12 @@ a data-sourcing convenience.
 Two behaviours worth knowing before adding an edition:
 
 - **Missing verses are normal.** Al-Jalalayn's Arabic passes over 226 of the
-  6,236 Ayahs with no gloss. The importer logs coverage and refuses anything
-  under 90%, rather than demanding a complete set.
+  6,236 Ayahs with no gloss — it imports at 96.4% coverage, and that is
+  correct. The importer logs coverage and refuses anything under 90%, rather
+  than demanding a complete set.
+- **Each run touches only its own edition.** Rows are deleted and reinserted
+  per `tafsir_id`, so importing a second edition leaves the first alone. The
+  seed's Mushaf layout tables are never touched by this pass.
 - **Markup is stripped, not sanitised.** Entries are reduced to plain text, so
   the renderer never has to trust the database. An edition whose formatting
   carries meaning would need that decision revisited on both sides.

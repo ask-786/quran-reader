@@ -298,7 +298,7 @@ pub struct DbStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::params;
+    use rusqlite::{params, OptionalExtension};
 
     /// Reshape a copy of `SEED_DB` into what a v0.1.1 install's database looks
     /// like on disk: schema v2, `page_line_word` carrying `glyph_v2` and no
@@ -570,21 +570,68 @@ mod tests {
 
         let conn = open(&path).unwrap();
 
-        let (slug, is_bundled, school, creed): (String, bool, String, String) = conn
-            .query_row(
-                "SELECT slug, is_bundled, school, creed FROM tafsir",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-            )
+        // Every bundled edition has to come across, not just the first — the
+        // copy is a single `SELECT *` over `is_bundled = 1`, so a second
+        // edition either all arrives or exposes a bug in that one statement.
+        let editions: Vec<(String, String, bool, String, String)> = conn
+            .prepare("SELECT slug, language, is_bundled, school, creed FROM tafsir ORDER BY id")
+            .unwrap()
+            .query_map([], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
             .unwrap();
-        assert_eq!(slug, "tafsir-al-jalalayn");
-        assert!(is_bundled, "seed editions must survive the next upgrade");
-        assert_eq!((school.as_str(), creed.as_str()), ("shafii", "ashari"));
+
+        assert_eq!(
+            editions
+                .iter()
+                .map(|(slug, lang, ..)| (slug.as_str(), lang.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("tafsir-al-jalalayn", "en"),
+                ("ar-tafsir-al-jalalayn", "ar"),
+            ]
+        );
+        for (slug, _, is_bundled, school, creed) in &editions {
+            assert!(
+                is_bundled,
+                "{slug} must stay bundled, or the next upgrade deletes it"
+            );
+            // The filter this app applies, asserted rather than assumed: only
+            // Shafi'i/Ash'ari works are carried at all.
+            assert_eq!(
+                (school.as_str(), creed.as_str()),
+                ("shafii", "ashari"),
+                "{slug} is outside the school/creed this reader carries"
+            );
+        }
+
+        // English glosses every ayah; the Arabic passes over 226 of them,
+        // which is the source's own shape and not a truncated copy.
+        let per_edition: Vec<(String, u32)> = conn
+            .prepare(
+                "SELECT t.slug, COUNT(ta.ayah_id) FROM tafsir t
+                 JOIN tafsir_ayah ta ON ta.tafsir_id = t.id
+                 GROUP BY t.id ORDER BY t.id",
+            )
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            per_edition,
+            vec![
+                ("tafsir-al-jalalayn".to_string(), 6236),
+                ("ar-tafsir-al-jalalayn".to_string(), 6010),
+            ]
+        );
 
         let entries: u32 = conn
             .query_row("SELECT COUNT(*) FROM tafsir_ayah", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(entries, 6236);
+        assert_eq!(entries, 6236 + 6010);
 
         // The index is rebuilt after the copy, not left holding the pre-copy
         // rowids — searching tafsir is what Phase 7 will query.
@@ -593,11 +640,60 @@ mod tests {
             .unwrap();
         assert_eq!(indexed, entries);
 
-        // Spot-check a verse whose commentary is unmistakable.
+        // Spot-check a verse whose commentary is unmistakable, per edition —
+        // unscoped this would silently only ever check whichever edition sorts
+        // first.
+        let kursi_of = |slug: &str| -> Option<String> {
+            conn.query_row(
+                "SELECT ta.text FROM tafsir_ayah ta
+                 JOIN ayah a   ON a.id = ta.ayah_id
+                 JOIN tafsir t ON t.id = ta.tafsir_id
+                 WHERE a.surah_id = 2 AND a.ayah_number = 255 AND t.slug = ?1",
+                params![slug],
+                |r| r.get(0),
+            )
+            .optional()
+            .unwrap()
+        };
+
+        let arabic = kursi_of("ar-tafsir-al-jalalayn").expect("Arabic gloss on Ayat al-Kursi");
+        // Deliberately not matching an Arabic word literal: the source is fully
+        // vocalised, and a literal typed here has to reproduce its exact
+        // combining-mark sequence to match. The quote marks and the absence of
+        // Latin letters identify the edition just as well and don't rot.
+        assert!(
+            arabic.contains('\u{FD3E}') && arabic.contains('\u{FD3F}'),
+            "the Arabic gloss should keep its ﴿ ﴾ ayah quotes: {arabic:.60}"
+        );
+        assert!(
+            !arabic.chars().any(|c| c.is_ascii_alphabetic()),
+            "this should be the Arabic edition, not the English one: {arabic:.60}"
+        );
+
+        // 26:27 is one of the 226 ayahs the Arabic passes over, and the
+        // English fills with the plain verse — the asymmetry the panel's empty
+        // state exists for.
+        let gap: Option<String> = conn
+            .query_row(
+                "SELECT ta.text FROM tafsir_ayah ta
+                 JOIN ayah a   ON a.id = ta.ayah_id
+                 JOIN tafsir t ON t.id = ta.tafsir_id
+                 WHERE a.surah_id = 26 AND a.ayah_number = 27
+                   AND t.slug = 'ar-tafsir-al-jalalayn'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .unwrap();
+        assert!(gap.is_none(), "26:27 has no Arabic gloss in this edition");
+
         let kursi: String = conn
             .query_row(
-                "SELECT t.text FROM tafsir_ayah t JOIN ayah a ON a.id = t.ayah_id
-                 WHERE a.surah_id = 2 AND a.ayah_number = 255",
+                "SELECT ta.text FROM tafsir_ayah ta
+                 JOIN ayah a   ON a.id = ta.ayah_id
+                 JOIN tafsir t ON t.id = ta.tafsir_id
+                 WHERE a.surah_id = 2 AND a.ayah_number = 255
+                   AND t.slug = 'tafsir-al-jalalayn'",
                 [],
                 |r| r.get(0),
             )
