@@ -35,6 +35,9 @@ pub struct Edition {
     pub source_url: &'static str,
     pub license: &'static str,
     pub version: &'static str,
+    /// Position in the picker. Also decides the fallback edition when the user
+    /// has never chosen one, since the frontend takes the first in this order.
+    pub sort_order: i64,
 }
 
 /// The editions available to this app.
@@ -50,20 +53,56 @@ pub struct Edition {
 /// in creed), al-Qurtubi (Maliki), al-Nasafi (Hanafi/Maturidi), al-Sa'di
 /// (Hanbali/Salafi), al-Muyassar and al-Mukhtasar (Saudi committee), Fi Zilal
 /// (Qutb), Tafhim (Mawdudi).
-pub const EDITIONS: &[Edition] = &[Edition {
-    slug: "tafsir-al-jalalayn",
-    title: "Tafsīr al-Jalālayn",
-    name_native: Some("تفسير الجلالين"),
-    author: "Jalāl al-Dīn al-Maḥallī & Jalāl al-Dīn al-Suyūṭī",
-    translator: Some("Feras Hamza"),
-    language: "en",
-    direction: "ltr",
-    school: "shafii",
-    creed: "ashari",
-    source_url: "https://github.com/spa5k/tafsir_api",
-    license: "© 2007 Royal Aal al-Bayt Institute for Islamic Thought — see THIRD-PARTY-NOTICES.md",
-    version: "1.0",
-}];
+pub const EDITIONS: &[Edition] = &[
+    Edition {
+        slug: "tafsir-al-jalalayn",
+        title: "Tafsīr al-Jalālayn",
+        name_native: Some("تفسير الجلالين"),
+        author: "Jalāl al-Dīn al-Maḥallī & Jalāl al-Dīn al-Suyūṭī",
+        translator: Some("Feras Hamza"),
+        language: "en",
+        direction: "ltr",
+        school: "shafii",
+        creed: "ashari",
+        source_url: "https://github.com/spa5k/tafsir_api",
+        license:
+            "© 2007 Royal Aal al-Bayt Institute for Islamic Thought — see THIRD-PARTY-NOTICES.md",
+        version: "1.0",
+        // Listed first, which also makes it the fallback when no edition has
+        // been chosen (see `active` in the frontend store). Keeping the English
+        // ahead of the Arabic original is not a claim about the texts: it is
+        // what stops every existing install that never picked an edition from
+        // silently switching to Arabic on upgrade. The picker makes the
+        // original one click away.
+        sort_order: 0,
+    },
+    Edition {
+        // The Arabic original. Verified as the only Arabic Jalālayn in the
+        // source (QUL id 523); the other three editions there are two English
+        // and one Indonesian, so the punctuation trap that separates the two
+        // English editions has no equivalent on this side.
+        slug: "ar-tafsir-al-jalalayn",
+        title: "Tafsīr al-Jalālayn",
+        name_native: Some("تفسير الجلالين"),
+        author: "Jalāl al-Dīn al-Maḥallī & Jalāl al-Dīn al-Suyūṭī",
+        // The original, not a translation. The panel renders "tr. X" off this
+        // field, so it has to stay null or it will credit a translator to a
+        // text that has none.
+        translator: None,
+        language: "ar",
+        direction: "rtl",
+        school: "shafii",
+        creed: "ashari",
+        source_url: "https://github.com/spa5k/tafsir_api",
+        // The English entry's copyright belongs to Hamza's translation and does
+        // not reach back to the work itself: al-Maḥallī died in 864 AH and
+        // al-Suyūṭī in 911 AH, so the Arabic text is long out of copyright. What
+        // is being credited here is the digital edition, not the composition.
+        license: "Public domain (composed 864–911 AH) — digital edition via spa5k/tafsir_api, sourced from qul.tarteel.ai",
+        version: "1.0",
+        sort_order: 10,
+    },
+];
 
 pub fn find_edition(slug: &str) -> Option<&'static Edition> {
     EDITIONS.iter().find(|e| e.slug == slug)
@@ -340,8 +379,12 @@ pub fn write_tafsir(
         params![tafsir_id],
         |r| r.get(0),
     )?;
+    // CAST to BLOB, because LENGTH() on TEXT counts *characters*. For an
+    // English edition that reads the same either way; for Arabic it
+    // understates the real cost by half, and this number is what install-size
+    // decisions get made on.
     let bytes: i64 = conn.query_row(
-        "SELECT COALESCE(SUM(LENGTH(text)), 0) FROM tafsir_ayah WHERE tafsir_id = ?1",
+        "SELECT COALESCE(SUM(LENGTH(CAST(text AS BLOB))), 0) FROM tafsir_ayah WHERE tafsir_id = ?1",
         params![tafsir_id],
         |r| r.get(0),
     )?;
@@ -360,7 +403,7 @@ fn upsert_edition(conn: &Connection, edition: &Edition, bundled: bool) -> Result
         "INSERT INTO tafsir
             (language, author, title, version, is_bundled, slug, translator,
              name_native, direction, school, creed, source_url, license, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 0)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
          ON CONFLICT(slug) DO UPDATE SET
             language    = excluded.language,
             author      = excluded.author,
@@ -373,7 +416,8 @@ fn upsert_edition(conn: &Connection, edition: &Edition, bundled: bool) -> Result
             school      = excluded.school,
             creed       = excluded.creed,
             source_url  = excluded.source_url,
-            license     = excluded.license",
+            license     = excluded.license,
+            sort_order  = excluded.sort_order",
         params![
             edition.language,
             edition.author,
@@ -388,6 +432,7 @@ fn upsert_edition(conn: &Connection, edition: &Edition, bundled: bool) -> Result
             edition.creed,
             edition.source_url,
             edition.license,
+            edition.sort_order,
         ],
     )?;
 

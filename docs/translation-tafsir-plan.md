@@ -1,29 +1,29 @@
 # Translation & Tafsir — Implementation Plan (Phases 10 & 11)
 
 **Date drafted:** 2026-08-04
-**Status:** Phase 11 (tafsir) is implemented for **English**, on
-`claude/tafseer-implementation-plan-ntg1kx`. Tafsīr al-Jalālayn (tr. Feras
-Hamza) ships in the seed database and the drawer works in both reading views,
-verified in the real Tauri/WebKitGTK app. Phase 10 (translation) is untouched
-apart from the schema groundwork in migration 007. The Arabic side of the
-tafsir, the download packs and the wider Shāfiʿī shelf are still ahead — see
-"Phasing" for what is ticked.
+**Status:** Phase 11 (tafsir) ships **both editions of al-Jalālayn** — the
+Arabic original and Hamza's English — in the seed database, with the drawer
+working in both reading views, verified in the real Tauri/WebKitGTK app. Noto
+Naskh Arabic is now bundled as `--font-arabic-prose`, which was the blocker on
+the Arabic side. Phase 10 (translation) is untouched apart from the schema
+groundwork in migration 007. The download packs and the wider Shāfiʿī shelf
+are still ahead — see "Phasing" for what is ticked.
 **Goal:** put a translation under every Ayah and a tafsir one keystroke away,
 choosing editions that a Shāfiʿī reader can rely on, without abandoning
 offline-first or letting the installer grow unchecked.
 
 ## TL;DR — the decisions
 
-| Question        | Decision                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Default tafsir  | **Tafsīr al-Jalālayn**, English (tr. Feras Hamza), bundled — 2.13 MB of text. **Shipped.** Arabic deferred with the rest of the Arabic side       |
-| Why that one    | Both authors are Egyptian Shāfiʿīs, Ashʿarī in creed, and it is _the_ tafsīr of the Kerala dars tradition since the Ponnani school                |
-| Further tafsirs | al-Baghawī, al-Bayḍāwī, al-Māwardī, al-Wāḥidī, al-Rāzī, al-Suyūṭī — all Shāfiʿī, all **download-on-demand** (too large to bundle)                 |
-| Default English | **Pickthall** bundled (public domain), **The Clear Qur'an** (Khattab) offered as a download — Phase 10, not started                               |
-| Malayalam       | Nothing shippable: every digitised edition is Mujāhid or Jamāʿat-e-Islāmī, and the Sunni work isn't digitised. A custom-import path is the route  |
-| Not carried     | Hilālī-Khān, Mawdūdī/Tafhīm, Fī Ẓilāl, al-Saʿdī, al-Muyassar/al-Mukhtaṣar, al-Qurṭubī, al-Nasafī — not offered at all, not "offered with a label" |
-| Tafsir UI       | Side drawer that follows the current Ayah; works in the scrolling reader _and_ Mushaf page view                                                   |
-| Delivery        | Bundled editions live in the seed DB; everything else is a signed content pack downloaded into the app data dir                                   |
+| Question        | Decision                                                                                                                                           |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default tafsir  | **Tafsīr al-Jalālayn**, Arabic (2.61 MB) + English (2.13 MB), both bundled. **Shipped.** English is listed first, so it stays the fallback edition |
+| Why that one    | Both authors are Egyptian Shāfiʿīs, Ashʿarī in creed, and it is _the_ tafsīr of the Kerala dars tradition since the Ponnani school                 |
+| Further tafsirs | al-Baghawī, al-Bayḍāwī, al-Māwardī, al-Wāḥidī, al-Rāzī, al-Suyūṭī — all Shāfiʿī, all **download-on-demand** (too large to bundle)                  |
+| Default English | **Pickthall** bundled (public domain), **The Clear Qur'an** (Khattab) offered as a download — Phase 10, not started                                |
+| Malayalam       | Nothing shippable: every digitised edition is Mujāhid or Jamāʿat-e-Islāmī, and the Sunni work isn't digitised. A custom-import path is the route   |
+| Not carried     | Hilālī-Khān, Mawdūdī/Tafhīm, Fī Ẓilāl, al-Saʿdī, al-Muyassar/al-Mukhtaṣar, al-Qurṭubī, al-Nasafī — not offered at all, not "offered with a label"  |
+| Tafsir UI       | Side drawer that follows the current Ayah; works in the scrolling reader _and_ Mushaf page view                                                    |
+| Delivery        | Bundled editions live in the seed DB; everything else is a signed content pack downloaded into the app data dir                                    |
 
 Every figure below was measured, not assumed — method is given where it matters.
 
@@ -451,9 +451,12 @@ two translations can be shown at once.
 ## Phase 11 — Tafsir
 
 - [x] **11.1** `--import-tafsir` with an editions registry, coverage
-      validation and plain-text normalisation; Jalālayn **English** imported
-      into the seed (6,236 entries, 2.13 MB of text; DB 10.5 → 14.4 MB after a
-      VACUUM). Arabic deferred with the rest of the Arabic side
+      validation and plain-text normalisation. **Both** Jalālayn editions are
+      in the seed: English `tafsir-al-jalalayn` (6,236 entries, 2.13 MB) and
+      Arabic `ar-tafsir-al-jalalayn` (6,010 entries — 96.4%, the 226 gaps this
+      plan predicted — 2.61 MB). Seed DB 10.5 → 14.4 → 17.9 MB. Noto Naskh
+      Arabic bundled as `--font-arabic-prose`, which the Arabic side needed
+      before it could render
 - [x] **11.2** Migration 007 + a seed-copy on upgrade (with a test); tafsir
       queries and commands; `TafsirPanel` drawer following the current Ayah;
       toolbar toggle, `t`, per-Ayah button with pin-until-scroll;

@@ -661,14 +661,20 @@ What the app will carry
       at 2.13 MB of text it is the only serious classical tafsir small enough
       to bundle. Of the two English editions in the source, this is
       `tafsir-al-jalalayn` (punctuation and brackets intact), not
-      `en-al-jalalayn` (punctuation stripped). Seed DB: 10.5 → 14.4 MB
-- [ ] **Al-Jalalayn (Arabic)** — deferred with the rest of the Arabic side:
-      nothing bundled is fit for running Arabic prose yet (see the note in
-      `src/app.css` — needs `--font-arabic-prose`). Note for whoever lands it:
-      the Arabic edition has **6,010 entries, not 6,236** — 226 āyāt genuinely
-      carry no gloss, which is why the importer validates a coverage floor
-      rather than a complete set, and why the panel has a
-      "no separate commentary on this verse" state already built
+      `en-al-jalalayn` (punctuation stripped). Listed first, which keeps it the
+      fallback edition for installs that never chose one
+- [x] **Al-Jalalayn (Arabic) — bundled.** `ar-tafsir-al-jalalayn`, verified as
+      the only Arabic Jalālayn in the source (the other editions there are two
+      English and one Indonesian, so the punctuation trap that separates the
+      English pair has no equivalent here). **6,010 entries, not 6,236** — 226
+      āyāt genuinely carry no gloss, which is why the importer validates a
+      coverage floor rather than a complete set, and what the panel's
+      "no separate commentary on this verse" state is for. 2.61 MB of text;
+      seed DB 14.4 → 17.9 MB
+- [x] Arabic prose font — Noto Naskh Arabic bundled as `--font-arabic-prose`
+      (see `src/app.css`), which is what the Arabic edition was waiting on.
+      Two subset files: the Arabic subset alone lacks the ASCII punctuation the
+      tafsir uses ~1,600 times
 - [ ] **Shāfiʿī shelf, download-only** (all too large to bundle):
       al-Baghawī ≈41 MB, al-Bayḍāwī ≈11 MB, al-Māwardī ≈14 MB,
       al-Wāḥidī ≈8 MB, al-Qushayrī ≈9 MB, al-Rāzī ≈90 MB,

@@ -81,6 +81,26 @@ Freely redistributable, including in commercial products, provided the
 license text and copyright notice travel with it (which is what this file
 and `licenses/OFL-1.1.txt` are for). Reserved Font Name: "Scheherazade".
 
+### Noto Naskh Arabic — `static/fonts/noto-naskh-arabic-{arabic,latin}-regular.woff2`
+
+|           |                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| Source    | [notofonts/arabic](https://github.com/notofonts/arabic), via `@fontsource/noto-naskh-arabic` 5.3.0 |
+| Copyright | © 2022 The Noto Project Authors                                                                    |
+| License   | SIL Open Font License 1.1 — see `licenses/OFL-1.1.txt`                                             |
+
+Used for running Arabic prose — the Arabic tafsir today, Arabic translations
+later. Scheherazade New above is a Quranic face and reads wrong at paragraph
+length, which is why this is a second Arabic font rather than a reuse.
+
+Two files, both unmodified fontsource build artifacts: the Arabic subset plus
+the Latin one, because the Arabic subset does not cover the ASCII punctuation
+the tafsir text uses throughout.
+
+Unlike Scheherazade New, this font declares **no Reserved Font Name** (checked
+against the package's own LICENSE), so subset builds may ship as they are and
+this project does not have to carry the full font.
+
 ### Inter — bundled via `@fontsource-variable/inter`
 
 |           |                                                        |
@@ -142,6 +162,22 @@ Each word's QCF v4 glyph (`page_line_word.glyph_v4`) additionally comes from
 Mushaf fonts entry above), matched onto these same rows by ayah and
 within-ayah word position. Line breaks and word boundaries are still this
 source's (zonetecde/mushaf-layout), unchanged by which font is active.
+
+### Tafsir — Tafsīr al-Jalālayn (Arabic)
+
+|         |                                                                                                                         |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Work    | Tafsīr al-Jalālayn, by Jalāl al-Dīn al-Maḥallī (d. 864/1459) and Jalāl al-Dīn al-Suyūṭī (d. 911/1505)                   |
+| Source  | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `ar-tafsir-al-jalalayn`), which mirrors qul.tarteel.ai |
+| License | Public domain — the work predates copyright by four centuries                                                           |
+
+The Arabic original carries none of the restrictions the English translation
+below does: its authors died in 864 AH and 911 AH, so the text itself is long
+out of copyright. What is credited here is the digital edition and the effort
+of the people who transcribed and published it.
+
+This edition glosses 6,010 of the 6,236 Ayahs. The 226 gaps are the work's own
+— verses al-Jalālayn passes over without comment — not an incomplete import.
 
 ### Tafsir — Tafsīr al-Jalālayn (English)
 
