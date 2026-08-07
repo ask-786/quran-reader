@@ -1,77 +1,14 @@
 <script lang="ts">
-  import { X, ScrollText } from 'lucide-svelte';
+  import { X, PanelBottom } from 'lucide-svelte';
   import { tafsirStore, clampTafsirWidth } from '$lib/stores/tafsir.svelte';
-  import { readerPosition } from '$lib/stores/reader-position.svelte';
-  import { surahsStore } from '$lib/stores/surahs.svelte';
+  import TafsirMeta from './TafsirMeta.svelte';
+  import TafsirBody from './TafsirBody.svelte';
 
   /** Live width while dragging; null when the stored width is in force. */
   let dragWidth = $state<number | null>(null);
   let dragging = $state(false);
 
   const width = $derived(dragWidth ?? tafsirStore.width);
-  const edition = $derived(tafsirStore.active);
-  const entry = $derived(tafsirStore.entry);
-
-  // An explicit open pins one Ayah; the pin lifts the moment the reader moves,
-  // so the panel goes back to following without the user having to dismiss a
-  // mode. This effect tracks the reader position and nothing else.
-  $effect(() => {
-    tafsirStore.syncPosition(readerPosition.ayahId);
-  });
-
-  $effect(() => {
-    const ayahId = tafsirStore.targetAyahId;
-    const active = tafsirStore.active;
-    if (!active || ayahId === null) return;
-    void tafsirStore.load(active.id, ayahId);
-  });
-
-  const surahName = $derived.by(() => {
-    if (!entry) return null;
-    return surahsStore.get(entry.surah_id)?.transliteration ?? null;
-  });
-
-  /** "2:255", or "2:1–5" where the edition comments on a run of verses. */
-  const verseLabel = $derived.by(() => {
-    if (!entry) return null;
-    const { group_start_key: start, group_end_key: end } = entry;
-    if (start && end && start !== end) {
-      const endAyah = end.split(':')[1] ?? end;
-      return `${start}–${endAyah}`;
-    }
-    return `${entry.surah_id}:${entry.ayah_number}`;
-  });
-
-  // Paragraphs rather than one block: the importer keeps blank-line breaks and
-  // strips everything else, so this is the whole of the text's structure.
-  const paragraphs = $derived(entry ? entry.text.split(/\n{2,}/).filter(Boolean) : []);
-
-  const attribution = $derived.by(() => {
-    if (!edition) return null;
-    const parts = [edition.author];
-    if (edition.translator) parts.push(`tr. ${edition.translator}`);
-    return parts.join(' · ');
-  });
-
-  /** "Shāfiʿī · Ashʿarī" — informational, and the reason the picker exists. */
-  const SCHOOL_LABELS: Record<string, string> = {
-    shafii: 'Shāfiʿī',
-    hanafi: 'Ḥanafī',
-    maliki: 'Mālikī',
-    hanbali: 'Ḥanbalī',
-  };
-  const CREED_LABELS: Record<string, string> = {
-    ashari: 'Ashʿarī',
-    maturidi: 'Māturīdī',
-    athari: 'Atharī',
-  };
-
-  const schoolLabel = $derived.by(() => {
-    if (!edition) return null;
-    const school = edition.school ? (SCHOOL_LABELS[edition.school] ?? edition.school) : null;
-    const creed = edition.creed ? (CREED_LABELS[edition.creed] ?? edition.creed) : null;
-    return [school, creed].filter(Boolean).join(' · ') || null;
-  });
 
   function startResize(e: PointerEvent) {
     const handle = e.currentTarget as HTMLElement;
@@ -128,64 +65,28 @@
   ></button>
 
   <header class="panel-header">
-    <div class="title-block">
-      <div class="title-row">
-        <ScrollText size={15} />
-        {#if tafsirStore.editions.length > 1}
-          <select
-            class="edition-select"
-            aria-label="Tafsir edition"
-            value={edition?.id}
-            onchange={(e) => tafsirStore.setEdition(Number(e.currentTarget.value))}
-          >
-            {#each tafsirStore.editions as t (t.id)}
-              <option value={t.id}>{t.title}</option>
-            {/each}
-          </select>
-        {:else}
-          <span class="edition-title">{edition?.title ?? 'Tafsir'}</span>
-        {/if}
-      </div>
-      {#if attribution}
-        <p class="attribution">
-          {attribution}
-          {#if schoolLabel}<span class="school">{schoolLabel}</span>{/if}
-        </p>
-      {/if}
+    <TafsirMeta />
+    <div class="actions">
+      <button
+        class="icon-btn"
+        onclick={() => tafsirStore.setView('popover')}
+        aria-label="Show tafsir as a popover instead"
+        title="Show as popover"
+      >
+        <PanelBottom size={16} />
+      </button>
+      <button
+        class="icon-btn"
+        onclick={() => tafsirStore.setPanelOpen(false)}
+        aria-label="Close tafsir"
+      >
+        <X size={16} />
+      </button>
     </div>
-    <button class="icon-btn" onclick={() => tafsirStore.setOpen(false)} aria-label="Close tafsir">
-      <X size={16} />
-    </button>
   </header>
 
   <div class="panel-body">
-    {#if !edition}
-      <p class="state">No tafsir is installed.</p>
-    {:else if tafsirStore.error}
-      <p class="state">{tafsirStore.error}</p>
-    {:else if tafsirStore.targetAyahId === null}
-      <p class="state">Open a Surah to read its commentary.</p>
-    {:else if entry}
-      <p class="verse-ref">
-        {#if surahName}<span class="surah">{surahName}</span>{/if}
-        <span class="key">{verseLabel}</span>
-      </p>
-      <div class="text" dir={edition.direction} class:rtl={edition.direction === 'rtl'}>
-        {#each paragraphs as para, i (i)}
-          <p>{para}</p>
-        {/each}
-      </div>
-    {:else if tafsirStore.loading}
-      <p class="state">Loading…</p>
-    {:else}
-      <!-- A gap is normal, not a failure: al-Jalalayn passes over verses that
-           need no gloss (226 of them in the Arabic edition), and saying so is
-           more useful than an empty panel. -->
-      <p class="state">
-        No separate commentary on this verse — this edition comments on the surrounding verses
-        instead.
-      </p>
-    {/if}
+    <TafsirBody />
   </div>
 </aside>
 
@@ -232,45 +133,12 @@
     border-bottom: 1px solid var(--color-border);
   }
 
-  .title-block {
-    min-width: 0;
-  }
-
-  .title-row {
+  /* Meta and body styles now live with TafsirMeta/TafsirBody, which the
+     popover shares — keeping copies here is how the two surfaces drift. */
+  .actions {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--color-text);
-  }
-
-  .edition-title,
-  .edition-select {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  .edition-select {
-    max-width: 100%;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .attribution {
-    margin: 3px 0 0;
-    font-size: 11.5px;
-    line-height: 1.5;
-    color: var(--color-text-muted);
-  }
-
-  .school {
-    margin-inline-start: 6px;
-    padding: 1px 6px;
-    border: 1px solid var(--color-border);
-    border-radius: 999px;
-    white-space: nowrap;
+    flex-shrink: 0;
+    gap: 2px;
   }
 
   .icon-btn {
@@ -297,44 +165,6 @@
     min-height: 0;
     overflow-y: auto;
     padding: 14px 16px 32px;
-  }
-
-  .verse-ref {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin: 0 0 10px;
-    font-size: 12px;
-    color: var(--color-text-muted);
-  }
-
-  .surah {
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  .text p {
-    margin: 0 0 12px;
-    font-size: 14.5px;
-    line-height: 1.75;
-    color: var(--color-text);
-  }
-
-  /* Noto Naskh Arabic, bundled for exactly this (see the --font-arabic-prose
-     note in app.css). Larger and looser than the Latin text above because
-     vocalised Arabic carries marks above and below the line: at the Latin
-     size the harakat collide with the line below. */
-  .text.rtl p {
-    font-family: var(--font-arabic-prose);
-    font-size: 18px;
-    line-height: 2.05;
-  }
-
-  .state {
-    margin: 0;
-    font-size: 13.5px;
-    line-height: 1.7;
-    color: var(--color-text-muted);
   }
 
   /* Below the tablet breakpoint the drawer covers the reader rather than
