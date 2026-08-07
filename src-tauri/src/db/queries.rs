@@ -759,6 +759,13 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
             .get("tafsir_panel_width")
             .and_then(|v| v.parse().ok())
             .unwrap_or(420),
+        // Absent in databases predating the popover, which is why the default
+        // lives here as well as in schema.sql — no migration is needed for a
+        // settings key.
+        tafsir_view: map
+            .get("tafsir_view")
+            .cloned()
+            .unwrap_or_else(|| "popover".into()),
         show_transliteration: map
             .get("show_transliteration")
             .map(|v| v == "true")

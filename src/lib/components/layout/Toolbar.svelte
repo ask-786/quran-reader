@@ -29,6 +29,11 @@
   const heading = $derived($page.data?.title as string | undefined);
   const hasReader = $derived(Array.isArray($page.data?.ayahs));
 
+  /** Whichever surface is in force — the button reflects what is on screen. */
+  const tafsirOpen = $derived(
+    tafsirStore.view === 'panel' ? tafsirStore.panelOpen : tafsirStore.selection !== null,
+  );
+
   let isMaximized = $state(false);
 
   onMount(() => {
@@ -90,10 +95,10 @@
   {#if hasReader}
     <button
       class="icon-btn"
-      class:active={tafsirStore.open}
-      onclick={() => tafsirStore.toggle()}
-      aria-pressed={tafsirStore.open}
-      aria-label="Toggle tafsir panel"
+      class:active={tafsirOpen}
+      onclick={() => tafsirStore.toggleForReaderPosition()}
+      aria-pressed={tafsirOpen}
+      aria-label="Show tafsir"
       title="Tafsir (t)"
     >
       <ScrollText size={18} />

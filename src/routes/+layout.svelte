@@ -69,8 +69,13 @@
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        // Innermost thing first. The tafsir popover sits above the reader, so
+        // it has to go before focus mode does — otherwise dismissing a card in
+        // focus mode tears down the whole chrome instead.
         if (uiStore.goToOpen) {
           uiStore.closeGoTo();
+        } else if (tafsirStore.selection) {
+          tafsirStore.closePopover();
         } else if (uiStore.focusMode) {
           uiStore.exitFocusMode();
         }
@@ -203,7 +208,7 @@
           autoScrollStore.toggle();
           break;
         case 't':
-          tafsirStore.toggle();
+          tafsirStore.toggleForReaderPosition();
           break;
       }
     }

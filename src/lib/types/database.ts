@@ -130,6 +130,8 @@ export interface Note {
 // =============================================================================
 
 export type Theme = 'dark' | 'light' | 'sepia';
+/** Which surface a tafsir trigger opens — see docs/tafsir-popover-plan.md. */
+export type TafsirView = 'popover' | 'panel';
 export type Font = 'amiri-quran' | 'noto-naskh-arabic';
 export type ReaderWidth = 'narrow' | 'normal' | 'wide';
 
@@ -145,8 +147,10 @@ export interface Settings {
   show_translation: boolean;
   /** Null until an edition is chosen; the app falls back to the first bundled one. */
   tafsir_id: number | null;
+  /** The side panel's state. Popover openness is transient and not persisted. */
   show_tafsir: boolean;
   tafsir_panel_width: number;
+  tafsir_view: TafsirView;
   show_transliteration: boolean;
   show_ayah_numbers: boolean;
   scroll_position: number;
