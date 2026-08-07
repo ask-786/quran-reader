@@ -111,11 +111,22 @@ The anchor can leave the DOM entirely while the popover is open —
 `AyahRow` drops its contents outside the render window and keeps only a
 reserved-height box, and `PageView` empties lines outside the glyph window.
 
-- While the anchor is in the DOM, reposition on scroll (rAF-throttled).
-- When it goes, **freeze** at the last position rather than closing or chasing
-  a stale rect. The commentary is still the commentary for the āya that was
-  asked about; taking it away because the reader scrolled is the exact bug this
-  work exists to fix.
+- While the anchor is usable, reposition on scroll (rAF-throttled).
+- When it stops being usable, **freeze** at the last position rather than
+  closing or chasing a stale rect. The commentary is still the commentary for
+  the āya that was asked about; taking it away because the reader scrolled is
+  the exact bug this work exists to fix.
+
+**Correction, from testing rather than reasoning.** "Usable" was written here
+as "still in the DOM", and that is not enough. Scrolling a long Surah with a
+popover open produces a third state the first draft missed: the anchor is
+still attached and still reports a rect, but that rect is now above the
+viewport. Following it puts the card at a large negative offset, and the
+reader watches the popover apparently vanish. Caught by scrolling 40 notches
+down Al-Baqara in the real app. The freeze condition is therefore all three of
+detached, zero-rect, **and** scrolled out of view — plus the top coordinate is
+clamped into the viewport, so a straddling anchor cannot push the card
+half-off either.
 
 **Rejected: close on scroll-out.** It reintroduces "the panel decides what you
 are reading", from the opposite direction.

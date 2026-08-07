@@ -186,8 +186,12 @@ pub struct Settings {
     /// None until a tafsir is chosen; the app then falls back to the first
     /// bundled edition.
     pub tafsir_id: Option<u32>,
+    /// The side panel's open state. The popover is transient and is not
+    /// persisted at all — see docs/tafsir-popover-plan.md.
     pub show_tafsir: bool,
     pub tafsir_panel_width: u32,
+    /// "popover" | "panel" — which surface a tafsir trigger opens.
+    pub tafsir_view: String,
     pub show_transliteration: bool,
     pub show_ayah_numbers: bool,
     pub scroll_position: u32,
@@ -211,6 +215,7 @@ impl Default for Settings {
             tafsir_id: None,
             show_tafsir: false,
             tafsir_panel_width: 420,
+            tafsir_view: "popover".to_string(),
             show_transliteration: false,
             show_ayah_numbers: true,
             scroll_position: 0,
