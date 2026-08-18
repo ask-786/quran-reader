@@ -54,7 +54,7 @@ data ships inside the binary.
 | `n` / `p`                      | Next / previous surah, juz, hizb or page                                  |
 | `↓` / `↑` (or `PgDn` / `PgUp`) | Next / previous Mushaf page                                               |
 | `Home` / `End`                 | Jump to the start / end of what's open                                    |
-| `a`                            | Start or stop auto-scroll                                                 |
+| `a` or `Space`                 | Start or stop auto-scroll                                                 |
 | `Shift`+`↑` / `Shift`+`↓`      | Auto-scroll faster / slower                                               |
 | `+` / `-` / `0`                | Reader zoom in / out / reset (normal and focus view keep separate levels) |
 | `Ctrl`/`Cmd`+`+` / `-` / `0`   | App zoom in / out / reset                                                 |
