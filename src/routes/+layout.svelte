@@ -124,6 +124,22 @@
         return;
       }
 
+      // Space joins `a` as the auto-scroll toggle, the play/pause key every
+      // media player uses. It has to preventDefault or the browser scrolls the
+      // reader a page down on top of the toggle, and it steps aside for a
+      // focused control, where Space is that control's own activation key.
+      if (e.key === ' ') {
+        if (
+          target instanceof Element &&
+          target.closest('button, a[href], select, [role="button"], [role="option"]')
+        ) {
+          return;
+        }
+        e.preventDefault();
+        autoScrollStore.toggle();
+        return;
+      }
+
       // Shift+arrows tune the auto-scroll speed — the same nudge the handle's
       // own arrow keys give it. Bare arrows page the Mushaf, below.
       if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
