@@ -17,4 +17,4 @@
   <title>Hizb {data.hizb} — Quran Reader</title>
 </svelte:head>
 
-<ReaderPage ayahs={data.ayahs} />
+<ReaderPage ayahs={data.ayahs} scope="hizb" scopeId={data.hizb} scrollTarget={data.resumeAyahId} />

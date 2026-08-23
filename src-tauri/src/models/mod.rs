@@ -68,7 +68,6 @@ pub struct Ayah {
 }
 
 /// Lightweight view used in list/navigation contexts (omits full text).
-#[allow(dead_code)] // returned by get_juz_start/get_hizb_start (PLAN.md Phase 6)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AyahRef {
     pub id: u32,
@@ -160,13 +159,10 @@ pub struct Settings {
     pub font_size: u32,
     pub line_height: f32,
     pub reader_width: String,
-    pub last_read_surah_id: u32,
-    pub last_read_ayah_id: u32,
     pub preferred_translation_id: Option<u32>,
     pub show_translation: bool,
     pub show_transliteration: bool,
     pub show_ayah_numbers: bool,
-    pub scroll_position: u32,
     pub app_zoom: f32,
     pub reader_zoom_normal: f32,
     pub reader_zoom_focus: f32,
@@ -180,18 +176,77 @@ impl Default for Settings {
             font_size: 28,
             line_height: 2.2,
             reader_width: "normal".to_string(),
-            last_read_surah_id: 1,
-            last_read_ayah_id: 1,
             preferred_translation_id: None,
             show_translation: true,
             show_transliteration: false,
             show_ayah_numbers: true,
-            scroll_position: 0,
             app_zoom: 1.0,
             reader_zoom_normal: 1.0,
             reader_zoom_focus: 1.0,
         }
     }
+}
+
+// =============================================================================
+// READING POSITION / HISTORY
+// =============================================================================
+
+/// Which kind of range the reader had open. The three navigable divisions plus
+/// the Mushaf page route, matching `reading_position.scope` in the schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReadingScope {
+    Surah,
+    Juz,
+    Hizb,
+    Page,
+}
+
+impl ReadingScope {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ReadingScope::Surah => "surah",
+            ReadingScope::Juz => "juz",
+            ReadingScope::Hizb => "hizb",
+            ReadingScope::Page => "page",
+        }
+    }
+}
+
+impl std::str::FromStr for ReadingScope {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "surah" => Ok(ReadingScope::Surah),
+            "juz" => Ok(ReadingScope::Juz),
+            "hizb" => Ok(ReadingScope::Hizb),
+            "page" => Ok(ReadingScope::Page),
+            other => Err(format!("Unknown reading scope: {}", other)),
+        }
+    }
+}
+
+/// Where the reader last was inside one range. `ayah` carries the Surah, Ayah
+/// number, page and Juz the stored id resolves to, so a caller can label the
+/// position without a second lookup.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadingPosition {
+    pub scope: ReadingScope,
+    pub scope_id: u32,
+    pub ayah: AyahRef,
+    pub updated_at: String,
+}
+
+/// One sitting: where a stretch of reading started and how far it reached.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadingSession {
+    pub id: u32,
+    pub scope: ReadingScope,
+    pub scope_id: u32,
+    pub start: AyahRef,
+    pub end: AyahRef,
+    pub started_at: String,
+    pub updated_at: String,
 }
 
 // =============================================================================

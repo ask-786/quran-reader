@@ -3,16 +3,19 @@
   import { page } from '$app/stores';
   import { resolve } from '$app/paths';
   import { surahsStore } from '$lib/stores/surahs.svelte';
+  import { readingStore } from '$lib/stores/reading.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { stripTashkeel } from '$lib/utils/arabic-text';
   import { isNarrowViewport } from '$lib/utils/viewport';
+  import { rangeLabel, relativeTime, scopeHref, scopeLabel } from '$lib/utils/reading-scope';
 
-  type Mode = 'surah' | 'juz' | 'hizb';
+  type Mode = 'surah' | 'juz' | 'hizb' | 'recent';
 
   const MODES: { id: Mode; label: string }[] = [
     { id: 'surah', label: 'Surah' },
     { id: 'juz', label: 'Juz' },
     { id: 'hizb', label: 'Hizb' },
+    { id: 'recent', label: 'Recent' },
   ];
 
   const JUZ_LIST = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -28,6 +31,14 @@
 
   onMount(() => {
     surahsStore.init();
+  });
+
+  // Pull-based, not pushed on every write: the list only has to be right while
+  // it is on screen, and reloading it as the reader scrolls would re-render the
+  // sidebar throughout a reading session for nobody's benefit.
+  $effect(() => {
+    if (mode !== 'recent') return;
+    void readingStore.refreshHistory();
   });
 
   $effect(() => {
@@ -95,12 +106,16 @@
   );
 
   // How many rows the cursor has to work with, whichever mode is showing.
+  // Recent sittings are already a shortlist — there is nothing to filter them
+  // down to, so that tab shows no filter box and takes no keyboard cursor.
   const resultCount = $derived(
     mode === 'surah'
       ? filteredSurahs.length
       : mode === 'juz'
         ? filteredJuz.length
-        : filteredHizb.length,
+        : mode === 'hizb'
+          ? filteredHizb.length
+          : 0,
   );
 
   const optionId = (i: number) => `sidebar-option-${i}`;
@@ -166,30 +181,34 @@
       {/each}
     </div>
 
-    <div class="filter-row">
-      <input
-        class="filter-input"
-        type="text"
-        {placeholder}
-        bind:this={inputEl}
-        bind:value={filter}
-        onkeydown={onInputKeydown}
-        onfocus={() => (inputFocused = true)}
-        onblur={() => {
-          inputFocused = false;
-          // Don't leave a cursor parked out of sight, ready to fire on the next
-          // Enter — coming back to the box starts from "not navigating" again.
-          activeIndex = -1;
-        }}
-        aria-label={placeholder}
-        autocomplete="off"
-        role="combobox"
-        aria-expanded="true"
-        aria-controls="sidebar-results"
-        aria-autocomplete="list"
-        aria-activedescendant={inputFocused && activeIndex >= 0 ? optionId(activeIndex) : undefined}
-      />
-    </div>
+    {#if mode !== 'recent'}
+      <div class="filter-row">
+        <input
+          class="filter-input"
+          type="text"
+          {placeholder}
+          bind:this={inputEl}
+          bind:value={filter}
+          onkeydown={onInputKeydown}
+          onfocus={() => (inputFocused = true)}
+          onblur={() => {
+            inputFocused = false;
+            // Don't leave a cursor parked out of sight, ready to fire on the
+            // next Enter — coming back to the box starts from "not navigating".
+            activeIndex = -1;
+          }}
+          aria-label={placeholder}
+          autocomplete="off"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="sidebar-results"
+          aria-autocomplete="list"
+          aria-activedescendant={inputFocused && activeIndex >= 0
+            ? optionId(activeIndex)
+            : undefined}
+        />
+      </div>
+    {/if}
   </div>
 
   {#if mode === 'surah'}
@@ -243,7 +262,7 @@
         </li>
       {/each}
     </ul>
-  {:else}
+  {:else if mode === 'hizb'}
     <ul class="item-list" id="sidebar-results" role="listbox">
       {#each filteredHizb as n, i (n)}
         <li>
@@ -263,6 +282,51 @@
         </li>
       {/each}
     </ul>
+  {:else if readingStore.historyLoading && readingStore.history.length === 0}
+    <p class="hint">Loading history…</p>
+  {:else if readingStore.history.length === 0}
+    <p class="hint">
+      Nothing read yet. Wherever you stop, this is where you'll find your way back.
+    </p>
+  {:else}
+    <!-- Every href below is built by scopeHref(), which resolves each route
+         itself; the rule only recognises a resolve() written inline in the
+         attribute, so it can't see that and is turned off across the list. -->
+    <!-- eslint-disable svelte/no-navigation-without-resolve -->
+    <ul class="item-list">
+      {#each readingStore.history as session (session.id)}
+        <li>
+          <!-- Straight to the Ayah this sitting reached, rather than to the
+               range's current position: an older entry has to be able to take
+               you back to where *it* left off. -->
+          <a
+            class="recent-item"
+            href={scopeHref(session.scope, session.scope_id, session.end.id)}
+            onclick={selectItem}
+          >
+            <span class="recent-head">
+              <span class="recent-scope"
+                >{scopeLabel(session.scope, session.scope_id, surahsStore)}</span
+              >
+              <span class="recent-when">{relativeTime(session.updated_at)}</span>
+            </span>
+            <span class="recent-range">
+              {rangeLabel(session.start, session.end)}
+              <!-- Where the sitting ended up in the Mushaf, which is how you
+                   find it in a printed copy. Omitted on a page-scoped entry,
+                   whose heading is already that page number. -->
+              {#if session.scope !== 'page'}
+                <span class="recent-page">· page {session.end.page}</span>
+              {/if}
+            </span>
+          </a>
+        </li>
+      {/each}
+    </ul>
+    <!-- eslint-enable svelte/no-navigation-without-resolve -->
+    <button class="clear-history" onclick={() => readingStore.clearHistory()}>
+      Clear history
+    </button>
   {/if}
 </aside>
 
@@ -439,5 +503,72 @@
     flex: 1;
     font-size: 14px;
     font-weight: 500;
+  }
+
+  /* Two stacked lines rather than the single row the other tabs use: a sitting
+     has to say both what was read and when, and neither fits on the end of the
+     other at sidebar width. */
+  .recent-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 10px;
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: background var(--transition);
+  }
+
+  .recent-item:hover {
+    background: var(--color-bg-hover);
+  }
+
+  .recent-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .recent-scope {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .recent-when {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+
+  .recent-range {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .recent-page {
+    opacity: 0.75;
+  }
+
+  .clear-history {
+    align-self: flex-start;
+    margin: 2px 12px 16px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+
+  .clear-history:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text);
   }
 </style>

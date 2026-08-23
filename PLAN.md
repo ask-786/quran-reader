@@ -358,8 +358,10 @@ Fields
 - [x] Font
 - [x] Font Size
 - [x] Line Height
-- [x] Last Read
 - [x] Preferred Translation
+
+> Last Read used to live here as two keys. It now has tables of its own — see
+> Reading History below.
 
 ---
 
@@ -521,10 +523,17 @@ Search
 
 ## Reading History
 
-- [x] Last Read — `last_read_surah_id` / `last_read_ayah_id` persisted to the
-      settings table as you read
-- [x] Continue Reading — app launch redirects `/` to the last-read Surah and
-      restores the ayah position
+- [x] Last Read — a position per range, in `reading_position`. Reading a Surah,
+      a Juz, a Hizb and a Mushaf page each remember their own place, and both
+      reader views record (the Mushaf page view used not to record at all)
+- [x] Continue Reading — app launch redirects `/` to the range last read, at
+      the Ayah it reached, whichever kind of range that was
+- [x] Reading history — `reading_session` appends a sitting per stretch of
+      reading, with the Ayah it started at and the one it reached. A sitting
+      ends when the range changes or after 30 minutes of silence
+- [x] Recent list — the sidebar's fourth tab, each entry reopening its range at
+      the Ayah that sitting reached, plus Clear history
+- [ ] Per-day grouping in the Recent list
 
 ---
 
@@ -815,7 +824,7 @@ The application is considered **v1.0** when all of the following are complete:
 - [x] Navigate by Page
 - [ ] Search Arabic — backend only (Phase 7)
 - [ ] Bookmarks — toggle works, no bookmark list (Phase 8)
-- [x] Remember last read
+- [x] Remember last read — per range, plus a browsable history of sittings
 - [ ] Adjustable typography — reader zoom only; no font/size/line-height
       controls (Phase 9)
 - [x] Dark mode

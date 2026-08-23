@@ -13,6 +13,7 @@
   import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
+  import { readingStore } from '$lib/stores/reading.svelte';
   import { isNarrowViewport } from '$lib/utils/viewport';
 
   const MAX_PAGE = 604;
@@ -62,6 +63,15 @@
     // On a phone-sized window the sidebar starts as a closed overlay rather
     // than a docked column stealing half the screen.
     if (isNarrowViewport()) uiStore.sidebarOpen = false;
+
+    // The position is written a beat after the reader settles, so closing the
+    // window (or hiding it, which is as close to a warning as a backgrounded
+    // app gets) has to bank whatever is still waiting.
+    function flushReadingPosition() {
+      if (document.visibilityState === 'hidden') readingStore.flush();
+    }
+    window.addEventListener('beforeunload', () => readingStore.flush());
+    document.addEventListener('visibilitychange', flushReadingPosition);
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -217,7 +227,10 @@
       }
     }
     window.addEventListener('keydown', onKeydown);
-    return () => window.removeEventListener('keydown', onKeydown);
+    return () => {
+      window.removeEventListener('keydown', onKeydown);
+      document.removeEventListener('visibilitychange', flushReadingPosition);
+    };
   });
 </script>
 

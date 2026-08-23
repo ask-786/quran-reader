@@ -153,6 +153,52 @@ pub fn delete_note(state: State<AppDb>, note_id: u32) -> Result<(), String> {
 }
 
 // =============================================================================
+// READING POSITION / HISTORY COMMANDS
+// =============================================================================
+
+#[tauri::command]
+pub fn record_reading_position(
+    state: State<AppDb>,
+    scope: ReadingScope,
+    scope_id: u32,
+    ayah_id: u32,
+) -> Result<(), String> {
+    let conn = db!(state);
+    queries::record_reading_position(&conn, scope, scope_id, ayah_id).map_err(e)
+}
+
+#[tauri::command]
+pub fn get_reading_position(
+    state: State<AppDb>,
+    scope: ReadingScope,
+    scope_id: u32,
+) -> Result<Option<ReadingPosition>, String> {
+    let conn = db!(state);
+    queries::get_reading_position(&conn, scope, scope_id).map_err(e)
+}
+
+#[tauri::command]
+pub fn get_last_reading_position(state: State<AppDb>) -> Result<Option<ReadingPosition>, String> {
+    let conn = db!(state);
+    queries::get_last_reading_position(&conn).map_err(e)
+}
+
+#[tauri::command]
+pub fn get_reading_history(
+    state: State<AppDb>,
+    limit: Option<u32>,
+) -> Result<Vec<ReadingSession>, String> {
+    let conn = db!(state);
+    queries::get_reading_history(&conn, limit.unwrap_or(50)).map_err(e)
+}
+
+#[tauri::command]
+pub fn clear_reading_history(state: State<AppDb>) -> Result<(), String> {
+    let conn = db!(state);
+    queries::clear_reading_history(&conn).map_err(e)
+}
+
+// =============================================================================
 // SETTINGS COMMANDS
 // =============================================================================
 

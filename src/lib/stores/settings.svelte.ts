@@ -19,13 +19,10 @@ function defaultSettings(): Settings {
     font_size: 28,
     line_height: 2.2,
     reader_width: 'normal',
-    last_read_surah_id: 1,
-    last_read_ayah_id: 1,
     preferred_translation_id: null,
     show_translation: true,
     show_transliteration: false,
     show_ayah_numbers: true,
-    scroll_position: 0,
     app_zoom: 1,
     reader_zoom_normal: 1,
     reader_zoom_focus: 1,
@@ -126,15 +123,6 @@ class SettingsStore {
 
   resetReaderZoom(focusMode: boolean) {
     return this.setReaderZoom(1, focusMode);
-  }
-
-  async setLastRead(surahId: number, ayahId: number) {
-    this.current.last_read_surah_id = surahId;
-    this.current.last_read_ayah_id = ayahId;
-    await Promise.all([
-      setSetting('last_read_surah_id', String(surahId)),
-      setSetting('last_read_ayah_id', String(ayahId)),
-    ]);
   }
 }
 

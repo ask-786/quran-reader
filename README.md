@@ -26,7 +26,9 @@ data ships inside the binary.
 - Go-to overlay (`Ctrl`/`Cmd`+`G`): `255`, `2:255`, or `p255`
 - Keyboard-driven sidebar search (`/`): type, arrow through the results, `Enter`
 - Deep links: `/surah/2?ayah=255`, `/juz/30`, `/hizb/59`, `/page/604`
-- Reopens where you left off
+- Reopens where you left off — each Surah, Juz, Hizb and page keeps its own
+  place, and launching goes back to whichever you were last reading
+- A Recent tab listing your reading sittings, each with the verses it covered
 
 **Reading**
 

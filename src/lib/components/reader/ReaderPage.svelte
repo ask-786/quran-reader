@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { Ayah } from '$lib/types/database';
+  import type { Ayah, ReadingScope } from '$lib/types/database';
   import ReaderView from './ReaderView.svelte';
   import PageView from './PageView.svelte';
   import AutoScrollHandle from './AutoScrollHandle.svelte';
@@ -10,12 +10,18 @@
   import ReaderJumpControl from './ReaderJumpControl.svelte';
   import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
+  import { readingStore } from '$lib/stores/reading.svelte';
 
   let {
     ayahs,
+    scope,
+    scopeId,
     scrollTarget,
   }: {
     ayahs: Ayah[];
+    /** The range these Ayahs are, for recording where in it the reader is. */
+    scope: ReadingScope;
+    scopeId: number;
     scrollTarget?: number;
   } = $props();
 
@@ -61,7 +67,14 @@
     if (ayahsChanged || targetChanged) {
       // A route change or an explicit jump (Go To, deep link, resume) always
       // wins over wherever the reader happened to be sitting.
-      if (ayahsChanged) readerPosition.reset();
+      if (ayahsChanged) {
+        // Before the position is thrown away: the last few seconds of reading
+        // in the range being left are still only scheduled, and the pending
+        // record carries its own scope, so this stores them against the range
+        // they belong to rather than the one being opened.
+        readingStore.flush();
+        readerPosition.reset();
+      }
       viewTarget = target;
     } else if (modeChanged) {
       // untrack: the position updates on every scroll, and re-running this on
@@ -74,6 +87,33 @@
     // Last, so the swap below never renders ahead of the target above.
     renderedMode = mode;
   });
+
+  /**
+   * Persist where the reader is. Both views publish their centred Ayah to
+   * `readerPosition`; recording it here rather than inside each of them is what
+   * gives the Mushaf page view a remembered position at all — it never had one,
+   * despite being the view the app opens in.
+   *
+   * Declared after the effect above so that effect's `readerPosition.reset()`
+   * lands first on a route change: effects in a component run in the order they
+   * were created, so this one never sees the outgoing range's Ayah paired with
+   * the incoming range's scope.
+   */
+  $effect(() => {
+    const id = readerPosition.ayahId;
+    const currentScope = scope;
+    const currentScopeId = scopeId;
+    if (id === null || ayahs.length === 0) return;
+    // Every range the reader routes cover — a Surah, a Juz, a Hizb, a Mushaf
+    // page — is a contiguous run of global Ayah ids, so bounds are enough to
+    // reject a position published by the view that is on its way out.
+    if (id < ayahs[0].id || id > ayahs[ayahs.length - 1].id) return;
+    readingStore.note(currentScope, currentScopeId, id);
+  });
+
+  // Leaving the reader entirely (focus-mode remount aside, only closing the
+  // window does this) still owes the range its pending position.
+  $effect(() => () => readingStore.flush());
 </script>
 
 <div class="reader-page">
