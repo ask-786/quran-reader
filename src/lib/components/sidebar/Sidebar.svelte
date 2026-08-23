@@ -312,7 +312,12 @@
             </span>
             <span class="recent-range">
               {rangeLabel(session.start, session.end)}
-              <span class="recent-page">· page {session.end.page}</span>
+              <!-- Where the sitting ended up in the Mushaf, which is how you
+                   find it in a printed copy. Omitted on a page-scoped entry,
+                   whose heading is already that page number. -->
+              {#if session.scope !== 'page'}
+                <span class="recent-page">· page {session.end.page}</span>
+              {/if}
             </span>
           </a>
         </li>
