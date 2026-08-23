@@ -465,22 +465,26 @@ Navigate
 
 - [x] Surah
 - [x] Ayah
-- [x] Juz — sidebar tab lists all 30, browsable via `/juz/[id]`
-- [x] Hizb — sidebar tab lists all 60, browsable via `/hizb/[id]`
+- [x] Juz — Juz tab lists all 30, browsable via `/juz/[id]`
+- [x] Hizb — Hizb tab lists all 60, browsable via `/hizb/[id]`
 - [x] Page — deep-linkable via `/page/[id]` (1–604), opens in Mushaf view
 
 ---
 
 ## Quick Navigation
 
-- [x] Go to Surah — `S:N` in the overlay, or the sidebar Surah tab (which
-      filters by name/number); no name-fuzzy-match in the overlay itself
-- [x] Go to Ayah — keyboard-triggered overlay (Ctrl/Cmd+G), accepts `N`
-      (ayah in current surah) or `S:N` (surah:ayah); deep-links via
-      `/surah/[id]?ayah=N`
-- [x] Go to Page — same overlay, `p255` jumps to `/page/[id]` in Mushaf view
-- [ ] Go to Juz — browsable from the sidebar Juz tab, no overlay prefix yet
-- [ ] Go to Hizb — browsable from the sidebar Hizb tab, no overlay prefix yet
+> The palette (Ctrl/Cmd+K, Ctrl/Cmd+G, `/`, Ctrl/Cmd+F) and the sidebar are
+> the same component — `NavPanel`, driven by `$lib/navigation/navigator.svelte.ts`
+> — in two skins. Anything below is therefore true of both surfaces.
+
+- [x] Go to Surah — the Surah tab, filtered by name (Arabic or transliterated),
+      English name, or number; or `S:N` typed into the same box
+- [x] Go to Ayah — `N` (ayah in the current surah) or `S:N` (surah:ayah),
+      offered as the first row of the list; deep-links via `/surah/[id]?ayah=N`
+- [x] Go to Page — `p255` in the same box, jumping to `/page/[id]` in Mushaf view
+- [x] Go to Juz — the Juz tab, keyboard-reachable with Tab / Alt+arrows
+- [x] Go to Hizb — the Hizb tab, likewise
+- [ ] Fuzzy matching — filtering is substring-only, so "bqrh" finds nothing
 
 ---
 
@@ -620,10 +624,16 @@ Performance
 
 Accessibility
 
-- [x] Keyboard shortcuts — Ctrl/Cmd+G go-to overlay, `f` focus mode, `m`
-      switch reading mode, `n`/`p` next/prev, `Escape` to dismiss; guarded
-      against firing while typing in an input
-- [ ] Discoverable shortcut list — nothing in the UI documents the above
+- [x] Keyboard shortcuts — Ctrl/Cmd+K (or Ctrl/Cmd+G, `/`, Ctrl/Cmd+F) opens
+      the navigation palette, `f` focus mode, `m` switch reading mode, `n`/`p`
+      next/prev, `Escape` to dismiss; guarded against firing while typing in
+      an input
+- [x] Keyboard-complete navigation — the palette lists Surah/Juz/Hizb/Recent
+      and every one of them is reachable with arrows, Tab, and Enter, without
+      opening the sidebar or leaving focus mode
+- [ ] Discoverable shortcut list — the palette carries a key legend at its
+      foot, but the reader's own keys (`f`, `m`, `n`/`p`, zoom) are still
+      documented nowhere in the UI
 - [ ] Screen reader support
 - [ ] High contrast
 

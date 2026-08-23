@@ -47,20 +47,22 @@ data ships inside the binary.
 
 ### Keyboard shortcuts
 
-| Key                            | Action                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------- |
-| `Ctrl`/`Cmd`+`G`               | Go to ayah or page                                                        |
-| `/` or `Ctrl`/`Cmd`+`F`        | Search the sidebar (`↑` / `↓` to pick, `Enter` to open)                   |
-| `f`                            | Toggle focus mode                                                         |
-| `m`                            | Switch between Mushaf and scrolling view                                  |
-| `n` / `p`                      | Next / previous surah, juz, hizb or page                                  |
-| `↓` / `↑` (or `PgDn` / `PgUp`) | Next / previous Mushaf page                                               |
-| `Home` / `End`                 | Jump to the start / end of what's open                                    |
-| `a` or `Space`                 | Start or stop auto-scroll                                                 |
-| `Shift`+`↑` / `Shift`+`↓`      | Auto-scroll faster / slower                                               |
-| `+` / `-` / `0`                | Reader zoom in / out / reset (normal and focus view keep separate levels) |
-| `Ctrl`/`Cmd`+`+` / `-` / `0`   | App zoom in / out / reset                                                 |
-| `Esc`                          | Clear the search, close the overlay, or leave focus mode                  |
+| Key                                                       | Action                                                                    |
+| --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `Ctrl`/`Cmd`+`K`, `Ctrl`/`Cmd`+`G`, `/`, `Ctrl`/`Cmd`+`F` | Open the navigation palette                                               |
+| `↑` / `↓`, `PgUp` / `PgDn` _(in the palette)_             | Move the highlight through the list                                       |
+| `Tab` / `Shift`+`Tab` _(in the palette)_                  | Switch list: Surah → Juz → Hizb → Recent                                  |
+| `Enter` _(in the palette)_                                | Open what's highlighted, or the `2:255` / `p255` you typed                |
+| `f`                                                       | Toggle focus mode                                                         |
+| `m`                                                       | Switch between Mushaf and scrolling view                                  |
+| `n` / `p`                                                 | Next / previous surah, juz, hizb or page                                  |
+| `↓` / `↑` (or `PgDn` / `PgUp`)                            | Next / previous Mushaf page                                               |
+| `Home` / `End`                                            | Jump to the start / end of what's open                                    |
+| `a` or `Space`                                            | Start or stop auto-scroll                                                 |
+| `Shift`+`↑` / `Shift`+`↓`                                 | Auto-scroll faster / slower                                               |
+| `+` / `-` / `0`                                           | Reader zoom in / out / reset (normal and focus view keep separate levels) |
+| `Ctrl`/`Cmd`+`+` / `-` / `0`                              | App zoom in / out / reset                                                 |
+| `Esc`                                                     | Clear the search, close the palette, or leave focus mode                  |
 
 ---
 

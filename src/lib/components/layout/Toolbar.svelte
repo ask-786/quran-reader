@@ -16,6 +16,7 @@
     ZoomIn,
     ZoomOut,
     Focus,
+    Search,
   } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
@@ -48,6 +49,15 @@
 <header class="toolbar scrollbar-none" data-tauri-drag-region>
   <button class="icon-btn" onclick={() => uiStore.toggleSidebar()} aria-label="Toggle sidebar">
     <PanelLeft size={18} />
+  </button>
+
+  <button
+    class="icon-btn"
+    onclick={() => uiStore.openPalette()}
+    aria-label="Search and go to"
+    title="Search and go to (Ctrl+K)"
+  >
+    <Search size={18} />
   </button>
 
   <h1 class="title" data-tauri-drag-region>{heading ?? 'Quran Reader'}</h1>

@@ -6,14 +6,13 @@ class UiStore {
   sidebarOpen = $state(true);
   readingMode = $state<ReadingMode>('mushaf');
   focusMode = $state(false);
-  goToOpen = $state(false);
-
   /**
-   * Set by the search shortcut, cleared by the sidebar once it has focused its
-   * filter box. A flag rather than a counter so a later sidebar remount — a
-   * focus-mode toggle, say — doesn't replay a focus the user never asked for.
+   * The command palette — the search box, the Surah/Juz/Hizb/Recent lists, and
+   * the `2:255` jump, over the reader. It is the keyboard route into all of it,
+   * which is why it works in focus mode and with the sidebar shut instead of
+   * dragging either of them back on screen.
    */
-  searchFocusPending = $state(false);
+  paletteOpen = $state(false);
 
   /**
    * The reader zoom in force right now. Normal and focus view remember separate
@@ -45,26 +44,16 @@ class UiStore {
     settingsStore.applyReaderZoom(false);
   }
 
-  openGoTo() {
-    this.goToOpen = true;
+  openPalette() {
+    this.paletteOpen = true;
   }
 
-  closeGoTo() {
-    this.goToOpen = false;
+  closePalette() {
+    this.paletteOpen = false;
   }
 
-  toggleGoTo() {
-    this.goToOpen = !this.goToOpen;
-  }
-
-  /**
-   * Put the caret in the sidebar's filter box. The sidebar has to be on screen
-   * for that, so a collapsed sidebar opens and focus mode ends first.
-   */
-  focusSearch() {
-    if (this.focusMode) this.exitFocusMode();
-    this.sidebarOpen = true;
-    this.searchFocusPending = true;
+  togglePalette() {
+    this.paletteOpen = !this.paletteOpen;
   }
 }
 

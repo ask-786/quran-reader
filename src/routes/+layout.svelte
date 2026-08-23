@@ -6,7 +6,7 @@
   import { resolve } from '$app/paths';
   import Sidebar from '$lib/components/sidebar/Sidebar.svelte';
   import Toolbar from '$lib/components/layout/Toolbar.svelte';
-  import GoToDialog from '$lib/components/navigation/GoToDialog.svelte';
+  import NavPalette from '$lib/components/navigation/NavPalette.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
@@ -75,25 +75,32 @@
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (uiStore.goToOpen) {
-          uiStore.closeGoTo();
+        // The palette clears its own filter on the first Escape and only lets
+        // the key reach here when there is nothing left to clear.
+        if (uiStore.paletteOpen) {
+          uiStore.closePalette();
         } else if (uiStore.focusMode) {
           uiStore.exitFocusMode();
         }
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+      // Ctrl/Cmd+K, the palette key everything else uses, alongside the older
+      // Ctrl/Cmd+G. Both toggle, so the same keystroke puts it away.
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'g')
+      ) {
         e.preventDefault();
-        uiStore.toggleGoTo();
+        uiStore.togglePalette();
         return;
       }
       // The platform-standard find key, pointed at the only text search there
-      // is. Unlike `/` below it works from inside a text field too, so the
-      // go-to overlay has to give way to it.
+      // is. Unlike `/` below it works from inside a text field too, which is
+      // why it opens rather than toggles — Ctrl+F while already searching is
+      // someone reaching for the search box, not putting it away.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        uiStore.closeGoTo();
-        uiStore.focusSearch();
+        uiStore.openPalette();
         return;
       }
 
@@ -120,17 +127,19 @@
         }
       }
 
-      if (uiStore.goToOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (uiStore.paletteOpen || e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         return;
       }
 
       // Bare `/`, the vim/browser convention. Safe as an unmodified key because
-      // the text-field guard above has already bowed out of any input.
+      // the text-field guard above has already bowed out of any input. It opens
+      // the palette rather than the sidebar: the palette carries the same lists
+      // and works in focus mode, where there is no sidebar to focus.
       if (e.key === '/') {
         e.preventDefault();
-        uiStore.focusSearch();
+        uiStore.openPalette();
         return;
       }
 
@@ -256,7 +265,7 @@
   </div>
 </div>
 
-<GoToDialog />
+<NavPalette />
 
 <style>
   .app-shell {
