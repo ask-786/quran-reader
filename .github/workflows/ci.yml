@@ -46,7 +46,7 @@ jobs:
         run: pnpm build
 
   rust:
-    name: Rust (fmt, clippy, build)
+    name: Rust (fmt, clippy, test)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -89,6 +89,13 @@ jobs:
 
       - name: Clippy (importer)
         run: cargo clippy --manifest-path importer/Cargo.toml --all-targets -- -D warnings
+
+      # The database migrations are the reason this step exists: they run
+      # against a real seeded database and are the only thing standing between
+      # an upgrading user and a schema their build can't read. fmt and clippy
+      # cannot see any of that. The importer has no tests of its own yet.
+      - name: Test (app)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
   bundle:
     name: Bundle (${{ matrix.platform }})

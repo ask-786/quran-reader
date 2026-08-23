@@ -116,6 +116,7 @@ pnpm tauri build --no-bundle   # just compile, skip packaging
 pnpm format:check && pnpm lint && pnpm check   # frontend
 cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml --lib
 ```
 
 CI runs all of the above plus a compile on Linux, Windows and macOS. Commits

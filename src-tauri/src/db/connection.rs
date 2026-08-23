@@ -429,6 +429,127 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The upgrade every current user takes: v0.1.7 shipped schema v5, so an
+    /// installed copy is sitting at v5 and the only thing between it and this
+    /// build is migration 006. It is the shortest path in the table and the
+    /// most travelled, which is exactly why it is worth pinning: the reading
+    /// position it carries across is the one piece of user data 006 touches.
+    #[test]
+    fn upgrade_from_v017_carries_the_reading_position_across() {
+        let dir = std::env::temp_dir().join(format!("quranreader-v017-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quran.db");
+        let _ = std::fs::remove_file(&path);
+
+        // A v0.1.7 install: the bundled seed (v4) with 005 applied, which is
+        // what that release's own `open()` would have left on disk.
+        std::fs::write(&path, SEED_DB).unwrap();
+        let kursi_id: i64 = {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(include_str!(
+                "../../../database/migrations/005_rub_el_hizb_glyphs.sql"
+            ))
+            .unwrap();
+            assert_eq!(
+                get_schema_version(&conn).unwrap(),
+                5,
+                "fixture starts at v5"
+            );
+
+            let id: i64 = conn
+                .query_row(
+                    "SELECT id FROM ayah WHERE surah_id = 2 AND ayah_number = 255",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            conn.execute(
+                "UPDATE settings SET value = ?1 WHERE key = 'last_read_ayah_id'",
+                params![id.to_string()],
+            )
+            .unwrap();
+            // Deliberately disagreeing with the Ayah above: nothing ever kept
+            // the two keys in step, so 006 re-derives the Surah rather than
+            // trusting this one.
+            conn.execute(
+                "UPDATE settings SET value = '9' WHERE key = 'last_read_surah_id'",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO bookmark (ayah_id, label) VALUES (?1, 'kursi')",
+                params![id],
+            )
+            .unwrap();
+            id
+        };
+
+        let conn = open(&path).unwrap();
+
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
+
+        let (scope, scope_id, ayah_id): (String, u32, i64) = conn
+            .query_row(
+                "SELECT scope, scope_id, ayah_id FROM reading_position",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (scope.as_str(), scope_id, ayah_id),
+            ("surah", 2, kursi_id),
+            "the position becomes a Surah-scoped one, on the Surah the Ayah is in"
+        );
+
+        // Nothing has been read since the upgrade, so there are no sittings yet
+        // — a position is where you are, a session is what you did.
+        let sessions: u32 = conn
+            .query_row("SELECT COUNT(*) FROM reading_session", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(sessions, 0);
+
+        let retired: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM settings
+                 WHERE key IN ('last_read_surah_id', 'last_read_ayah_id', 'scroll_position')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(retired, 0, "the retired keys are gone");
+
+        // The rest of the install is untouched: 006 is additive, and the layout
+        // rebuild must not fire again for a database that already has v5 data.
+        let bookmarks: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM bookmark WHERE label = 'kursi'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(bookmarks, 1);
+        let (rows, null_v4): (u32, u32) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE glyph_v4 IS NULL) FROM page_line_word",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 77_539);
+        assert_eq!(null_v4, 0);
+
+        // Opening again is a no-op rather than a second application of 006.
+        drop(conn);
+        let conn = open(&path).unwrap();
+        let positions: u32 = conn
+            .query_row("SELECT COUNT(*) FROM reading_position", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(positions, 1, "relaunching does not re-run the migration");
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// The other half of the release: someone installing for the first time,
     /// who gets `SEED_DB` written out whole and must skip migrations entirely.
     #[test]
