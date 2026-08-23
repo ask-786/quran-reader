@@ -124,16 +124,43 @@ export interface Settings {
   font_size: number;
   line_height: number;
   reader_width: ReaderWidth;
-  last_read_surah_id: number;
-  last_read_ayah_id: number;
   preferred_translation_id: number | null;
   show_translation: boolean;
   show_transliteration: boolean;
   show_ayah_numbers: boolean;
-  scroll_position: number;
   app_zoom: number;
   reader_zoom_normal: number;
   reader_zoom_focus: number;
+}
+
+// =============================================================================
+// READING POSITION / HISTORY
+// =============================================================================
+
+/**
+ * Which kind of range was open. The three navigable divisions plus the Mushaf
+ * page route — one per reader route, which is what lets a position be restored
+ * by navigating back to where it was read.
+ */
+export type ReadingScope = 'surah' | 'juz' | 'hizb' | 'page';
+
+/** Where the reader left off inside one range. */
+export interface ReadingPosition {
+  scope: ReadingScope;
+  scope_id: number;
+  ayah: AyahRef; // resolved from the stored ayah id, so it can be labelled directly
+  updated_at: string; // ISO 8601 UTC
+}
+
+/** One sitting: where a stretch of reading began and how far it reached. */
+export interface ReadingSession {
+  id: number;
+  scope: ReadingScope;
+  scope_id: number;
+  start: AyahRef;
+  end: AyahRef;
+  started_at: string;
+  updated_at: string;
 }
 
 // =============================================================================

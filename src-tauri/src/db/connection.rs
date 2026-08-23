@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 5;
+const CURRENT_VERSION: u32 = 6;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -130,6 +130,13 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         log::info!("  → Applying migration 005: rub-el-hizb ornament glyphs");
         conn.execute_batch(include_str!(
             "../../../database/migrations/005_rub_el_hizb_glyphs.sql"
+        ))?;
+    }
+
+    if from_version < 6 {
+        log::info!("  → Applying migration 006: reading position & history");
+        conn.execute_batch(include_str!(
+            "../../../database/migrations/006_reading_history.sql"
         ))?;
     }
 
@@ -371,14 +378,31 @@ mod tests {
             .unwrap();
         assert_eq!(note, "my note");
 
-        let last_read: String = conn
+        // Migration 006 moves the reading position out of `settings` and into
+        // `reading_position`, keyed by the range it was read in. The Surah is
+        // re-derived from the Ayah rather than taken from the old companion
+        // key, so it is right even if the two had drifted apart.
+        let (scope, scope_id, position): (String, u32, i64) = conn
             .query_row(
-                "SELECT value FROM settings WHERE key = 'last_read_ayah_id'",
+                "SELECT scope, scope_id, ayah_id FROM reading_position",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (scope.as_str(), scope_id, position),
+            ("surah", 2, kursi_id),
+            "reading position survives, as a Surah-scoped position"
+        );
+        let orphaned: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM settings
+                 WHERE key IN ('last_read_surah_id', 'last_read_ayah_id', 'scroll_position')",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(last_read, kursi_id.to_string(), "reading position survives");
+        assert_eq!(orphaned, 0, "the retired settings keys are gone");
 
         // And the bookmarked verse actually has glyphs to render.
         let kursi_words: u32 = conn

@@ -14,6 +14,9 @@ import type {
   SearchResult,
   DbStats,
   MushafPage,
+  ReadingPosition,
+  ReadingScope,
+  ReadingSession,
 } from '$lib/types/database';
 
 // =============================================================================
@@ -108,6 +111,46 @@ export function upsertNote(ayahId: number, content: string, noteId?: number): Pr
 
 export function deleteNote(noteId: number): Promise<void> {
   return invoke('delete_note', { noteId });
+}
+
+// =============================================================================
+// READING POSITION / HISTORY
+// =============================================================================
+
+/**
+ * Record that the reader is at `ayahId` inside a range. Overwrites that range's
+ * position and extends (or opens) the sitting covering it — see
+ * `record_reading_position` in queries.rs for when a new sitting starts.
+ */
+export function recordReadingPosition(
+  scope: ReadingScope,
+  scopeId: number,
+  ayahId: number,
+): Promise<void> {
+  return invoke('record_reading_position', { scope, scopeId, ayahId });
+}
+
+/** Where the reader left off inside one range, or null if never opened. */
+export function getReadingPosition(
+  scope: ReadingScope,
+  scopeId: number,
+): Promise<ReadingPosition | null> {
+  return invoke('get_reading_position', { scope, scopeId });
+}
+
+/** The most recent position across every range — what "continue reading" opens. */
+export function getLastReadingPosition(): Promise<ReadingPosition | null> {
+  return invoke('get_last_reading_position');
+}
+
+/** Recent sittings, newest first. */
+export function getReadingHistory(limit?: number): Promise<ReadingSession[]> {
+  return invoke('get_reading_history', { limit: limit ?? null });
+}
+
+/** Forget every sitting. Reading positions are deliberately left alone. */
+export function clearReadingHistory(): Promise<void> {
+  return invoke('clear_reading_history');
 }
 
 // =============================================================================

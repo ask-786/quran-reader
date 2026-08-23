@@ -19,4 +19,6 @@
   <title>Page {data.pageNumber} — Quran Reader</title>
 </svelte:head>
 
-<ReaderPage ayahs={data.ayahs} />
+<!-- No scroll target: a Mushaf page is a single screen, so opening it already
+     puts the reader everywhere there is to be within it. -->
+<ReaderPage ayahs={data.ayahs} scope="page" scopeId={data.pageNumber} />

@@ -232,6 +232,37 @@ CREATE INDEX IF NOT EXISTS idx_page_line_word_line ON page_line_word(page_line_i
 CREATE INDEX IF NOT EXISTS idx_page_line_word_ayah ON page_line_word(ayah_id);
 
 -- =============================================================================
+-- READING POSITION / READING SESSION
+-- Where the reader is in each range they have opened, and the history of
+-- sittings that produced those positions. See migrations/006_reading_history.sql
+-- for the reasoning; only ayah_id is stored because Surah, Ayah number, Juz,
+-- Hizb and page all hang off `ayah`.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS reading_position (
+    scope       TEXT    NOT NULL CHECK (scope IN ('surah', 'juz', 'hizb', 'page')),
+    scope_id    INTEGER NOT NULL CHECK (scope_id > 0),
+    ayah_id     INTEGER NOT NULL REFERENCES ayah(id),
+    updated_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+
+    PRIMARY KEY (scope, scope_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reading_position_updated ON reading_position(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS reading_session (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope           TEXT    NOT NULL CHECK (scope IN ('surah', 'juz', 'hizb', 'page')),
+    scope_id        INTEGER NOT NULL CHECK (scope_id > 0),
+    start_ayah_id   INTEGER NOT NULL REFERENCES ayah(id),
+    end_ayah_id     INTEGER NOT NULL REFERENCES ayah(id),
+    started_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_reading_session_updated ON reading_session(updated_at DESC);
+
+-- =============================================================================
 -- SETTINGS (Key-value store for all user preferences)
 -- =============================================================================
 
@@ -247,13 +278,10 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     ('font_size',               '28'),
     ('line_height',             '2.2'),
     ('reader_width',            'normal'),
-    ('last_read_surah_id',      '1'),
-    ('last_read_ayah_id',       '1'),
     ('preferred_translation_id',''),
     ('show_translation',        'true'),
     ('show_transliteration',    'false'),
     ('show_ayah_numbers',       'true'),
-    ('scroll_position',         '0'),
     ('app_zoom',                '1'),
     ('reader_zoom',             '1');
 

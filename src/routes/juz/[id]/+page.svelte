@@ -17,4 +17,4 @@
   <title>Juz {data.juz} — Quran Reader</title>
 </svelte:head>
 
-<ReaderPage ayahs={data.ayahs} />
+<ReaderPage ayahs={data.ayahs} scope="juz" scopeId={data.juz} scrollTarget={data.resumeAyahId} />

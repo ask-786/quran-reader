@@ -12,7 +12,6 @@
   } from '$lib/utils/mushaf-fonts';
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
-  import { settingsStore } from '$lib/stores/settings.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
@@ -58,7 +57,6 @@
 
   let container = $state<HTMLDivElement>();
   let content = $state<HTMLDivElement>();
-  let lastReadTimer: ReturnType<typeof setTimeout>;
 
   // Page-glyph words per Ayah, fetched from the same page data PageView uses,
   // so list-mode text matches Mushaf/page-mode rendering quality instead of
@@ -185,16 +183,6 @@
     }
     return map;
   });
-
-  function onCenteredAyah(id: number) {
-    // Published immediately so a Mushaf/list toggle can pick it up, while
-    // last-read stays debounced — that one hits the settings store on disk.
-    readerPosition.ayahId = id;
-    const ayah = ayahs.find((a) => a.id === id);
-    if (!ayah) return;
-    clearTimeout(lastReadTimer);
-    lastReadTimer = setTimeout(() => settingsStore.setLastRead(ayah.surah_id, id), 400);
-  }
 
   function updateProgress() {
     if (!container || ayahs.length === 0) return;
@@ -468,7 +456,7 @@
         container,
         container.querySelectorAll('.ayah-row'),
         'data-ayah-id',
-        onCenteredAyah,
+        (id) => (readerPosition.ayahId = id),
       );
 
       // Records the real height of every row while it's rendered, so the same
