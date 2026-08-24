@@ -20,12 +20,28 @@ import { rangeLabel, relativeTime, scopeHref, scopeLabel } from '$lib/utils/read
 
 export type NavMode = 'surah' | 'juz' | 'hizb' | 'recent';
 
-export const NAV_MODES: { id: NavMode; label: string }[] = [
-  { id: 'surah', label: 'Surah' },
-  { id: 'juz', label: 'Juz' },
-  { id: 'hizb', label: 'Hizb' },
-  { id: 'recent', label: 'Recent' },
-];
+/** Which surface a navigator is driving. Decides tab order and cursor rules. */
+export type NavVariant = 'sidebar' | 'palette';
+
+export const MODE_LABELS: Record<NavMode, string> = {
+  surah: 'Surah',
+  juz: 'Juz',
+  hizb: 'Hizb',
+  recent: 'Recent',
+};
+
+/**
+ * Tab order, which is not the same question on the two surfaces.
+ *
+ * The sidebar is a place to browse, and reads as the Mushaf's own divisions in
+ * their own order with the history parked at the end. The palette is a place to
+ * get somewhere, and the most likely destination when you open it is somewhere
+ * you already were — so Recent sits one Tab away rather than three.
+ */
+const MODE_ORDER: Record<NavVariant, NavMode[]> = {
+  sidebar: ['surah', 'juz', 'hizb', 'recent'],
+  palette: ['surah', 'recent', 'juz', 'hizb'],
+};
 
 export const MAX_PAGE = 604;
 const JUZ_LIST = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -70,6 +86,11 @@ let nextPanelId = 1;
 export class Navigator {
   readonly panelId = `nav${nextPanelId++}`;
 
+  readonly variant: NavVariant;
+
+  /** The tab strip, in this surface's order. */
+  readonly modes: NavMode[];
+
   /**
    * Whether a row is always under the cursor. True for the palette, where Enter
    * is the whole point and landing on a dead key is a bug; false for the
@@ -92,8 +113,10 @@ export class Navigator {
   routeId = $state<string | null>(null);
   routeParam = $state(0);
 
-  constructor(options: { autoSelect?: boolean } = {}) {
-    this.autoSelect = options.autoSelect ?? false;
+  constructor(variant: NavVariant) {
+    this.variant = variant;
+    this.modes = MODE_ORDER[variant];
+    this.autoSelect = variant === 'palette';
   }
 
   setRoute(routeId: string | null, param: number) {
@@ -353,11 +376,11 @@ export class Navigator {
   }
 
   cycleMode(delta: number) {
-    const i = NAV_MODES.findIndex((m) => m.id === this.mode);
+    const order = this.modes;
+    const i = order.indexOf(this.mode);
     // Wrapped, unlike the cursor: there are four tabs and you can see all of
     // them, so Tab past the end obviously comes back round.
-    const next = (i + delta + NAV_MODES.length) % NAV_MODES.length;
-    this.setMode(NAV_MODES[next].id);
+    this.setMode(order[(i + delta + order.length) % order.length]);
   }
 
   /**

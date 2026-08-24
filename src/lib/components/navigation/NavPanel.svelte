@@ -15,20 +15,23 @@
   import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { CornerDownLeft, Search } from 'lucide-svelte';
-  import { NAV_MODES, Navigator, type NavMode } from '$lib/navigation/navigator.svelte';
+  import {
+    MODE_LABELS,
+    Navigator,
+    type NavMode,
+    type NavVariant,
+  } from '$lib/navigation/navigator.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { stripTashkeel } from '$lib/utils/arabic-text';
-
-  type Variant = 'sidebar' | 'palette';
 
   let {
     variant = 'sidebar',
     onselect,
     onclose,
   }: {
-    variant?: Variant;
+    variant?: NavVariant;
     /** A row was opened. The sidebar closes its drawer; the palette closes. */
     onselect?: () => void;
     /** Escape on an empty filter — as far as this panel is concerned, "done". */
@@ -38,7 +41,7 @@
   const isPalette = $derived(variant === 'palette');
   // Read once and deliberately: which surface this is decides how the navigator
   // behaves for its whole life, and no caller swaps a panel's variant under it.
-  const nav = new Navigator({ autoSelect: untrack(() => variant) === 'palette' });
+  const nav = new Navigator(untrack(() => variant));
 
   let inputEl = $state<HTMLInputElement>();
   let listEl = $state<HTMLElement>();
@@ -223,16 +226,16 @@
 <div class="nav-panel" class:palette={isPalette}>
   <div class="nav-head">
     <div class="mode-tabs" role="tablist" aria-label="Browse by">
-      {#each NAV_MODES as m (m.id)}
+      {#each nav.modes as m (m)}
         <button
           class="mode-tab"
-          class:active={nav.mode === m.id}
+          class:active={nav.mode === m}
           role="tab"
-          aria-selected={nav.mode === m.id}
+          aria-selected={nav.mode === m}
           tabindex={isPalette ? -1 : 0}
-          onclick={() => selectMode(m.id)}
+          onclick={() => selectMode(m)}
         >
-          {m.label}
+          {MODE_LABELS[m]}
         </button>
       {/each}
     </div>
