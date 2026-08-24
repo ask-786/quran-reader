@@ -66,15 +66,31 @@
   // the box always has focus, so it always does.
   const showCursor = $derived(isPalette || inputFocused);
 
+  // The sidebar hides its filter on Recent, as it always has: a shortlist of
+  // sittings has nothing to filter down to. The palette can't — its head is a
+  // fixed height, and a row that comes and goes is the one thing it must not do.
+  const showFilter = $derived(isPalette || nav.mode !== 'recent');
+
   const placeholder = $derived(
-    nav.mode === 'surah'
-      ? 'Find a surah, or 2:255 · p255'
-      : nav.mode === 'juz'
-        ? 'Jump to a Juz, or 2:255 · p255'
-        : nav.mode === 'hizb'
-          ? 'Jump to a Hizb, or 2:255 · p255'
-          : 'Filter recent reading…',
+    isPalette
+      ? nav.mode === 'surah'
+        ? 'Find a surah, or 2:255 · p255'
+        : nav.mode === 'juz'
+          ? 'Jump to a Juz, or 2:255 · p255'
+          : nav.mode === 'hizb'
+            ? 'Jump to a Hizb, or 2:255 · p255'
+            : 'Filter recent reading…'
+      : nav.mode === 'surah'
+        ? 'Find a surah…'
+        : nav.mode === 'juz'
+          ? 'Jump to a Juz…'
+          : 'Jump to a Hizb…',
   );
+
+  // The palette explains itself under the box at all times — the line is part of
+  // its fixed head, and it is where you go to be told the syntax. The sidebar
+  // has no syntax to explain and no errors to report: it just filters.
+  const showHint = $derived(isPalette);
 
   const hint = $derived(
     nav.error ||
@@ -224,7 +240,7 @@
      attribute, so it can't see that and is turned off across the list. -->
 <!-- eslint-disable svelte/no-navigation-without-resolve -->
 <div class="nav-panel" class:palette={isPalette}>
-  <div class="nav-head">
+  <div class="nav-head" class:flush={!showFilter}>
     <div class="mode-tabs" role="tablist" aria-label="Browse by">
       {#each nav.modes as m (m)}
         <button
@@ -240,34 +256,40 @@
       {/each}
     </div>
 
-    <div class="filter-row">
-      <span class="filter-icon" aria-hidden="true"><Search size={15} /></span>
-      <input
-        class="filter-input"
-        type="text"
-        {placeholder}
-        bind:this={inputEl}
-        value={nav.query}
-        oninput={(e) => nav.setQuery(e.currentTarget.value)}
-        onkeydown={onInputKeydown}
-        onfocus={() => (inputFocused = true)}
-        onblur={() => {
-          inputFocused = false;
-          // Don't leave a cursor parked out of sight in the sidebar, ready to
-          // fire on the next Enter. The palette's box never really loses focus.
-          if (!isPalette) nav.resetCursor();
-        }}
-        aria-label={placeholder}
-        autocomplete="off"
-        role="combobox"
-        aria-expanded="true"
-        aria-controls="{nav.panelId}-results"
-        aria-autocomplete="list"
-        aria-activedescendant={showCursor ? nav.activeOptionId : undefined}
-      />
-    </div>
+    {#if showFilter}
+      <div class="filter-row">
+        {#if isPalette}
+          <span class="filter-icon" aria-hidden="true"><Search size={15} /></span>
+        {/if}
+        <input
+          class="filter-input"
+          type="text"
+          {placeholder}
+          bind:this={inputEl}
+          value={nav.query}
+          oninput={(e) => nav.setQuery(e.currentTarget.value)}
+          onkeydown={onInputKeydown}
+          onfocus={() => (inputFocused = true)}
+          onblur={() => {
+            inputFocused = false;
+            // Don't leave a cursor parked out of sight in the sidebar, ready to
+            // fire on the next Enter. The palette's box never really loses focus.
+            if (!isPalette) nav.resetCursor();
+          }}
+          aria-label={placeholder}
+          autocomplete="off"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="{nav.panelId}-results"
+          aria-autocomplete="list"
+          aria-activedescendant={showCursor ? nav.activeOptionId : undefined}
+        />
+      </div>
+    {/if}
 
-    <p class="hint" class:error={!!nav.error}>{hint}</p>
+    {#if showHint}
+      <p class="hint" class:error={!!nav.error}>{hint}</p>
+    {/if}
   </div>
 
   <div class="nav-body scrollbar-thin" bind:this={listEl}>
@@ -365,6 +387,12 @@
     border-bottom: 1px solid var(--color-border);
   }
 
+  /* Nothing under the tabs to rule off — the sidebar's Recent tab has no
+     filter box, and never had one. */
+  .nav-head.flush {
+    border-bottom: none;
+  }
+
   .mode-tabs {
     display: flex;
     gap: 2px;
@@ -394,23 +422,12 @@
   }
 
   .filter-row {
-    position: relative;
-    display: flex;
-    align-items: center;
-    padding: 10px 12px 0;
-  }
-
-  .filter-icon {
-    position: absolute;
-    left: 22px;
-    display: flex;
-    color: var(--color-text-muted);
-    pointer-events: none;
+    padding: 10px 12px;
   }
 
   .filter-input {
     width: 100%;
-    padding: 8px 10px 8px 32px;
+    padding: 8px 10px;
     border-radius: var(--radius);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
@@ -522,7 +539,10 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+  }
+
+  .row-recent .row-main {
+    gap: 3px;
   }
 
   .row-title {
@@ -591,26 +611,33 @@
     color: var(--color-text);
   }
 
-  /* The palette is wider and sits under the eye rather than off to the side,
-     so it can afford a little more room per row. */
+  /* The palette is wider and sits under the eye rather than off to the side, so
+     it can afford a little more room per row — and it carries the search icon
+     and the hint line the docked column deliberately doesn't. */
   .palette .mode-tabs,
-  .palette .filter-row {
+  .palette .hint {
     padding-left: 14px;
     padding-right: 14px;
   }
 
+  .palette .filter-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 10px 14px 0;
+  }
+
   .palette .filter-icon {
+    position: absolute;
     left: 26px;
+    display: flex;
+    color: var(--color-text-muted);
+    pointer-events: none;
   }
 
   .palette .filter-input {
     padding: 10px 12px 10px 34px;
     font-size: 15px;
-  }
-
-  .palette .hint {
-    padding-left: 14px;
-    padding-right: 14px;
   }
 
   .palette .item-list {

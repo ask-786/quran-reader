@@ -194,6 +194,12 @@ export class Navigator {
    * that was never a jump in the first place just isn't one, silently.
    */
   #jump = $derived.by((): { entry: NavEntry } | { error: string } | null => {
+    // Palette only. The sidebar's box is a plain filter over the list in front
+    // of you and has always been exactly that — a row that navigates somewhere
+    // the list doesn't mention, and an error line under the box, are the
+    // palette earning its keep as a go-to, not something the column needs.
+    if (this.variant !== 'palette') return null;
+
     const target = this.#parsed;
     if (!target) return null;
 
