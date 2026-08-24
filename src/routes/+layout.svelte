@@ -84,8 +84,11 @@
         }
         return;
       }
-      // Ctrl/Cmd+K, the palette key everything else uses, alongside the older
-      // Ctrl/Cmd+G. Both toggle, so the same keystroke puts it away.
+      // The palette's own keys. Ctrl/Cmd+K is the one everything else uses,
+      // alongside the older Ctrl/Cmd+G. Both toggle, so the same keystroke puts
+      // it away. `/` and Ctrl/Cmd+F below stay pointed at the sidebar: the two
+      // surfaces list the same things, and which one you get should be your
+      // choice, not a side effect of which search key fell under your hand.
       if (
         (e.ctrlKey || e.metaKey) &&
         (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'g')
@@ -94,13 +97,13 @@
         uiStore.togglePalette();
         return;
       }
-      // The platform-standard find key, pointed at the only text search there
-      // is. Unlike `/` below it works from inside a text field too, which is
-      // why it opens rather than toggles — Ctrl+F while already searching is
-      // someone reaching for the search box, not putting it away.
+      // The platform-standard find key, pointed at the sidebar's filter box.
+      // Unlike `/` below it works from inside a text field too, so the palette
+      // has to give way to it.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        uiStore.openPalette();
+        uiStore.closePalette();
+        uiStore.focusSearch();
         return;
       }
 
@@ -134,12 +137,10 @@
       }
 
       // Bare `/`, the vim/browser convention. Safe as an unmodified key because
-      // the text-field guard above has already bowed out of any input. It opens
-      // the palette rather than the sidebar: the palette carries the same lists
-      // and works in focus mode, where there is no sidebar to focus.
+      // the text-field guard above has already bowed out of any input.
       if (e.key === '/') {
         e.preventDefault();
-        uiStore.openPalette();
+        uiStore.focusSearch();
         return;
       }
 

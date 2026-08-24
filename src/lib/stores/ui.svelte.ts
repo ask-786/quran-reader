@@ -15,6 +15,13 @@ class UiStore {
   paletteOpen = $state(false);
 
   /**
+   * Set by the search shortcut, cleared by the sidebar once it has focused its
+   * filter box. A flag rather than a counter so a later sidebar remount — a
+   * focus-mode toggle, say — doesn't replay a focus the user never asked for.
+   */
+  searchFocusPending = $state(false);
+
+  /**
    * The reader zoom in force right now. Normal and focus view remember separate
    * levels, so this changes on a focus toggle without any zoom control being
    * touched — which is why the reader views watch it to hold their position.
@@ -54,6 +61,16 @@ class UiStore {
 
   togglePalette() {
     this.paletteOpen = !this.paletteOpen;
+  }
+
+  /**
+   * Put the caret in the sidebar's filter box. The sidebar has to be on screen
+   * for that, so a collapsed sidebar opens and focus mode ends first.
+   */
+  focusSearch() {
+    if (this.focusMode) this.exitFocusMode();
+    this.sidebarOpen = true;
+    this.searchFocusPending = true;
   }
 }
 

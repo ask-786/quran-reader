@@ -18,6 +18,7 @@
   import { NAV_MODES, Navigator, type NavMode } from '$lib/navigation/navigator.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
   import { stripTashkeel } from '$lib/utils/arabic-text';
 
   type Variant = 'sidebar' | 'palette';
@@ -86,6 +87,22 @@
       inputEl?.focus();
       scrollCursorIntoView();
     }
+  });
+
+  // `/` and Ctrl+F are the sidebar's keys, not the palette's — the palette has
+  // Ctrl+K and Ctrl+G, and which surface you get should be your choice rather
+  // than a side effect of which search key fell under your hand. So the flag is
+  // only ever answered by the docked panel.
+  $effect(() => {
+    if (isPalette) return;
+    if (!uiStore.searchFocusPending) return;
+    uiStore.searchFocusPending = false;
+    // A tick, because the shortcut may have just opened a collapsed sidebar or
+    // left focus mode, and this input isn't in the DOM until that lands.
+    void tick().then(() => {
+      inputEl?.focus();
+      inputEl?.select();
+    });
   });
 
   // Pull-based, not pushed on every write: the list only has to be right while

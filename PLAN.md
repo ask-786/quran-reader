@@ -473,7 +473,7 @@ Navigate
 
 ## Quick Navigation
 
-> The palette (Ctrl/Cmd+K, Ctrl/Cmd+G, `/`, Ctrl/Cmd+F) and the sidebar are
+> The palette (Ctrl/Cmd+K, Ctrl/Cmd+G) and the sidebar (`/`, Ctrl/Cmd+F) are
 > the same component — `NavPanel`, driven by `$lib/navigation/navigator.svelte.ts`
 > — in two skins. Anything below is therefore true of both surfaces.
 
@@ -624,13 +624,13 @@ Performance
 
 Accessibility
 
-- [x] Keyboard shortcuts — Ctrl/Cmd+K (or Ctrl/Cmd+G, `/`, Ctrl/Cmd+F) opens
-      the navigation palette, `f` focus mode, `m` switch reading mode, `n`/`p`
-      next/prev, `Escape` to dismiss; guarded against firing while typing in
-      an input
-- [x] Keyboard-complete navigation — the palette lists Surah/Juz/Hizb/Recent
-      and every one of them is reachable with arrows, Tab, and Enter, without
-      opening the sidebar or leaving focus mode
+- [x] Keyboard shortcuts — Ctrl/Cmd+K or Ctrl/Cmd+G opens the navigation
+      palette, `/` or Ctrl/Cmd+F focuses the sidebar's filter, `f` focus mode,
+      `m` switch reading mode, `n`/`p` next/prev, `Escape` to dismiss; guarded
+      against firing while typing in an input
+- [x] Keyboard-complete navigation — Surah/Juz/Hizb/Recent are all reachable
+      with arrows, Tab, and Enter, in the sidebar or in the palette; the
+      palette needs neither the sidebar open nor focus mode off
 - [ ] Discoverable shortcut list — the palette carries a key legend at its
       foot, but the reader's own keys (`f`, `m`, `n`/`p`, zoom) are still
       documented nowhere in the UI
