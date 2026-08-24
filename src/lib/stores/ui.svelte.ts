@@ -6,7 +6,13 @@ class UiStore {
   sidebarOpen = $state(true);
   readingMode = $state<ReadingMode>('mushaf');
   focusMode = $state(false);
-  goToOpen = $state(false);
+  /**
+   * The command palette — the search box, the Surah/Juz/Hizb/Recent lists, and
+   * the `2:255` jump, over the reader. It is the keyboard route into all of it,
+   * which is why it works in focus mode and with the sidebar shut instead of
+   * dragging either of them back on screen.
+   */
+  paletteOpen = $state(false);
 
   /**
    * Set by the search shortcut, cleared by the sidebar once it has focused its
@@ -45,16 +51,16 @@ class UiStore {
     settingsStore.applyReaderZoom(false);
   }
 
-  openGoTo() {
-    this.goToOpen = true;
+  openPalette() {
+    this.paletteOpen = true;
   }
 
-  closeGoTo() {
-    this.goToOpen = false;
+  closePalette() {
+    this.paletteOpen = false;
   }
 
-  toggleGoTo() {
-    this.goToOpen = !this.goToOpen;
+  togglePalette() {
+    this.paletteOpen = !this.paletteOpen;
   }
 
   /**

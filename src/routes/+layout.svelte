@@ -6,7 +6,7 @@
   import { resolve } from '$app/paths';
   import Sidebar from '$lib/components/sidebar/Sidebar.svelte';
   import Toolbar from '$lib/components/layout/Toolbar.svelte';
-  import GoToDialog from '$lib/components/navigation/GoToDialog.svelte';
+  import NavPalette from '$lib/components/navigation/NavPalette.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
@@ -75,24 +75,34 @@
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (uiStore.goToOpen) {
-          uiStore.closeGoTo();
+        // The palette clears its own filter on the first Escape and only lets
+        // the key reach here when there is nothing left to clear.
+        if (uiStore.paletteOpen) {
+          uiStore.closePalette();
         } else if (uiStore.focusMode) {
           uiStore.exitFocusMode();
         }
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+      // The palette's own keys. Ctrl/Cmd+K is the one everything else uses,
+      // alongside the older Ctrl/Cmd+G. Both toggle, so the same keystroke puts
+      // it away. `/` and Ctrl/Cmd+F below stay pointed at the sidebar: the two
+      // surfaces list the same things, and which one you get should be your
+      // choice, not a side effect of which search key fell under your hand.
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'g')
+      ) {
         e.preventDefault();
-        uiStore.toggleGoTo();
+        uiStore.togglePalette();
         return;
       }
-      // The platform-standard find key, pointed at the only text search there
-      // is. Unlike `/` below it works from inside a text field too, so the
-      // go-to overlay has to give way to it.
+      // The platform-standard find key, pointed at the sidebar's filter box.
+      // Unlike `/` below it works from inside a text field too, so the palette
+      // has to give way to it.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        uiStore.closeGoTo();
+        uiStore.closePalette();
         uiStore.focusSearch();
         return;
       }
@@ -120,7 +130,7 @@
         }
       }
 
-      if (uiStore.goToOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (uiStore.paletteOpen || e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         return;
@@ -256,7 +266,7 @@
   </div>
 </div>
 
-<GoToDialog />
+<NavPalette />
 
 <style>
   .app-shell {
