@@ -132,6 +132,61 @@
     void readingStore.refreshHistory();
   });
 
+  /**
+   * The range the reader has open, if this list is showing it. Not the cursor —
+   * the sidebar has no cursor until an arrow key gives it one, and this has to
+   * work without marking anything.
+   */
+  const activeKey = $derived(nav.entries.find((e) => 'active' in e && e.active)?.key);
+
+  /**
+   * The docked list opens where you are. Leaving focus mode remounts the
+   * sidebar, and one that comes back at Al-Fatihah while you're reading Surah 90
+   * has thrown away the only context it had — the palette already opens on the
+   * range you're in, and the column should too.
+   *
+   * Keyed on which row is active rather than run once at mount, so stepping
+   * ranges with n/p keeps it in view as well; `nearest` is what makes that
+   * bearable, since a row already on screen isn't moved at all. It also covers
+   * the first paint, where the Surah list hasn't loaded yet and there is no
+   * active row to scroll to until it does.
+   */
+  $effect(() => {
+    if (isPalette) return;
+    if (!activeKey) return;
+
+    let cancelled = false;
+    const reveal = () => {
+      if (cancelled || !listEl) return;
+      const row = listEl.querySelector('.row.active');
+      if (!row) return;
+      const list = listEl.getBoundingClientRect();
+      const rect = row.getBoundingClientRect();
+      // Already on screen: leave it exactly where it is. Stepping ranges with
+      // n/p walks the cursor down a list you can see, and re-centring under you
+      // on every press is the one thing that would make that worse.
+      if (rect.top >= list.top && rect.bottom <= list.bottom) return;
+      // Off screen, so this is a reveal rather than a nudge — centred, because
+      // landing flush against an edge shows you the row and none of what
+      // surrounds it, which is half of why you looked.
+      row.scrollIntoView({ block: 'center' });
+    };
+
+    void tick().then(() => {
+      reveal();
+      // And again once the webfont has landed. It arrives after the first
+      // layout and makes every row taller, which on a cold start leaves the
+      // row about its own height above where it was just scrolled to. Resolved
+      // already on every later navigation, where this is a no-op against a row
+      // that is by then in view.
+      void document.fonts?.ready.then(reveal);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
   function scrollCursorIntoView() {
     const i = nav.activeIndex;
     if (i < 0) return;
