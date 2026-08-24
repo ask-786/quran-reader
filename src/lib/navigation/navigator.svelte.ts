@@ -390,33 +390,33 @@ export class Navigator {
   }
 
   /**
-   * Open on the tab the reader is already in, with the cursor on the range they
-   * are already reading — so the palette opens *where you are* and the next
-   * Surah is one keystroke away. Page routes have no tab of their own and fall
-   * back to Surah.
+   * Open on the tab the reader is already in — so both surfaces open *where you
+   * are* rather than at Al-Fatihah. Page routes have no tab of their own and
+   * fall back to Surah.
+   *
+   * The palette also puts its cursor on the range being read, which makes the
+   * next Surah one keystroke away. The sidebar deliberately doesn't: its rule is
+   * that nothing is picked until an arrow key picks it, and a cursor seeded here
+   * would be sitting under the next Enter the moment the box took focus.
    *
    * The cursor is set by arithmetic rather than by searching `entries`, because
-   * an unfiltered list is 1..N in order and this has to be right even when it
-   * is called before the Surah list has finished loading.
+   * an unfiltered list is 1..N in order and this has to be right even when it is
+   * called before the Surah list has finished loading.
    */
   syncToRoute() {
     this.query = '';
-    switch (this.routeId) {
-      case '/juz/[id]':
-        this.mode = 'juz';
-        this.cursor = this.routeParam - 1;
-        return;
-      case '/hizb/[id]':
-        this.mode = 'hizb';
-        this.cursor = this.routeParam - 1;
-        return;
-      case '/surah/[id]':
-        this.mode = 'surah';
-        this.cursor = this.routeParam - 1;
-        return;
-      default:
-        this.mode = 'surah';
-        this.cursor = -1;
-    }
+
+    const mode: NavMode | null =
+      this.routeId === '/surah/[id]'
+        ? 'surah'
+        : this.routeId === '/juz/[id]'
+          ? 'juz'
+          : this.routeId === '/hizb/[id]'
+            ? 'hizb'
+            : null;
+
+    this.mode = mode ?? 'surah';
+    // No tab of its own means nothing to point at, whatever the surface.
+    this.cursor = mode && this.autoSelect ? this.routeParam - 1 : -1;
   }
 }
