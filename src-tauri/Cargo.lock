@@ -2810,7 +2810,7 @@ dependencies = [
 
 [[package]]
 name = "quran-reader"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "directories",
  "env_logger",
