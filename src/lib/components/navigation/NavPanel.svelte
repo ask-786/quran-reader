@@ -47,13 +47,14 @@
   let listEl = $state<HTMLElement>();
   let inputFocused = $state(false);
 
-  // Seeded before the first render rather than from an effect: the palette
-  // decides which tab to open on from the route, and it has to have decided
-  // by the time it is painted.
+  // Seeded before the first render rather than from an effect: both surfaces
+  // open on the tab matching the route, and they have to have decided by the
+  // time they are painted. For the sidebar that means a remount — leaving focus
+  // mode, or a cold start — comes back on the Juz tab if a Juz is what's open.
   {
     const current = get(page);
     nav.setRoute(current.route.id ?? null, Number(current.params.id) || 0);
-    if (nav.autoSelect) nav.syncToRoute();
+    nav.syncToRoute();
   }
 
   const routeId = $derived($page.route.id ?? null);
