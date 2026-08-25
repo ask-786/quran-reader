@@ -47,13 +47,14 @@
   let listEl = $state<HTMLElement>();
   let inputFocused = $state(false);
 
-  // Seeded before the first render rather than from an effect: the palette
-  // decides which tab to open on from the route, and it has to have decided
-  // by the time it is painted.
+  // Seeded before the first render rather than from an effect: both surfaces
+  // open on the tab matching the route, and they have to have decided by the
+  // time they are painted. For the sidebar that means a remount — leaving focus
+  // mode, or a cold start — comes back on the Juz tab if a Juz is what's open.
   {
     const current = get(page);
     nav.setRoute(current.route.id ?? null, Number(current.params.id) || 0);
-    if (nav.autoSelect) nav.syncToRoute();
+    nav.syncToRoute();
   }
 
   const routeId = $derived($page.route.id ?? null);
@@ -66,15 +67,31 @@
   // the box always has focus, so it always does.
   const showCursor = $derived(isPalette || inputFocused);
 
+  // The sidebar hides its filter on Recent, as it always has: a shortlist of
+  // sittings has nothing to filter down to. The palette can't — its head is a
+  // fixed height, and a row that comes and goes is the one thing it must not do.
+  const showFilter = $derived(isPalette || nav.mode !== 'recent');
+
   const placeholder = $derived(
-    nav.mode === 'surah'
-      ? 'Find a surah, or 2:255 · p255'
-      : nav.mode === 'juz'
-        ? 'Jump to a Juz, or 2:255 · p255'
-        : nav.mode === 'hizb'
-          ? 'Jump to a Hizb, or 2:255 · p255'
-          : 'Filter recent reading…',
+    isPalette
+      ? nav.mode === 'surah'
+        ? 'Find a surah, or 2:255 · p255'
+        : nav.mode === 'juz'
+          ? 'Jump to a Juz, or 2:255 · p255'
+          : nav.mode === 'hizb'
+            ? 'Jump to a Hizb, or 2:255 · p255'
+            : 'Filter recent reading…'
+      : nav.mode === 'surah'
+        ? 'Find a surah…'
+        : nav.mode === 'juz'
+          ? 'Jump to a Juz…'
+          : 'Jump to a Hizb…',
   );
+
+  // The palette explains itself under the box at all times — the line is part of
+  // its fixed head, and it is where you go to be told the syntax. The sidebar
+  // has no syntax to explain and no errors to report: it just filters.
+  const showHint = $derived(isPalette);
 
   const hint = $derived(
     nav.error ||
@@ -114,6 +131,61 @@
   $effect(() => {
     if (nav.mode !== 'recent') return;
     void readingStore.refreshHistory();
+  });
+
+  /**
+   * The range the reader has open, if this list is showing it. Not the cursor —
+   * the sidebar has no cursor until an arrow key gives it one, and this has to
+   * work without marking anything.
+   */
+  const activeKey = $derived(nav.entries.find((e) => 'active' in e && e.active)?.key);
+
+  /**
+   * The docked list opens where you are. Leaving focus mode remounts the
+   * sidebar, and one that comes back at Al-Fatihah while you're reading Surah 90
+   * has thrown away the only context it had — the palette already opens on the
+   * range you're in, and the column should too.
+   *
+   * Keyed on which row is active rather than run once at mount, so stepping
+   * ranges with n/p keeps it in view as well; `nearest` is what makes that
+   * bearable, since a row already on screen isn't moved at all. It also covers
+   * the first paint, where the Surah list hasn't loaded yet and there is no
+   * active row to scroll to until it does.
+   */
+  $effect(() => {
+    if (isPalette) return;
+    if (!activeKey) return;
+
+    let cancelled = false;
+    const reveal = () => {
+      if (cancelled || !listEl) return;
+      const row = listEl.querySelector('.row.active');
+      if (!row) return;
+      const list = listEl.getBoundingClientRect();
+      const rect = row.getBoundingClientRect();
+      // Already on screen: leave it exactly where it is. Stepping ranges with
+      // n/p walks the cursor down a list you can see, and re-centring under you
+      // on every press is the one thing that would make that worse.
+      if (rect.top >= list.top && rect.bottom <= list.bottom) return;
+      // Off screen, so this is a reveal rather than a nudge — centred, because
+      // landing flush against an edge shows you the row and none of what
+      // surrounds it, which is half of why you looked.
+      row.scrollIntoView({ block: 'center' });
+    };
+
+    void tick().then(() => {
+      reveal();
+      // And again once the webfont has landed. It arrives after the first
+      // layout and makes every row taller, which on a cold start leaves the
+      // row about its own height above where it was just scrolled to. Resolved
+      // already on every later navigation, where this is a no-op against a row
+      // that is by then in view.
+      void document.fonts?.ready.then(reveal);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   });
 
   function scrollCursorIntoView() {
@@ -224,7 +296,7 @@
      attribute, so it can't see that and is turned off across the list. -->
 <!-- eslint-disable svelte/no-navigation-without-resolve -->
 <div class="nav-panel" class:palette={isPalette}>
-  <div class="nav-head">
+  <div class="nav-head" class:flush={!showFilter}>
     <div class="mode-tabs" role="tablist" aria-label="Browse by">
       {#each nav.modes as m (m)}
         <button
@@ -240,34 +312,40 @@
       {/each}
     </div>
 
-    <div class="filter-row">
-      <span class="filter-icon" aria-hidden="true"><Search size={15} /></span>
-      <input
-        class="filter-input"
-        type="text"
-        {placeholder}
-        bind:this={inputEl}
-        value={nav.query}
-        oninput={(e) => nav.setQuery(e.currentTarget.value)}
-        onkeydown={onInputKeydown}
-        onfocus={() => (inputFocused = true)}
-        onblur={() => {
-          inputFocused = false;
-          // Don't leave a cursor parked out of sight in the sidebar, ready to
-          // fire on the next Enter. The palette's box never really loses focus.
-          if (!isPalette) nav.resetCursor();
-        }}
-        aria-label={placeholder}
-        autocomplete="off"
-        role="combobox"
-        aria-expanded="true"
-        aria-controls="{nav.panelId}-results"
-        aria-autocomplete="list"
-        aria-activedescendant={showCursor ? nav.activeOptionId : undefined}
-      />
-    </div>
+    {#if showFilter}
+      <div class="filter-row">
+        {#if isPalette}
+          <span class="filter-icon" aria-hidden="true"><Search size={15} /></span>
+        {/if}
+        <input
+          class="filter-input"
+          type="text"
+          {placeholder}
+          bind:this={inputEl}
+          value={nav.query}
+          oninput={(e) => nav.setQuery(e.currentTarget.value)}
+          onkeydown={onInputKeydown}
+          onfocus={() => (inputFocused = true)}
+          onblur={() => {
+            inputFocused = false;
+            // Don't leave a cursor parked out of sight in the sidebar, ready to
+            // fire on the next Enter. The palette's box never really loses focus.
+            if (!isPalette) nav.resetCursor();
+          }}
+          aria-label={placeholder}
+          autocomplete="off"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="{nav.panelId}-results"
+          aria-autocomplete="list"
+          aria-activedescendant={showCursor ? nav.activeOptionId : undefined}
+        />
+      </div>
+    {/if}
 
-    <p class="hint" class:error={!!nav.error}>{hint}</p>
+    {#if showHint}
+      <p class="hint" class:error={!!nav.error}>{hint}</p>
+    {/if}
   </div>
 
   <div class="nav-body scrollbar-thin" bind:this={listEl}>
@@ -365,6 +443,12 @@
     border-bottom: 1px solid var(--color-border);
   }
 
+  /* Nothing under the tabs to rule off — the sidebar's Recent tab has no
+     filter box, and never had one. */
+  .nav-head.flush {
+    border-bottom: none;
+  }
+
   .mode-tabs {
     display: flex;
     gap: 2px;
@@ -394,23 +478,12 @@
   }
 
   .filter-row {
-    position: relative;
-    display: flex;
-    align-items: center;
-    padding: 10px 12px 0;
-  }
-
-  .filter-icon {
-    position: absolute;
-    left: 22px;
-    display: flex;
-    color: var(--color-text-muted);
-    pointer-events: none;
+    padding: 10px 12px;
   }
 
   .filter-input {
     width: 100%;
-    padding: 8px 10px 8px 32px;
+    padding: 8px 10px;
     border-radius: var(--radius);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
@@ -522,7 +595,10 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+  }
+
+  .row-recent .row-main {
+    gap: 3px;
   }
 
   .row-title {
@@ -591,26 +667,33 @@
     color: var(--color-text);
   }
 
-  /* The palette is wider and sits under the eye rather than off to the side,
-     so it can afford a little more room per row. */
+  /* The palette is wider and sits under the eye rather than off to the side, so
+     it can afford a little more room per row — and it carries the search icon
+     and the hint line the docked column deliberately doesn't. */
   .palette .mode-tabs,
-  .palette .filter-row {
+  .palette .hint {
     padding-left: 14px;
     padding-right: 14px;
   }
 
+  .palette .filter-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 10px 14px 0;
+  }
+
   .palette .filter-icon {
+    position: absolute;
     left: 26px;
+    display: flex;
+    color: var(--color-text-muted);
+    pointer-events: none;
   }
 
   .palette .filter-input {
     padding: 10px 12px 10px 34px;
     font-size: 15px;
-  }
-
-  .palette .hint {
-    padding-left: 14px;
-    padding-right: 14px;
   }
 
   .palette .item-list {
