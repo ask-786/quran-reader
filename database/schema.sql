@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS translation (
     is_bundled  INTEGER NOT NULL DEFAULT 0 CHECK (is_bundled IN (0, 1)),
     -- Bundled translations are included in the app; others are downloaded on demand
 
-    -- Provenance and labelling (migration 006). See the tafsir table below for
+    -- Provenance and labelling (migration 007). See the tafsir table below for
     -- what school/creed are for.
     slug        TEXT,               -- stable source id e.g. "eng-mohammedmarmadu"
     name_native TEXT,               -- title in the edition's own language
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS tafsir (
     version     TEXT    NOT NULL DEFAULT '1.0',
     is_bundled  INTEGER NOT NULL DEFAULT 0 CHECK (is_bundled IN (0, 1)),
 
-    -- Provenance and labelling (migration 006).
+    -- Provenance and labelling (migration 007).
     slug        TEXT,               -- stable source id e.g. "tafsir-al-jalalayn"
     translator  TEXT,               -- set when the edition is a translation of the work
     name_native TEXT,               -- title in the work's own language
