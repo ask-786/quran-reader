@@ -236,8 +236,10 @@ ALTER TABLE translation ADD COLUMN sort_order  INTEGER NOT NULL DEFAULT 0;
 -- same eight on tafsir
 
 -- Grouped commentary: Ibn Kathīr and others comment on a run of verses at
--- once. Store per-āya (so lookup stays a point query) but record the run, so
--- the UI can say "2:1–5" once instead of repeating the same block five times.
+-- once. Record the run, so the UI can say "2:1–5" once instead of repeating
+-- the same block five times. Superseded in part: this said "store per-āya",
+-- and the block is now stored once on the run's first āya with the rest of
+-- the run pointing at it. Lookup is still a point query — see schema.sql.
 ALTER TABLE tafsir_ayah ADD COLUMN group_start_ayah_id INTEGER;
 ALTER TABLE tafsir_ayah ADD COLUMN group_end_ayah_id   INTEGER;
 ```
@@ -420,7 +422,10 @@ beyond making sure the indexes are correct and populated.
    import hit. Reuse the existing agent and backoff; do not fan out.
 5. **Grouped-commentary editions** (Ibn Kathīr) repeat a block per āya. Without
    `group_start/group_end` the drawer re-renders the same 4 KB five times and
-   looks broken. Populate the columns at import.
+   looks broken. Populate the columns at import. Settled: the importer detects
+   runs by byte-identical text on consecutive āyāt of one sūrah and stores the
+   block once. Measured on Ibn Kathīr that is 34.5 MB rather than 126.6 MB for
+   the Arabic and English editions together.
 6. **Labelling could read as sectarian.** The school/creed chip has to be
    informational — "Shāfiʿī · Ashʿarī", "Ḥanbalī · Atharī" — never a warning
    badge. Wrong tone here makes the app feel like it is picking fights.

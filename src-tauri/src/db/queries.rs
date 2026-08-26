@@ -548,18 +548,36 @@ pub fn get_tafsirs(conn: &Connection) -> DbResult<Vec<Tafsir>> {
 /// the 6,236 Ayahs in its Arabic edition, saying nothing about verses that
 /// need no comment. The caller shows that as an empty state rather than a
 /// blank panel.
+///
+/// Still a point query on the primary key, but grouped editions need one more
+/// hop. Where a commentary covers a run of verses, the block is stored once on
+/// the run's first Ayah and the rest of the run carries an empty text with
+/// `group_start_ayah_id` pointing back at it — so following that pointer is
+/// what turns any Ayah of the run into the block written for it. The anchor
+/// row's own pointer is itself, so it costs the same join and answers with its
+/// own text. Per-Ayah editions leave the column null and fall straight through
+/// to `t.text`.
+///
+/// The alternative was to repeat the block under every Ayah it covers, which
+/// is what the schema comment originally described. Measured on Ibn Kathir
+/// that is 126.6 MB against 34.5 MB for the two editions, and it makes a full
+/// text search return the same block once per verse of the run.
 pub fn get_tafsir_for_ayah(
     conn: &Connection,
     tafsir_id: u32,
     ayah_id: u32,
 ) -> DbResult<Option<TafsirEntry>> {
     conn.query_row(
-        "SELECT t.tafsir_id, t.ayah_id, a.surah_id, a.ayah_number, t.text,
+        "SELECT t.tafsir_id, t.ayah_id, a.surah_id, a.ayah_number,
+                COALESCE(anchor.text, t.text),
                 gs.surah_id, gs.ayah_number, ge.surah_id, ge.ayah_number
          FROM tafsir_ayah t
          JOIN ayah a       ON a.id  = t.ayah_id
          LEFT JOIN ayah gs ON gs.id = t.group_start_ayah_id
          LEFT JOIN ayah ge ON ge.id = t.group_end_ayah_id
+         LEFT JOIN tafsir_ayah anchor
+                ON anchor.tafsir_id = t.tafsir_id
+               AND anchor.ayah_id   = t.group_start_ayah_id
          WHERE t.tafsir_id = ?1 AND t.ayah_id = ?2",
         params![tafsir_id, ayah_id],
         |row| {

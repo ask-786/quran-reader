@@ -9,10 +9,13 @@
 --    is invisible on most verses and decisive on some.
 --
 -- 2. Verse grouping on `tafsir_ayah`. Ibn Kathir and others comment on a run
---    of verses at once. Text is still stored per Ayah so lookup stays a point
---    query, but the run is recorded so the UI can label it "2:1–5" once
---    instead of repeating the same block five times. Null for per-Ayah
---    editions like al-Jalalayn.
+--    of verses at once. The run is recorded so the UI can label it "2:1–5"
+--    once instead of repeating the same block five times — and so the block
+--    is stored once too: it sits on the run's first Ayah, and the remaining
+--    Ayahs of the run keep a row with an empty text pointing back at it
+--    through `group_start_ayah_id`. Lookup stays a point query on the primary
+--    key; `get_tafsir_for_ayah` follows the pointer in the same statement.
+--    Null for per-Ayah editions like al-Jalalayn.
 --
 -- 3. FTS. `fts_translation` was declared back in 001 with no sync triggers at
 --    all, so it has been silently stale since the day it was created — it

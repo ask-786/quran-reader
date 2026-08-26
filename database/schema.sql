@@ -164,9 +164,18 @@ CREATE TABLE IF NOT EXISTS tafsir_ayah (
 
     -- Editions that comment on a run of verses at once (Ibn Kathir and most
     -- narrative-heavy tafsirs) repeat the same block on every Ayah of the run.
-    -- The text stays per-Ayah so lookup is a point query; these record the run
-    -- so the UI can label it once and not render it five times. Null for
-    -- per-Ayah editions such as al-Jalalayn.
+    -- The run is recorded here so the UI can label it "2:1-5" once instead of
+    -- rendering it five times, and so the block can be stored once instead of
+    -- five times: it lives on the run's first Ayah, and every other Ayah of
+    -- the run keeps a row with an empty text whose group_start_ayah_id points
+    -- back at that first one. Lookup is still a point query on the primary
+    -- key — see get_tafsir_for_ayah, which follows the pointer in the same
+    -- statement. Both null for per-Ayah editions such as al-Jalalayn, and for
+    -- an isolated verse inside a grouped edition.
+    --
+    -- Storing the block under every Ayah instead costs 3.7x the space on Ibn
+    -- Kathir (126.6 MB against 34.5 MB for the Arabic and English editions
+    -- together) and makes fts_tafsir return one hit per verse of the run.
     group_start_ayah_id INTEGER REFERENCES ayah(id),
     group_end_ayah_id   INTEGER REFERENCES ayah(id),
 

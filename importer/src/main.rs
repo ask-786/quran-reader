@@ -57,6 +57,52 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // `--emit-pack <slug> [--pack-out <dir>] [--tafsir-dir <path>]` — build a
+    // downloadable content pack instead of writing into the seed database.
+    // This is how every edition that does not ship in the installer reaches an
+    // install; see `emit_pack`. It prints the pack's SHA-256, which is what
+    // goes into the app's PACKS table.
+    if let Some(slug) = args
+        .iter()
+        .position(|a| a == "--emit-pack")
+        .and_then(|i| args.get(i + 1))
+    {
+        let db_path = db_output_path();
+        let edition = tafsir::find_edition(slug).with_context(|| {
+            format!("Unknown tafsir edition '{slug}' — run with --list-tafsir to see the editions this reader carries")
+        })?;
+
+        let out_dir = args
+            .iter()
+            .position(|a| a == "--pack-out")
+            .and_then(|i| args.get(i + 1))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("packs"));
+        std::fs::create_dir_all(&out_dir)
+            .with_context(|| format!("Creating {}", out_dir.display()))?;
+        let out = out_dir.join(format!("{}-v{}.qpack", edition.slug, edition.version));
+
+        log::info!("=== Emitting pack: {} ===", edition.title);
+        log::info!("Source database: {}", db_path.display());
+
+        let entries = match tafsir::local_dir_arg(&args) {
+            Some(dir) => {
+                log::info!("[1/2] Loading {} from {} …", edition.slug, dir.display());
+                tafsir::load_edition(&dir)?
+            }
+            None => {
+                log::info!("[1/2] Fetching {} (114 surahs) …", edition.slug);
+                tafsir::fetch_edition(edition)?
+            }
+        };
+
+        log::info!("[2/2] Writing pack …");
+        tafsir::emit_pack(&db_path, edition, entries, &out).context("Failed to emit pack")?;
+
+        log::info!("=== Pack complete ===");
+        return Ok(());
+    }
+
     // `--import-tafsir <slug> [--bundle] [--tafsir-dir <path>]`. `--bundle`
     // marks the edition as shipping with the app, which is only true for the
     // seed database this repo commits — see write_tafsir.
@@ -86,7 +132,7 @@ fn main() -> Result<()> {
         };
 
         log::info!("[2/2] Writing {} entries …", entries.len());
-        tafsir::write_tafsir(&db_path, edition, &entries, bundled)
+        tafsir::write_tafsir(&db_path, edition, entries, bundled)
             .context("Failed to write tafsir")?;
 
         log::info!("=== Tafsir import complete ===");

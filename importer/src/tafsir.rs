@@ -38,21 +38,25 @@ pub struct Edition {
     /// Position in the picker. Also decides the fallback edition when the user
     /// has never chosen one, since the frontend takes the first in this order.
     pub sort_order: i64,
+    /// Whether this edition comments on runs of verses rather than single
+    /// Ayahs. Grouped sources repeat the whole block under every Ayah of the
+    /// run, so the importer has to detect the runs and record them — see
+    /// `group_entries`. False for per-Ayah editions like al-Jalalayn.
+    pub grouped: bool,
 }
 
-/// The editions available to this app.
+/// The editions this app knows how to import.
 ///
-/// This list is the whole filter. A commentary's madhhab decides how it reads
-/// the ayat al-ahkam and its creed decides how it reads the attribute verses,
-/// and neither is visible in the text itself — so rather than offer everything
-/// and label it, this reader only carries works of the Shafi'i school and
-/// Ash'ari creed. Adding an edition outside that is a decision about the app's
-/// purpose, not a data-sourcing convenience.
+/// Each entry carries its own `school` and `creed` so the picker can say whose
+/// reading it is offering rather than presenting every commentary as
+/// interchangeable. That is a label on the edition, not a gate on the list:
+/// what belongs here is a question about the works themselves, decided edition
+/// by edition, and this list is not the place to argue it.
 ///
-/// Deliberately absent, for the record: Ibn Kathir (Shafi'i in fiqh but Athari
-/// in creed), al-Qurtubi (Maliki), al-Nasafi (Hanafi/Maturidi), al-Sa'di
-/// (Hanbali/Salafi), al-Muyassar and al-Mukhtasar (Saudi committee), Fi Zilal
-/// (Qutb), Tafhim (Mawdudi).
+/// `bundled` is a separate axis from membership. An edition listed here ships
+/// in the seed database only if `write_tafsir` is called with `bundled: true`;
+/// the rest are emitted as content packs and installed on request. See
+/// `emit_pack`.
 pub const EDITIONS: &[Edition] = &[
     Edition {
         slug: "tafsir-al-jalalayn",
@@ -75,6 +79,7 @@ pub const EDITIONS: &[Edition] = &[
         // silently switching to Arabic on upgrade. The picker makes the
         // original one click away.
         sort_order: 0,
+        grouped: false,
     },
     Edition {
         // The Arabic original. Verified as the only Arabic Jalālayn in the
@@ -101,6 +106,55 @@ pub const EDITIONS: &[Edition] = &[
         license: "Public domain (composed 864–911 AH) — digital edition via spa5k/tafsir_api, sourced from qul.tarteel.ai",
         version: "1.0",
         sort_order: 10,
+        grouped: false,
+    },
+    Edition {
+        // The Darussalam abridgement, and the slug's "tafisr" is the source's
+        // own typo — not a transcription error here. Verified against the
+        // repo's directory listing; correcting it fetches nothing.
+        //
+        // Not the same book as the Arabic below it, which is why the two are
+        // separate entries rather than one edition in two languages: the
+        // abridgement drops most of the isnads and much of the linguistic
+        // discussion, and carries an editorial apparatus of its own.
+        slug: "en-tafisr-ibn-kathir",
+        title: "Tafsīr Ibn Kathīr (abridged)",
+        name_native: Some("تفسير ابن كثير"),
+        author: "Ismāʿīl ibn ʿUmar ibn Kathīr",
+        translator: Some("Abridged under Ṣafī al-Raḥmān al-Mubārakfūrī"),
+        language: "en",
+        direction: "ltr",
+        school: "shafii",
+        creed: "athari",
+        source_url: "https://github.com/spa5k/tafsir_api",
+        // Unsettled, and said so rather than left blank: the abridgement is a
+        // modern Darussalam publication with a live copyright, unlike the
+        // Arabic original below. THIRD-PARTY-NOTICES.md carries the same
+        // caveat. It is also the reason this stays a downloadable pack and out
+        // of the installer until the terms are established.
+        license: "Abridgement © Darussalam — redistribution terms UNVERIFIED, see THIRD-PARTY-NOTICES.md",
+        version: "1.0",
+        sort_order: 20,
+        grouped: true,
+    },
+    Edition {
+        // The Arabic original, unabridged.
+        slug: "ar-tafsir-ibn-kathir",
+        title: "Tafsīr Ibn Kathīr",
+        name_native: Some("تفسير ابن كثير"),
+        author: "Ismāʿīl ibn ʿUmar ibn Kathīr",
+        // The original, not a translation — same reason as the Arabic
+        // al-Jalalayn above: the panel renders "tr. X" off this field.
+        translator: None,
+        language: "ar",
+        direction: "rtl",
+        school: "shafii",
+        creed: "athari",
+        source_url: "https://github.com/spa5k/tafsir_api",
+        license: "Public domain (d. 774 AH) — digital edition via spa5k/tafsir_api",
+        version: "1.0",
+        sort_order: 30,
+        grouped: true,
     },
 ];
 
@@ -276,29 +330,84 @@ fn collapse_spaces(line: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Grouping
+// ---------------------------------------------------------------------------
+
+/// One run of consecutive Ayahs that share a single block of commentary.
+pub struct Group {
+    pub surah: u32,
+    pub start_ayah: u32,
+    pub end_ayah: u32,
+    pub text: String,
+}
+
+impl Group {
+    /// A run of one is not a run: the group columns stay null for it, so a
+    /// grouped edition's isolated verses have exactly the shape a per-Ayah
+    /// edition's do.
+    fn is_run(&self) -> bool {
+        self.end_ayah > self.start_ayah
+    }
+}
+
+/// Collapse a grouped edition's entries into the runs the source actually
+/// meant.
+///
+/// The source has no notion of a run: an edition that comments on 2:1-5 as one
+/// block simply repeats that whole block under each of the five Ayahs. So the
+/// runs have to be recovered, and byte-identical text on consecutive Ayahs of
+/// one Surah is what recovers them. Ibn Kathir's blocks average 3.3 Ayahs and
+/// reach 20, which is why this matters: stored naively the two editions cost
+/// 126.6 MB where the runs cost 34.5 MB.
+///
+/// Identity is deliberately exact rather than fuzzy. Two adjacent Ayahs whose
+/// commentary differs by so much as a space are two blocks, and treating them
+/// as one would put text under a verse it was not written for.
+///
+/// `entries` must be sorted by (surah, ayah); `write_tafsir` sorts before
+/// calling.
+pub fn group_entries(entries: Vec<Entry>) -> Vec<Group> {
+    let mut groups: Vec<Group> = Vec::new();
+
+    for e in entries {
+        match groups.last_mut() {
+            // Same Surah, the very next Ayah, and the same block of text.
+            Some(g) if g.surah == e.surah && g.end_ayah + 1 == e.ayah && g.text == e.text => {
+                g.end_ayah = e.ayah;
+            }
+            _ => groups.push(Group {
+                surah: e.surah,
+                start_ayah: e.ayah,
+                end_ayah: e.ayah,
+                text: e.text,
+            }),
+        }
+    }
+
+    groups
+}
+
+// ---------------------------------------------------------------------------
 // Write
 // ---------------------------------------------------------------------------
 
-/// Insert (or replace) an edition and all of its entries.
-///
-/// `bundled` marks the edition as shipping with the app, which is what stops
-/// an upgrade from deleting it (see `copy_bundled_tafsir_from_seed` in the
-/// app's connection.rs) — so it is only true for editions written into the
-/// seed database that this repo commits.
-pub fn write_tafsir(
-    db_path: &Path,
-    edition: &Edition,
-    entries: &[Entry],
-    bundled: bool,
-) -> Result<()> {
-    let conn =
-        Connection::open(db_path).with_context(|| format!("Opening {}", db_path.display()))?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+/// One row of `tafsir_ayah` as it will be stored: the Ayah it belongs to, the
+/// block of commentary (empty for every Ayah of a run but its first), and the
+/// bounds of the run it belongs to.
+type Row = (u32, String, Option<u32>, Option<u32>);
 
-    ensure_migration_007(&conn)?;
+/// One edition laid out as rows, with the counts worth logging.
+struct Prepared {
+    rows: Vec<Row>,
+    covered: usize,
+    blocks: usize,
+    runs: usize,
+    longest: u32,
+}
 
-    // (surah, ayah) -> ayah.id
-    let ayah_ids: HashMap<(u32, u32), u32> = conn
+/// `(surah, ayah) -> ayah.id` for the whole Mushaf.
+fn load_ayah_ids(conn: &Connection) -> Result<HashMap<(u32, u32), u32>> {
+    let ids: HashMap<(u32, u32), u32> = conn
         .prepare("SELECT surah_id, ayah_number, id FROM ayah")?
         .query_map([], |row| {
             Ok((
@@ -307,18 +416,24 @@ pub fn write_tafsir(
             ))
         })?
         .collect::<Result<_, _>>()?;
+    Ok(ids)
+}
 
+/// Validate an edition's entries against the Ayah table and lay them out as
+/// `tafsir_ayah` rows.
+///
+/// Shared by the seed writer and the pack writer, which differ only in where
+/// the rows end up — so an edition cannot be stored one way in the installer
+/// and another way in a download.
+fn prepare(
+    ayah_ids: &HashMap<(u32, u32), u32>,
+    edition: &Edition,
+    entries: Vec<Entry>,
+) -> Result<Prepared> {
     let total_ayahs = ayah_ids.len();
-    if total_ayahs == 0 {
-        bail!(
-            "No ayahs in {} — run the main import first",
-            db_path.display()
-        );
-    }
 
-    // Validate before writing anything.
     let mut seen = std::collections::HashSet::new();
-    for e in entries {
+    for e in &entries {
         if !ayah_ids.contains_key(&(e.surah, e.ayah)) {
             bail!("Entry {}:{} is not a real ayah", e.surah, e.ayah);
         }
@@ -327,10 +442,11 @@ pub fn write_tafsir(
         }
     }
 
-    let coverage = entries.len() as f64 / total_ayahs as f64;
+    let covered = entries.len();
+    let coverage = covered as f64 / total_ayahs as f64;
     log::info!(
         "  → Coverage: {}/{} ayahs ({:.1}%)",
-        entries.len(),
+        covered,
         total_ayahs,
         coverage * 100.0
     );
@@ -345,6 +461,128 @@ pub fn write_tafsir(
         );
     }
 
+    // Sorted before grouping, because a run is defined by adjacency: the
+    // source files arrive one Surah at a time and in order, but that is the
+    // source's habit rather than a guarantee this can rest on.
+    let mut entries = entries;
+    entries.sort_by_key(|e| (e.surah, e.ayah));
+
+    let groups = if edition.grouped {
+        group_entries(entries)
+    } else {
+        // Every entry is its own block. Going through the same path rather
+        // than a second one keeps a per-Ayah edition's rows identical to what
+        // they were before grouping existed.
+        entries
+            .into_iter()
+            .map(|e| Group {
+                surah: e.surah,
+                start_ayah: e.ayah,
+                end_ayah: e.ayah,
+                text: e.text,
+            })
+            .collect()
+    };
+
+    let mut rows: Vec<Row> = Vec::with_capacity(covered);
+    for g in &groups {
+        let start_id = ayah_ids[&(g.surah, g.start_ayah)];
+        let end_id = ayah_ids[&(g.surah, g.end_ayah)];
+
+        // The run is stored as an id range, so a Surah's Ayah ids have to run
+        // consecutively for the range to mean what it says. They do — `ayah`
+        // is imported in Mushaf order and never renumbered — but a silent
+        // violation here would hand verses commentary written for their
+        // neighbours, so it is checked rather than assumed.
+        if end_id - start_id != g.end_ayah - g.start_ayah {
+            bail!(
+                "Ayah ids for {}:{}-{} are not consecutive ({start_id}..{end_id}) — the run cannot be stored as a range",
+                g.surah,
+                g.start_ayah,
+                g.end_ayah
+            );
+        }
+
+        let (group_start, group_end) = if g.is_run() {
+            (Some(start_id), Some(end_id))
+        } else {
+            (None, None)
+        };
+
+        // The block goes on the run's first Ayah and nowhere else. The rest of
+        // the run keeps its row — so a lookup by (tafsir_id, ayah_id) is still
+        // the point query it always was — but carries an empty text and points
+        // at the row holding the real one. `get_tafsir_for_ayah` in the app
+        // follows that pointer in the same statement.
+        //
+        // Storing the block under every Ayah of its run instead costs 3.7x the
+        // space on Ibn Kathir (126.6 MB against 34.5 MB across the Arabic and
+        // English editions) and makes every full text search return the same
+        // block once per verse of the run.
+        for ayah in g.start_ayah..=g.end_ayah {
+            let ayah_id = ayah_ids[&(g.surah, ayah)];
+            let text = if ayah == g.start_ayah {
+                g.text.clone()
+            } else {
+                String::new()
+            };
+            rows.push((ayah_id, text, group_start, group_end));
+        }
+    }
+
+    let runs = groups.iter().filter(|g| g.is_run()).count();
+    let longest = groups
+        .iter()
+        .map(|g| g.end_ayah - g.start_ayah + 1)
+        .max()
+        .unwrap_or(0);
+
+    if edition.grouped {
+        log::info!(
+            "  → {} blocks, {} of them runs, longest {} ayahs",
+            groups.len(),
+            runs,
+            longest
+        );
+    }
+
+    Ok(Prepared {
+        rows,
+        covered,
+        blocks: groups.len(),
+        runs,
+        longest,
+    })
+}
+
+/// Insert (or replace) an edition and all of its entries in the app database.
+///
+/// `bundled` marks the edition as shipping with the app, which is what stops
+/// an upgrade from deleting it (see `copy_bundled_tafsir_from_seed` in the
+/// app's connection.rs) — so it is only true for editions written into the
+/// seed database that this repo commits. Everything else reaches an install
+/// through `emit_pack`.
+pub fn write_tafsir(
+    db_path: &Path,
+    edition: &Edition,
+    entries: Vec<Entry>,
+    bundled: bool,
+) -> Result<()> {
+    let conn =
+        Connection::open(db_path).with_context(|| format!("Opening {}", db_path.display()))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+
+    ensure_migration_007(&conn)?;
+
+    let ayah_ids = load_ayah_ids(&conn)?;
+    if ayah_ids.is_empty() {
+        bail!(
+            "No ayahs in {} — run the main import first",
+            db_path.display()
+        );
+    }
+
+    let prepared = prepare(&ayah_ids, edition, entries)?;
     let tafsir_id = upsert_edition(&conn, edition, bundled)?;
 
     let tx = conn.unchecked_transaction()?;
@@ -353,19 +591,17 @@ pub fn write_tafsir(
         params![tafsir_id],
     )?;
     {
-        let mut stmt =
-            tx.prepare("INSERT INTO tafsir_ayah (tafsir_id, ayah_id, text) VALUES (?1, ?2, ?3)")?;
-        for e in entries {
-            let ayah_id = ayah_ids[&(e.surah, e.ayah)];
-            stmt.execute(params![tafsir_id, ayah_id, e.text])
-                .with_context(|| format!("Inserting {}:{}", e.surah, e.ayah))?;
+        let mut stmt = tx.prepare(
+            "INSERT INTO tafsir_ayah
+                (tafsir_id, ayah_id, text, group_start_ayah_id, group_end_ayah_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+        )?;
+        for (ayah_id, text, group_start, group_end) in &prepared.rows {
+            stmt.execute(params![tafsir_id, ayah_id, text, group_start, group_end])
+                .with_context(|| format!("Inserting ayah id {ayah_id}"))?;
         }
     }
     tx.commit().context("Committing tafsir entries")?;
-
-    // group_start/group_end stay null: this edition comments ayah by ayah.
-    // A grouped edition fills them at import time so the panel can label the
-    // run once instead of repeating the block.
 
     conn.execute_batch("INSERT INTO fts_tafsir(fts_tafsir) VALUES ('rebuild');")?;
 
@@ -374,28 +610,192 @@ pub fn write_tafsir(
     // release installers.
     conn.execute_batch("VACUUM;")?;
 
-    let rows: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM tafsir_ayah WHERE tafsir_id = ?1",
-        params![tafsir_id],
-        |r| r.get(0),
-    )?;
-    // CAST to BLOB, because LENGTH() on TEXT counts *characters*. For an
-    // English edition that reads the same either way; for Arabic it
-    // understates the real cost by half, and this number is what install-size
-    // decisions get made on.
-    let bytes: i64 = conn.query_row(
-        "SELECT COALESCE(SUM(LENGTH(CAST(text AS BLOB))), 0) FROM tafsir_ayah WHERE tafsir_id = ?1",
-        params![tafsir_id],
-        |r| r.get(0),
-    )?;
     log::info!(
         "  → Wrote {} rows ({:.2} MB of text) as tafsir id {}",
-        rows,
-        bytes as f64 / 1_048_576.0,
+        prepared.rows.len(),
+        text_bytes(&prepared.rows) as f64 / 1_048_576.0,
         tafsir_id
     );
 
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Content packs
+// ---------------------------------------------------------------------------
+
+/// Bumped when the pack layout changes in a way an older app cannot read. The
+/// installer refuses a pack whose format it does not know rather than guessing
+/// at the columns.
+const PACK_FORMAT: u32 = 1;
+
+/// Write one edition as a standalone content pack — a SQLite file the app
+/// downloads, verifies and ATTACHes, copying the rows straight across.
+///
+/// Deliberately the same shape as the two tables it feeds, so the install is
+/// an `INSERT ... SELECT` and not a parser. The one column that is *not*
+/// carried over is `tafsir.id`: the installer allocates that itself, out of
+/// the range the seed uses, because a pack that chose its own id would collide
+/// with a bundled edition on the primary key.
+///
+/// `ayah_count` is recorded so the installer can refuse a pack built against a
+/// different Ayah numbering. Every row here is keyed by `ayah.id`, which only
+/// means anything against the Mushaf it was built from.
+pub fn emit_pack(db_path: &Path, edition: &Edition, entries: Vec<Entry>, out: &Path) -> Result<()> {
+    let src =
+        Connection::open(db_path).with_context(|| format!("Opening {}", db_path.display()))?;
+    let ayah_ids = load_ayah_ids(&src)?;
+    if ayah_ids.is_empty() {
+        bail!(
+            "No ayahs in {} — run the main import first",
+            db_path.display()
+        );
+    }
+
+    let prepared = prepare(&ayah_ids, edition, entries)?;
+
+    if out.exists() {
+        std::fs::remove_file(out)
+            .with_context(|| format!("Replacing existing pack {}", out.display()))?;
+    }
+    let pack =
+        Connection::open(out).with_context(|| format!("Creating {}", out.display()))?;
+
+    pack.execute_batch(
+        "CREATE TABLE pack_meta (
+             key   TEXT PRIMARY KEY,
+             value TEXT NOT NULL
+         );
+         -- Same columns as the app's `tafsir`, minus `id`.
+         CREATE TABLE tafsir (
+             slug        TEXT NOT NULL,
+             language    TEXT NOT NULL,
+             author      TEXT NOT NULL,
+             title       TEXT NOT NULL,
+             version     TEXT NOT NULL,
+             translator  TEXT,
+             name_native TEXT,
+             direction   TEXT NOT NULL,
+             school      TEXT,
+             creed       TEXT,
+             source_url  TEXT,
+             license     TEXT,
+             sort_order  INTEGER NOT NULL
+         );
+         -- Same columns as the app's `tafsir_ayah`, minus `tafsir_id`.
+         CREATE TABLE tafsir_ayah (
+             ayah_id             INTEGER NOT NULL PRIMARY KEY,
+             text                TEXT NOT NULL,
+             group_start_ayah_id INTEGER,
+             group_end_ayah_id   INTEGER
+         );",
+    )?;
+
+    let tx = pack.unchecked_transaction()?;
+    {
+        let mut meta = tx.prepare("INSERT INTO pack_meta (key, value) VALUES (?1, ?2)")?;
+        for (k, v) in [
+            ("format", PACK_FORMAT.to_string()),
+            ("slug", edition.slug.to_string()),
+            ("version", edition.version.to_string()),
+            ("ayah_count", ayah_ids.len().to_string()),
+            ("rows", prepared.rows.len().to_string()),
+            ("blocks", prepared.blocks.to_string()),
+            ("covered_ayahs", prepared.covered.to_string()),
+        ] {
+            meta.execute(params![k, v])?;
+        }
+    }
+
+    tx.execute(
+        "INSERT INTO tafsir
+            (slug, language, author, title, version, translator, name_native,
+             direction, school, creed, source_url, license, sort_order)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        params![
+            edition.slug,
+            edition.language,
+            edition.author,
+            edition.title,
+            edition.version,
+            edition.translator,
+            edition.name_native,
+            edition.direction,
+            edition.school,
+            edition.creed,
+            edition.source_url,
+            edition.license,
+            edition.sort_order,
+        ],
+    )?;
+
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO tafsir_ayah (ayah_id, text, group_start_ayah_id, group_end_ayah_id)
+             VALUES (?1, ?2, ?3, ?4)",
+        )?;
+        for (ayah_id, text, group_start, group_end) in &prepared.rows {
+            stmt.execute(params![ayah_id, text, group_start, group_end])
+                .with_context(|| format!("Inserting ayah id {ayah_id}"))?;
+        }
+    }
+    tx.commit().context("Committing pack rows")?;
+
+    // The pack is downloaded over a connection someone is paying for, so slack
+    // pages are not free here either.
+    pack.execute_batch("VACUUM;")?;
+    drop(pack);
+
+    let size = std::fs::metadata(out)?.len();
+    log::info!(
+        "  → {} — {} rows, {} blocks ({} runs, longest {}), {:.2} MB of text, {:.2} MB on disk",
+        out.display(),
+        prepared.rows.len(),
+        prepared.blocks,
+        prepared.runs,
+        prepared.longest,
+        text_bytes(&prepared.rows) as f64 / 1_048_576.0,
+        size as f64 / 1_048_576.0,
+    );
+    log::info!("  → sha256 {}", sha256_file(out)?);
+
+    Ok(())
+}
+
+/// Bytes of actual commentary, not characters: for an Arabic edition the two
+/// differ by roughly half, and this is the number size decisions get made on.
+fn text_bytes(rows: &[Row]) -> usize {
+    rows.iter().map(|(_, t, _, _)| t.len()).sum()
+}
+
+/// Lowercase hex SHA-256 of a file, streamed rather than read whole — a pack
+/// is tens of megabytes.
+///
+/// Printed at the end of `emit_pack` because it is what has to be copied into
+/// the app's `PACKS` table: that constant is the only thing standing between a
+/// download and the user's database, so it is produced by the same run that
+/// produces the file it describes.
+pub fn sha256_file(path: &Path) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)
+        .with_context(|| format!("Hashing {}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect())
 }
 
 fn upsert_edition(conn: &Connection, edition: &Edition, bundled: bool) -> Result<u32> {
@@ -494,5 +894,84 @@ mod tests {
     #[test]
     fn keeps_paragraph_breaks_and_trims() {
         assert_eq!(normalize("  one\n\n\n  two  \n"), "one\n\ntwo");
+    }
+
+    fn entry(surah: u32, ayah: u32, text: &str) -> Entry {
+        Entry {
+            surah,
+            ayah,
+            text: text.to_string(),
+        }
+    }
+
+    fn shape(groups: &[Group]) -> Vec<(u32, u32, u32, &str)> {
+        groups
+            .iter()
+            .map(|g| (g.surah, g.start_ayah, g.end_ayah, g.text.as_str()))
+            .collect()
+    }
+
+    #[test]
+    fn collapses_a_repeated_block_into_one_run() {
+        let groups = group_entries(vec![
+            entry(2, 1, "on the opening verses"),
+            entry(2, 2, "on the opening verses"),
+            entry(2, 3, "on the opening verses"),
+            entry(2, 4, "on verse four"),
+        ]);
+        assert_eq!(
+            shape(&groups),
+            vec![
+                (2, 1, 3, "on the opening verses"),
+                (2, 4, 4, "on verse four"),
+            ]
+        );
+        assert!(groups[0].is_run());
+        assert!(!groups[1].is_run());
+    }
+
+    #[test]
+    fn a_gap_in_ayah_numbers_ends_the_run() {
+        // The same block either side of a verse the edition passes over is two
+        // blocks, not one spanning the gap — the run is stored as an id range,
+        // and a range across the gap would claim the skipped verse too.
+        let groups = group_entries(vec![
+            entry(2, 1, "same text"),
+            entry(2, 2, "same text"),
+            entry(2, 5, "same text"),
+        ]);
+        assert_eq!(
+            shape(&groups),
+            vec![(2, 1, 2, "same text"), (2, 5, 5, "same text")]
+        );
+    }
+
+    #[test]
+    fn a_surah_boundary_ends_the_run() {
+        let groups = group_entries(vec![
+            entry(1, 7, "same text"),
+            entry(2, 1, "same text"),
+        ]);
+        assert_eq!(
+            shape(&groups),
+            vec![(1, 7, 7, "same text"), (2, 1, 1, "same text")]
+        );
+    }
+
+    #[test]
+    fn text_differing_by_a_space_is_two_blocks() {
+        let groups = group_entries(vec![entry(2, 1, "a b"), entry(2, 2, "a  b")]);
+        assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn a_per_ayah_edition_yields_one_group_per_entry() {
+        let groups = group_entries(vec![
+            entry(2, 1, "alif"),
+            entry(2, 2, "lam"),
+            entry(2, 3, "mim"),
+        ]);
+        assert_eq!(groups.len(), 3);
+        assert!(groups.iter().all(|g| !g.is_run()));
     }
 }
