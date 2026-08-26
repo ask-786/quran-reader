@@ -1,0 +1,145 @@
+name: Publish tafsir packs
+
+# Builds the downloadable tafsir editions and attaches them to a release.
+#
+# Deliberately manual. Packs change only when an edition is added or its source
+# is re-imported, which is rare and never something a push should trigger — and
+# the run makes 456 requests to a third party, which is not a thing to do on
+# every commit.
+#
+# This does NOT publish the app. `release.yml` owns `v*` tags and the
+# installers; this owns `packs-v*` and the content. The two are separate on
+# purpose: an edition can be republished without cutting an app release, and an
+# app release does not have to re-upload 45 MB of unchanged commentary.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish the packs under (e.g. packs-v1)'
+        required: true
+        default: 'packs-v1'
+
+concurrency:
+  group: packs
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Build and verify packs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: importer
+
+      # The manifest compiled into the app is the source of truth for what a
+      # pack must hash to. Reading it here rather than trusting whatever this
+      # run happens to build is the whole point of the job: a published pack
+      # that does not match `PACKS` is a download every user's app will refuse,
+      # and the only place that failure would show up is on their machine.
+      - name: Read the manifest the app compiles in
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import os, re, pathlib, sys
+
+          src = pathlib.Path("src-tauri/src/packs/mod.rs").read_text()
+          # Fields appear in this order inside each PackSpec, so a non-greedy
+          # run from one `slug:` reaches that entry's own url and hash. The
+          # struct definition above them has no string literals and cannot match.
+          specs = re.findall(
+              r'slug:\s*"([^"]+)".*?url:\s*"([^"]+)".*?sha256:\s*"([0-9a-f]{64})"',
+              src,
+              re.S,
+          )
+          if not specs:
+              print("::error file=src-tauri/src/packs/mod.rs::PACKS is empty or unparseable")
+              sys.exit(1)
+
+          tag = os.environ["TAG"]
+          fail = False
+          with open("manifest.tsv", "w") as out:
+              for slug, url, sha in specs:
+                  # A pack uploaded to a tag the app does not point at is
+                  # invisible to it, which looks exactly like a broken download.
+                  if f"/download/{tag}/" not in url:
+                      print(f"::error::{slug} points at {url}, which is not under tag '{tag}'")
+                      fail = True
+                  out.write(f"{slug}\t{url.rsplit('/', 1)[-1]}\t{sha}\n")
+                  print(f"{slug} -> {url.rsplit('/', 1)[-1]}  {sha[:12]}…")
+
+          sys.exit(1 if fail else 0)
+          PY
+
+      - name: Build the importer
+        run: cargo build --release --manifest-path importer/Cargo.toml
+
+      # Sequential, one edition at a time: each fetches 114 files from
+      # raw.githubusercontent.com, and the Mushaf import already showed what a
+      # stalled CDN connection costs a long parallel fan-out.
+      - name: Build the packs
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r slug file sha; do
+            echo "::group::$slug"
+            RUST_LOG=info ./importer/target/release/quran-importer --emit-pack "$slug"
+            echo "::endgroup::"
+          done < manifest.tsv
+
+      # Byte-identical or nothing. The pack format carries no timestamp and the
+      # SQLite version is pinned by Cargo.lock, so the only thing that can move
+      # these bytes is the upstream text changing — which is exactly the case
+      # that must stop the run rather than ship silently.
+      - name: Verify each pack against the app's hashes
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS=$'\t' read -r slug file sha; do
+            if [ ! -f "packs/$file" ]; then
+              echo "::error::$slug did not produce packs/$file"
+              fail=1
+              continue
+            fi
+            actual=$(sha256sum "packs/$file" | cut -d' ' -f1)
+            if [ "$actual" != "$sha" ]; then
+              echo "::error::$file hashes to $actual, but the app expects $sha"
+              echo "::error::The upstream text has changed. Re-run --emit-pack locally, paste the new hash into PACKS, and land that before publishing."
+              fail=1
+            else
+              echo "ok  $file  $actual"
+            fi
+          done < manifest.tsv
+          exit $fail
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          files=$(cut -f2 manifest.tsv | sed 's|^|packs/|' | tr '\n' ' ')
+
+          # Not a draft: draft assets 404 for everyone but the repo owner, so
+          # the app could not fetch them. See the same note in aur.yml.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Updating $TAG"
+            gh release upload "$TAG" $files --clobber
+          else
+            echo "Creating $TAG"
+            gh release create "$TAG" $files \
+              --title "Tafsir content packs" \
+              --notes "Downloadable tafsir editions for the in-app edition picker. Not an app release.
+
+          Each file is a SQLite content pack. The app verifies every download against a SHA-256 compiled into the binary before installing it — see \`PACKS\` in \`src-tauri/src/packs\`."
+          fi

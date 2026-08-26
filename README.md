@@ -182,6 +182,13 @@ There is deliberately no way to write a tafsir into `database/quran.db`: that
 file is embedded in the binary with `include_bytes!`, so anything in it is paid
 for by every user of every platform whether they want the edition or not.
 
+Publishing is the **Publish tafsir packs** workflow (manual, `packs-v*` tags).
+It rebuilds every edition in `PACKS` and refuses to publish unless each one
+hashes to exactly what the app expects — a pack that does not match is a
+download every user's app will reject, and the only place that would show up is
+on their machine. Adding an edition is therefore: `--emit-pack` locally, paste
+the printed hash into `PACKS`, land that, then run the workflow.
+
 **Mushaf fonts** — re-downloads the 47 QCF v4 font-group files (~36MB):
 
 ```bash
