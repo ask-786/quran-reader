@@ -31,8 +31,20 @@
   const hasReader = $derived(Array.isArray($page.data?.ayahs));
 
   /** Whichever surface is in force — the button reflects what is on screen. */
-  const tafsirOpen = $derived(
-    tafsirStore.view === 'panel' ? tafsirStore.panelOpen : tafsirStore.selection !== null,
+  // What the button is lit for. In panel view that is the panel being open; in
+  // popover view it is tafsir mode being on, not a card being up — the card
+  // comes and goes under one steady mode.
+  const tafsirOn = $derived(
+    tafsirStore.view === 'panel' ? tafsirStore.panelOpen : tafsirStore.clickOpens,
+  );
+  const tafsirLabel = $derived(
+    tafsirStore.view === 'panel'
+      ? tafsirOn
+        ? 'Hide tafsir panel'
+        : 'Show tafsir panel'
+      : tafsirOn
+        ? 'Turn off tafsir mode'
+        : 'Turn on tafsir mode — click a verse for its commentary',
   );
 
   let isMaximized = $state(false);
@@ -105,11 +117,11 @@
   {#if hasReader}
     <button
       class="icon-btn"
-      class:active={tafsirOpen}
-      onclick={() => tafsirStore.toggleForReaderPosition()}
-      aria-pressed={tafsirOpen}
-      aria-label="Show tafsir"
-      title="Tafsir (t)"
+      class:active={tafsirOn}
+      onclick={() => tafsirStore.toggle()}
+      aria-pressed={tafsirOn}
+      aria-label={tafsirLabel}
+      title="{tafsirLabel} (t)"
     >
       <ScrollText size={18} />
     </button>

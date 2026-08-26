@@ -944,6 +944,10 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
             .get("tafsir_view")
             .cloned()
             .unwrap_or_else(|| "popover".into()),
+        tafsir_click: map
+            .get("tafsir_click")
+            .map(|v| v == "true")
+            .unwrap_or(false),
         show_transliteration: map
             .get("show_transliteration")
             .map(|v| v == "true")

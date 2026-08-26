@@ -189,6 +189,10 @@ pub struct Settings {
     pub tafsir_panel_width: u32,
     /// "popover" | "panel" — which surface a tafsir trigger opens.
     pub tafsir_view: String,
+    /// Whether clicking a verse opens its commentary. Off by default: with the
+    /// popover on every click, a stray click in the reader is an interruption
+    /// rather than an answer. The per-Ayah button and `t` open it either way.
+    pub tafsir_click: bool,
     pub show_transliteration: bool,
     pub show_ayah_numbers: bool,
     pub app_zoom: f32,
@@ -210,6 +214,7 @@ impl Default for Settings {
             show_tafsir: false,
             tafsir_panel_width: 420,
             tafsir_view: "popover".to_string(),
+            tafsir_click: false,
             show_transliteration: false,
             show_ayah_numbers: true,
             app_zoom: 1.0,

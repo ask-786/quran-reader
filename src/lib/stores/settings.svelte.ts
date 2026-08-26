@@ -25,6 +25,7 @@ function defaultSettings(): Settings {
     show_tafsir: false,
     tafsir_panel_width: 420,
     tafsir_view: 'popover',
+    tafsir_click: false,
     show_transliteration: false,
     show_ayah_numbers: true,
     app_zoom: 1,

@@ -149,6 +149,9 @@ export interface Settings {
   show_tafsir: boolean;
   tafsir_panel_width: number;
   tafsir_view: TafsirView;
+  /** Whether clicking a verse opens its commentary. Off by default — a stray
+   *  click in the reader should not become an interruption. */
+  tafsir_click: boolean;
   show_transliteration: boolean;
   show_ayah_numbers: boolean;
   app_zoom: number;

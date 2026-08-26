@@ -52,6 +52,17 @@ that is wrong for half of them.
 
 ## Trigger: click the āya text, in both views — agreed
 
+> **Amended after first use.** Click-to-open is now gated behind a mode
+> (`tafsir_click`, off by default), toggled by the toolbar button and `t`.
+> Shipping it always-on was wrong for the same reason the popover is right: a
+> reader clicks for reasons that have nothing to do with commentary — placing a
+> cursor, dismissing something, no reason at all — and every one of those
+> clicks put a card over the text. The gesture below is unchanged; what changed
+> is that the reader has to say they want it. The per-āya button and `t` still
+> open the popover with the mode off, so the discoverable affordance survives,
+> and the verse cursor turns to a pointer while the mode is on so the mode is
+> visible before you click rather than after.
+
 - **Scrolling reader** — click anywhere on `.ayah-text`. The existing per-āya
   button (`AyahRow`) stays as the discoverable affordance; it is the only
   visible hint that tafsir exists at all.

@@ -70,7 +70,7 @@ data ships inside the binary.
 | `↓` / `↑` (or `PgDn` / `PgUp`)                                | Next / previous Mushaf page                                               |
 | `Home` / `End`                                                | Jump to the start / end of what's open                                    |
 | `a` or `Space`                                                | Start or stop auto-scroll                                                 |
-| `t`                                                           | Open or close the tafsir panel                                            |
+| `t`                                                           | Toggle tafsir mode — then click a verse for its commentary                |
 | `Shift`+`↑` / `Shift`+`↓`                                     | Auto-scroll faster / slower                                               |
 | `+` / `-` / `0`                                               | Reader zoom in / out / reset (normal and focus view keep separate levels) |
 | `Ctrl`/`Cmd`+`+` / `-` / `0`                                  | App zoom in / out / reset                                                 |

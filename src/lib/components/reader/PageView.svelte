@@ -175,7 +175,7 @@
       const raw = word?.dataset.ayahId ?? line?.dataset.lineAyahId;
       const ayahId = Number(raw);
       if (!raw || !Number.isFinite(ayahId)) return;
-      tafsirStore.openFor(ayahId, word ?? line ?? null);
+      tafsirStore.openFromClick(ayahId, word ?? line ?? null);
     };
     node.addEventListener('click', onClick);
     return {
@@ -409,7 +409,12 @@
 </script>
 
 <div class="page-view">
-  <div bind:this={container} class="page-surface scrollbar-none" use:tafsirOnWordClick>
+  <div
+    bind:this={container}
+    class="page-surface scrollbar-none"
+    class:tafsir-clickable={tafsirStore.clickOpens}
+    use:tafsirOnWordClick
+  >
     {#if error}
       <p class="state-message">Couldn't load pages: {error}</p>
     {:else if loading && pages.length === 0}
@@ -637,6 +642,12 @@
      half of it. */
   .centered .word:last-child {
     margin-inline-end: 0;
+  }
+
+  /* Mirrors .ayah-text.clickable in AyahRow: the cursor is the whole of what
+     tells you tafsir mode is on. */
+  .tafsir-clickable .word {
+    cursor: pointer;
   }
 
   .word {

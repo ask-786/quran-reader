@@ -35,7 +35,7 @@
       // A click that ends a drag-selection is the user selecting text to copy,
       // not asking for commentary.
       if (!window.getSelection()?.isCollapsed) return;
-      tafsirStore.openFor(ayah.id, node);
+      tafsirStore.openFromClick(ayah.id, node);
     };
     node.addEventListener('click', onClick);
     return {
@@ -88,7 +88,7 @@
          experience than the shortcut is worth. The keyboard and AT route is
          the labelled button above, plus `t`. Hence an imperative listener
          through an action, which claims nothing about what this element is. -->
-    <p class="ayah-text quran-text" use:tafsirOnClick>
+    <p class="ayah-text quran-text" class:clickable={tafsirStore.clickOpens} use:tafsirOnClick>
       {#each words as w, i (i)}<span
           class="word"
           style:font-family={w.fontFamily}
@@ -180,6 +180,13 @@
        restores both the word order and the verse-marker position within each
        span. See docs/qcf-v4-font-migration-plan.md, risk 2. */
     unicode-bidi: bidi-override;
+  }
+
+  /* The only sign that a click will do something. Without it tafsir mode is
+     invisible until you happen to click, which is the same guesswork the mode
+     exists to remove. */
+  .ayah-text.clickable {
+    cursor: pointer;
   }
 
   .word {

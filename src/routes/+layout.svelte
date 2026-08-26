@@ -244,7 +244,7 @@
           autoScrollStore.toggle();
           break;
         case 't':
-          tafsirStore.toggleForReaderPosition();
+          tafsirStore.toggle();
           break;
       }
     }
