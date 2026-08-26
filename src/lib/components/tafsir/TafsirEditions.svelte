@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, Download, Loader, Trash2, TriangleAlert } from 'lucide-svelte';
+  import { Check, Download, Loader, Trash2, TriangleAlert, X } from 'lucide-svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
 
   const LANGUAGE_LABELS: Record<string, string> = {
@@ -25,6 +25,22 @@
   const available = $derived(tafsirStore.packs.filter((p) => !p.installed));
   const installedCount = $derived(tafsirStore.packs.length - available.length);
 
+  /**
+   * Slug of the edition whose removal is waiting to be confirmed.
+   *
+   * Inline rather than a dialog: removing the Arabic Ibn Kathīr throws away a
+   * 25 MB download, which is recoverable but slow and possibly metered, and a
+   * trash icon sitting one row from a download button is easy to hit by
+   * mistake. Session-only — nothing should still be armed the next time this
+   * list is opened.
+   */
+  let confirming = $state<string | null>(null);
+
+  async function remove(slug: string) {
+    confirming = null;
+    await tafsirStore.removePack(slug);
+  }
+
   const percent = $derived.by(() => {
     const p = tafsirStore.progress;
     if (!p || p.total === 0) return null;
@@ -44,19 +60,40 @@
           <span class="title">{edition.title}</span>
           <span class="sub">
             {language(edition.language)}
-            {#if edition.is_bundled}· ships with the app{/if}
+            {#if confirming === edition.slug}· remove this edition?{/if}
           </span>
         </span>
-        {#if !edition.is_bundled && edition.slug}
+        {#if edition.slug}
           {@const slug = edition.slug}
-          <button
-            class="action danger"
-            onclick={() => tafsirStore.removePack(slug)}
-            aria-label="Remove {edition.title}"
-            title="Remove"
-          >
-            <Trash2 size={14} />
-          </button>
+          {#if confirming === slug}
+            <span class="confirm">
+              <button
+                class="action danger"
+                onclick={() => remove(slug)}
+                aria-label="Confirm removing {edition.title}"
+                title="Remove for good"
+              >
+                <Check size={14} />
+              </button>
+              <button
+                class="action"
+                onclick={() => (confirming = null)}
+                aria-label="Keep {edition.title}"
+                title="Keep"
+              >
+                <X size={14} />
+              </button>
+            </span>
+          {:else}
+            <button
+              class="action danger"
+              onclick={() => (confirming = slug)}
+              aria-label="Remove {edition.title}"
+              title="Remove"
+            >
+              <Trash2 size={14} />
+            </button>
+          {/if}
         {/if}
       </li>
     {/each}
@@ -239,6 +276,12 @@
 
   .action.danger:hover {
     color: var(--color-danger, #e5484d);
+  }
+
+  .confirm {
+    display: flex;
+    flex-shrink: 0;
+    gap: 2px;
   }
 
   .editions :global(.spin) {

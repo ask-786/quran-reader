@@ -378,24 +378,15 @@ fn verify_pack_contents(conn: &Connection) -> PackResult<()> {
 
 /// Remove an installed edition and everything it wrote.
 ///
-/// The bundled check is defensive rather than load-bearing: nothing ships with
-/// the app today, so no row should ever carry `is_bundled = 1`. If one does it
-/// was put there by a build that predates that decision, and deleting it would
-/// be undone by the next upgrade — a button that appears to work and silently
-/// reverses itself.
+/// Every edition is removable, `is_bundled` included. That flag used to protect
+/// bundled editions from a delete button that would silently undo itself, since
+/// the next upgrade copied them back out of the seed. Nothing copies anything
+/// back now — no commentary ships with the app and
+/// `copy_bundled_tafsir_from_seed` is gone — so the only rows that can still
+/// carry the flag are leftovers from a build that predates that change, and
+/// being unable to delete those is the bug rather than the safeguard.
 pub fn remove(conn: &Connection, slug: &str) -> PackResult<()> {
     let id = find_installed_id(conn, slug)?.ok_or_else(|| PackError::Unknown(slug.to_string()))?;
-
-    let bundled: bool = conn.query_row(
-        "SELECT is_bundled FROM tafsir WHERE id = ?1",
-        params![id],
-        |r| r.get(0),
-    )?;
-    if bundled {
-        return Err(PackError::Malformed(
-            "that edition was installed by an older build and cannot be removed here".to_string(),
-        ));
-    }
 
     let tx = conn.unchecked_transaction()?;
     // Explicit rather than leaning on ON DELETE CASCADE: the cascade only fires
