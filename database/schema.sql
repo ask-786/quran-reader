@@ -89,8 +89,24 @@ CREATE TABLE IF NOT EXISTS translation (
     is_bundled  INTEGER NOT NULL DEFAULT 0 CHECK (is_bundled IN (0, 1)),
     -- Bundled translations are included in the app; others are downloaded on demand
 
+    -- Provenance and labelling (migration 007). See the tafsir table below for
+    -- what school/creed are for.
+    slug        TEXT,               -- stable source id e.g. "eng-mohammedmarmadu"
+    name_native TEXT,               -- title in the edition's own language
+    direction   TEXT    NOT NULL DEFAULT 'ltr' CHECK (direction IN ('ltr', 'rtl')),
+    school      TEXT,
+    creed       TEXT,
+    source_url  TEXT,
+    license     TEXT,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+
     UNIQUE (language, translator)
 );
+
+-- Unique but not partial: SQLite treats NULLs as distinct, so editions
+-- predating the slug column coexist here, and a plain index (unlike a partial
+-- one) can be an upsert's ON CONFLICT target.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_translation_slug ON translation(slug);
 
 -- =============================================================================
 -- TRANSLATION_AYAH (Per-verse translation text)
@@ -118,8 +134,24 @@ CREATE TABLE IF NOT EXISTS tafsir (
     version     TEXT    NOT NULL DEFAULT '1.0',
     is_bundled  INTEGER NOT NULL DEFAULT 0 CHECK (is_bundled IN (0, 1)),
 
+    -- Provenance and labelling (migration 007).
+    slug        TEXT,               -- stable source id e.g. "tafsir-al-jalalayn"
+    translator  TEXT,               -- set when the edition is a translation of the work
+    name_native TEXT,               -- title in the work's own language
+    direction   TEXT    NOT NULL DEFAULT 'ltr' CHECK (direction IN ('ltr', 'rtl')),
+    -- school/creed are what let the edition picker say *whose* reading it is
+    -- offering. A commentary's madhhab decides the ayat al-ahkam and its creed
+    -- decides the attribute verses; both are invisible in the text itself.
+    school      TEXT,               -- 'shafii' | 'hanafi' | 'maliki' | 'hanbali' | …
+    creed       TEXT,               -- 'ashari' | 'maturidi' | 'athari' | …
+    source_url  TEXT,
+    license     TEXT,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+
     UNIQUE (language, author, title)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tafsir_slug ON tafsir(slug);
 
 -- =============================================================================
 -- TAFSIR_AYAH (Per-verse tafsir text)
@@ -129,6 +161,23 @@ CREATE TABLE IF NOT EXISTS tafsir_ayah (
     tafsir_id   INTEGER NOT NULL REFERENCES tafsir(id) ON DELETE CASCADE,
     ayah_id     INTEGER NOT NULL REFERENCES ayah(id),
     text        TEXT    NOT NULL,
+
+    -- Editions that comment on a run of verses at once (Ibn Kathir and most
+    -- narrative-heavy tafsirs) repeat the same block on every Ayah of the run.
+    -- The run is recorded here so the UI can label it "2:1-5" once instead of
+    -- rendering it five times, and so the block can be stored once instead of
+    -- five times: it lives on the run's first Ayah, and every other Ayah of
+    -- the run keeps a row with an empty text whose group_start_ayah_id points
+    -- back at that first one. Lookup is still a point query on the primary
+    -- key — see get_tafsir_for_ayah, which follows the pointer in the same
+    -- statement. Both null for per-Ayah editions such as al-Jalalayn, and for
+    -- an isolated verse inside a grouped edition.
+    --
+    -- Storing the block under every Ayah instead costs 3.7x the space on Ibn
+    -- Kathir (126.6 MB against 34.5 MB for the Arabic and English editions
+    -- together) and makes fts_tafsir return one hit per verse of the run.
+    group_start_ayah_id INTEGER REFERENCES ayah(id),
+    group_end_ayah_id   INTEGER REFERENCES ayah(id),
 
     PRIMARY KEY (tafsir_id, ayah_id)
 );
@@ -280,6 +329,14 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     ('reader_width',            'normal'),
     ('preferred_translation_id',''),
     ('show_translation',        'true'),
+    -- Empty = "no tafsir chosen yet"; the app falls back to the
+    -- lowest-sort_order bundled edition on first open of the panel.
+    ('tafsir_id',               ''),
+    -- 'show_tafsir' is specifically the side panel's state. The popover is
+    -- transient and deliberately not persisted — see docs/tafsir-popover-plan.md.
+    ('show_tafsir',             'false'),
+    ('tafsir_panel_width',      '420'),
+    ('tafsir_view',             'popover'),   -- 'popover' | 'panel'
     ('show_transliteration',    'false'),
     ('show_ayah_numbers',       'true'),
     ('app_zoom',                '1'),
@@ -325,6 +382,52 @@ USING fts5(
     tokenize='unicode61'
 );
 
+-- Editions can arrive at runtime (a downloaded pack), not only at import time,
+-- so both content tables carry sync triggers rather than relying on a rebuild.
+-- fts_translation went without these from 001 until 006 and was silently stale.
+CREATE TRIGGER IF NOT EXISTS fts_translation_insert
+AFTER INSERT ON translation_ayah BEGIN
+    INSERT INTO fts_translation(rowid, text) VALUES (NEW.rowid, NEW.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS fts_translation_delete
+AFTER DELETE ON translation_ayah BEGIN
+    INSERT INTO fts_translation(fts_translation, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS fts_translation_update
+AFTER UPDATE ON translation_ayah BEGIN
+    INSERT INTO fts_translation(fts_translation, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
+    INSERT INTO fts_translation(rowid, text) VALUES (NEW.rowid, NEW.text);
+END;
+
+-- Tafsir FTS. Diacritics stripped, matching fts_ayah — an Arabic tafsir is
+-- fully vocalised and would otherwise only match a query typed with identical
+-- harakat.
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_tafsir
+USING fts5(
+    text,
+    content='tafsir_ayah',
+    content_rowid='rowid',
+    tokenize='unicode61 remove_diacritics 1'
+);
+
+CREATE TRIGGER IF NOT EXISTS fts_tafsir_insert
+AFTER INSERT ON tafsir_ayah BEGIN
+    INSERT INTO fts_tafsir(rowid, text) VALUES (NEW.rowid, NEW.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS fts_tafsir_delete
+AFTER DELETE ON tafsir_ayah BEGIN
+    INSERT INTO fts_tafsir(fts_tafsir, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS fts_tafsir_update
+AFTER UPDATE ON tafsir_ayah BEGIN
+    INSERT INTO fts_tafsir(fts_tafsir, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
+    INSERT INTO fts_tafsir(rowid, text) VALUES (NEW.rowid, NEW.text);
+END;
+
 -- =============================================================================
 -- RECORD SCHEMA VERSION
 -- =============================================================================
@@ -332,3 +435,4 @@ USING fts5(
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 INSERT OR IGNORE INTO schema_version (version) VALUES (2);
 INSERT OR IGNORE INTO schema_version (version) VALUES (3);
+INSERT OR IGNORE INTO schema_version (version) VALUES (7);

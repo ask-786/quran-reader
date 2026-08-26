@@ -4,9 +4,9 @@ An offline-first Quran reader for desktop, built with [Tauri 2](https://tauri.ap
 SvelteKit and Rust. No account, no network calls, no telemetry — the Quran
 data ships inside the binary.
 
-> **Status: early.** Reading, navigation and the Mushaf page view work and
-> are used daily. Search, translations, tafsir and audio are not built yet.
-> See [PLAN.md](PLAN.md) for what exists and what doesn't.
+> **Status: early.** Reading, navigation, the Mushaf page view and tafsir
+> (Arabic + English) work and are used daily. Search, translations and audio
+> are not built yet. See [PLAN.md](PLAN.md) for what exists and what doesn't.
 
 ---
 
@@ -17,8 +17,18 @@ data ships inside the binary.
 - **Mushaf page view** — renders all 604 pages of the Madani Mushaf with the
   same line breaks and word placement as the printed original, using the
   official KFGQPC (Uthman Taha) glyph fonts
-- **Scrolling reader** — continuous Surah reading, per-ayah bookmark and
-  copy actions, page/juz boundary markers
+- **Scrolling reader** — continuous Surah reading, per-ayah bookmark, copy
+  and tafsir actions, page/juz boundary markers
+
+**Tafsir**
+
+- **Tafsīr al-Jalālayn** is bundled in both the **Arabic original** and
+  **English** (tr. Feras Hamza) — a side panel that follows the verse you are
+  reading, in both views (`t`), with a picker to switch between them
+- Editions are Shāfiʿī in fiqh and Ashʿarī in creed, and each is labelled with
+  both. A commentary's school decides how it reads the legal verses and its
+  creed decides how it reads the attribute verses; neither is visible in the
+  text, so the reader is told rather than left to guess
 
 **Navigation**
 
@@ -60,6 +70,7 @@ data ships inside the binary.
 | `↓` / `↑` (or `PgDn` / `PgUp`)                                | Next / previous Mushaf page                                               |
 | `Home` / `End`                                                | Jump to the start / end of what's open                                    |
 | `a` or `Space`                                                | Start or stop auto-scroll                                                 |
+| `t`                                                           | Toggle tafsir mode — then click a verse for its commentary                |
 | `Shift`+`↑` / `Shift`+`↓`                                     | Auto-scroll faster / slower                                               |
 | `+` / `-` / `0`                                               | Reader zoom in / out / reset (normal and focus view keep separate levels) |
 | `Ctrl`/`Cmd`+`+` / `-` / `0`                                  | App zoom in / out / reset                                                 |
@@ -157,6 +168,27 @@ cd importer && cargo run --release
 
 See [`importer/README.md`](importer/README.md) for details.
 
+**Tafsir** — no commentary ships with the app. Each edition is built into a
+content pack, published as a release asset, and downloaded by the reader on
+request. `--emit-pack` writes the file and prints the SHA-256 that goes into
+`PACKS` in `src-tauri/src/packs`:
+
+```bash
+cd importer && cargo run --release -- --list-tafsir
+cd importer && cargo run --release -- --emit-pack ar-tafsir-al-jalalayn   # → packs/*.qpack
+```
+
+There is deliberately no way to write a tafsir into `database/quran.db`: that
+file is embedded in the binary with `include_bytes!`, so anything in it is paid
+for by every user of every platform whether they want the edition or not.
+
+Publishing is the **Publish tafsir packs** workflow (manual, `packs-v*` tags).
+It rebuilds every edition in `PACKS` and refuses to publish unless each one
+hashes to exactly what the app expects — a pack that does not match is a
+download every user's app will reject, and the only place that would show up is
+on their machine. Adding an edition is therefore: `--emit-pack` locally, paste
+the printed hash into `PACKS`, land that, then run the workflow.
+
 **Mushaf fonts** — re-downloads the 47 QCF v4 font-group files (~36MB):
 
 ```bash
@@ -172,7 +204,7 @@ src/              SvelteKit frontend (components, stores, routes)
 src-tauri/        Rust backend — SQLite access, Tauri commands
 importer/         Standalone importer that builds quran.db
 database/         schema.sql, migrations, and the built quran.db
-static/fonts/     Vendored fonts (47 QCF v4 font groups + Scheherazade New)
+static/fonts/     Vendored fonts (47 QCF v4 groups, Scheherazade New, Amiri)
 scripts/          Font vendoring, icon generation, version bumping
 docs/             Research and design notes
 ```
@@ -181,13 +213,15 @@ docs/             Research and design notes
 
 ## Data sources
 
-| Source                                                                        | Provides                           | License                                            |
-| ----------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------- |
-| [Tanzil Project](https://tanzil.net)                                          | Uthmani and simple Arabic text     | CC BY 3.0                                          |
-| [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout)         | Mushaf page line layout            | ISC                                                |
-| [alquran.cloud](https://alquran.cloud)                                        | Per-ayah juz/hizb/page metadata    | Open                                               |
-| [spa5k/quran_data](https://github.com/spa5k/quran_data)                       | Surah metadata                     | Open                                               |
-| [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | QCF v4 Mushaf glyph fonts + layout | JSON: MIT · fonts: Restricted (KFGQPC) — see below |
+| Source                                                                        | Provides                              | License                                                                    |
+| ----------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------- |
+| [Tanzil Project](https://tanzil.net)                                          | Uthmani and simple Arabic text        | CC BY 3.0                                                                  |
+| [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout)         | Mushaf page line layout               | ISC                                                                        |
+| [alquran.cloud](https://alquran.cloud)                                        | Per-ayah juz/hizb/page metadata       | Open                                                                       |
+| [spa5k/quran_data](https://github.com/spa5k/quran_data)                       | Surah metadata                        | Open                                                                       |
+| [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | QCF v4 Mushaf glyph fonts + layout    | JSON: MIT · fonts: Restricted (KFGQPC) — see below                         |
+| [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api)                       | Tafsīr al-Jalālayn (Arabic + English) | Arabic: public domain · English: © Royal Aal al-Bayt Institute — see below |
+| [aliftype/amiri](https://github.com/aliftype/amiri)                           | Amiri (Arabic prose)                  | SIL OFL 1.1                                                                |
 
 ---
 

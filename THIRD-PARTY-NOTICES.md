@@ -81,6 +81,32 @@ Freely redistributable, including in commercial products, provided the
 license text and copyright notice travel with it (which is what this file
 and `licenses/OFL-1.1.txt` are for). Reserved Font Name: "Scheherazade".
 
+### Amiri — `static/fonts/amiri-{arabic,latin}-regular.woff2`
+
+|           |                                                                                    |
+| --------- | ---------------------------------------------------------------------------------- |
+| Source    | [aliftype/amiri](https://github.com/aliftype/amiri), via `@fontsource/amiri` 5.3.0 |
+| Copyright | © 2010–2022 The Amiri Project Authors                                              |
+| License   | SIL Open Font License 1.1 — see `licenses/OFL-1.1.txt`                             |
+
+Used for running Arabic prose — the Arabic tafsir today, Arabic translations
+later. Scheherazade New above is a Quranic face and reads wrong at paragraph
+length, which is why this is a second Arabic font rather than a reuse. Amiri
+is a revival of the Būlāq Press naskh, drawn for book setting.
+
+It replaces Noto Naskh Arabic, which was bundled for this same job through
+v0.1.9. The reason is a WebKitGTK defect rather than a matter of taste — see
+the long note in `src/app.css` — and Amiri is the face that degrades best
+under it.
+
+Two files, both unmodified fontsource build artifacts: the Arabic subset plus
+the Latin one, because the Arabic subset does not cover the ASCII punctuation
+the tafsir text uses throughout.
+
+Unlike Scheherazade New, this font declares **no Reserved Font Name** (checked
+against the package's own LICENSE), so subset builds may ship as they are and
+this project does not have to carry the full font.
+
 ### Inter — bundled via `@fontsource-variable/inter`
 
 |           |                                                        |
@@ -142,6 +168,103 @@ Each word's QCF v4 glyph (`page_line_word.glyph_v4`) additionally comes from
 Mushaf fonts entry above), matched onto these same rows by ayah and
 within-ayah word position. Line breaks and word boundaries are still this
 source's (zonetecde/mushaf-layout), unchanged by which font is active.
+
+### Tafsir — Tafsīr al-Jalālayn (Arabic)
+
+|         |                                                                                                                         |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Work    | Tafsīr al-Jalālayn, by Jalāl al-Dīn al-Maḥallī (d. 864/1459) and Jalāl al-Dīn al-Suyūṭī (d. 911/1505)                   |
+| Source  | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `ar-tafsir-al-jalalayn`), which mirrors qul.tarteel.ai |
+| License | Public domain — the work predates copyright by four centuries                                                           |
+
+Published as a downloadable content pack, like every edition here — no tafsir
+ships with the app.
+
+The Arabic original carries none of the restrictions the English translation
+below does: its authors died in 864 AH and 911 AH, so the text itself is long
+out of copyright. What is credited here is the digital edition and the effort
+of the people who transcribed and published it.
+
+This edition glosses 6,010 of the 6,236 Ayahs. The 226 gaps are the work's own
+— verses al-Jalālayn passes over without comment — not an incomplete import.
+
+### Tafsir — Tafsīr al-Jalālayn (English)
+
+|            |                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Work       | Tafsīr al-Jalālayn, by Jalāl al-Dīn al-Maḥallī (d. 864/1459) and Jalāl al-Dīn al-Suyūṭī (d. 911/1505)                          |
+| Translator | Feras Hamza                                                                                                                    |
+| Publisher  | © 2007 Royal Aal al-Bayt Institute for Islamic Thought, Amman                                                                  |
+| Source     | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `tafsir-al-jalalayn`), which mirrors quran.com / altafsir.com |
+| License    | **Unverified — see below**                                                                                                     |
+
+The Arabic original is a classical work in the public domain. This English
+translation is not: it is Feras Hamza's, published by the Royal Aal al-Bayt
+Institute and distributed free of charge on
+[altafsir.com](https://www.altafsir.com). Its redistribution terms could not
+be confirmed when this notice was written — altafsir.com was unreachable from
+the build environment (HTTP 403), so the front matter stating the permissions
+has not been read directly.
+
+This edition is no longer bundled — no tafsir is — and is published as a
+content pack instead. That does not settle the question: hosting the pack as a
+release asset is redistribution just as shipping it in an installer was. What
+changed is who pays for the bytes, not who is doing the distributing.
+
+**Open task:** read those terms from the primary source and record them here.
+The same standard as the QCF font entry above — distribution is the part that
+needs the permission, not the reading of the text.
+
+The importer reduces each entry to plain text (markup stripped, entities
+decoded) and does not otherwise alter the translation.
+
+### Tafsir — Tafsīr Ibn Kathīr (Arabic)
+
+|         |                                                                                          |
+| ------- | ---------------------------------------------------------------------------------------- |
+| Work    | Tafsīr al-Qurʾān al-ʿAẓīm, by Ismāʿīl ibn ʿUmar ibn Kathīr (d. 774/1373)                 |
+| Source  | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `ar-tafsir-ibn-kathir`) |
+| License | Public domain — the work predates copyright by six centuries                             |
+
+Published as a downloadable content pack and installed only when the reader
+asks for it; see `src-tauri/src/packs`. Nothing forces that choice here — the
+work is public domain — but no tafsir is bundled at all, so it takes the same
+route as every other edition. It is also the largest of them at 23.6 MB of
+text, which is reason enough on its own.
+
+Like the Arabic al-Jalālayn above, the composition itself is long out of
+copyright and what is credited here is the digital edition.
+
+This edition comments on runs of verses rather than single Ayahs — 1,911
+blocks covering all 6,236 — and the importer records each run rather than
+repeating its text under every verse it covers.
+
+### Tafsir — Tafsīr Ibn Kathīr (English, abridged)
+
+|           |                                                                                          |
+| --------- | ---------------------------------------------------------------------------------------- |
+| Work      | Tafsīr al-Qurʾān al-ʿAẓīm, by Ismāʿīl ibn ʿUmar ibn Kathīr (d. 774/1373)                 |
+| Abridger  | A committee under Ṣafī al-Raḥmān al-Mubārakfūrī                                          |
+| Publisher | © Darussalam, Riyadh                                                                     |
+| Source    | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `en-tafisr-ibn-kathir`) |
+| License   | **Unverified — see below**                                                               |
+
+Not bundled, and for this edition that is not only a question of size. This is
+not a translation of the Arabic above but a modern _abridgement_ of it: most
+of the isnads and much of the linguistic discussion are gone, and an editorial
+apparatus that Ibn Kathīr did not write has been added. The two are listed as
+separate editions for that reason.
+
+The abridgement is a Darussalam publication and its copyright is live. Whether
+it may be redistributed in this form has not been established, and no claim
+either way is made here.
+
+**Open task:** establish those terms from Darussalam directly. This edition is
+published as a content pack in the meantime, which is a deliberate decision
+taken with the risk in view and not an oversight.
+
+The importer reduces each entry to plain text (markup stripped, entities
+decoded) and does not otherwise alter the text.
 
 ### Ayah metadata — alquran.cloud
 

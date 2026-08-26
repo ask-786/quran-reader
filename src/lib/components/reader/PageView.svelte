@@ -17,6 +17,7 @@
   import { readerPosition } from '$lib/stores/reader-position.svelte';
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { observeCenteredAyah } from '$lib/utils/centered-ayah';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import SurahHeader from './SurahHeader.svelte';
 
   let {
@@ -147,6 +148,42 @@
     }
     return map;
   });
+
+  /**
+   * Tap a word, get its Ayah's commentary — plan item 11.3's word-level
+   * trigger.
+   *
+   * Delegated from the scroll container rather than bound per word: a page can
+   * carry hundreds of word spans and Al-Baqara's range runs to thousands, and
+   * this is the render path the whole Mushaf view's performance sits on.
+   *
+   * An imperative listener via an action, not `onclick` on the div, because
+   * this element is a scroll surface and not a control — giving it a button
+   * role and a key handler to satisfy the a11y lint would be a lie about what
+   * it is. The keyboard route to the same thing is `t`, which opens on the
+   * Ayah the reader is already on.
+   */
+  function tafsirOnWordClick(node: HTMLElement) {
+    const onClick = (e: MouseEvent) => {
+      // A click ending a drag-selection is a copy, not a request.
+      if (!window.getSelection()?.isCollapsed) return;
+      const target = e.target as HTMLElement | null;
+      const word = target?.closest<HTMLElement>('.word');
+      // Basmala words carry no Ayah of their own, so the line they sit on is
+      // the fallback — it is tagged with the Ayah the line opens on.
+      const line = target?.closest<HTMLElement>('[data-line-ayah-id]');
+      const raw = word?.dataset.ayahId ?? line?.dataset.lineAyahId;
+      const ayahId = Number(raw);
+      if (!raw || !Number.isFinite(ayahId)) return;
+      tafsirStore.openFromClick(ayahId, word ?? line ?? null);
+    };
+    node.addEventListener('click', onClick);
+    return {
+      destroy() {
+        node.removeEventListener('click', onClick);
+      },
+    };
+  }
 
   function lineAyahId(words: { ayah_id: number | null }[]) {
     return words.find((w) => w.ayah_id !== null)?.ayah_id;
@@ -372,7 +409,12 @@
 </script>
 
 <div class="page-view">
-  <div bind:this={container} class="page-surface scrollbar-none">
+  <div
+    bind:this={container}
+    class="page-surface scrollbar-none"
+    class:tafsir-clickable={tafsirStore.clicksOpenTafsir}
+    use:tafsirOnWordClick
+  >
     {#if error}
       <p class="state-message">Couldn't load pages: {error}</p>
     {:else if loading && pages.length === 0}
@@ -415,9 +457,17 @@
                 >
                   {#if renderedPages.has(p.page)}
                     {#each line.words as w (w.position)}
+                      <!-- `data-word-index` is written but not yet read. Word
+                           level actions (root, morphology) are a known future
+                           feature and they need this attribute on this exact
+                           hot path; adding it now costs one attribute and
+                           saves touching the render loop again. Which gesture
+                           they get is decided in
+                           docs/tafsir-popover-plan.md — not this one. -->
                       <span
                         class="word"
                         data-ayah-id={w.ayah_id}
+                        data-word-index={w.word_index}
                         aria-label={w.uthmani_text}
                         title={w.uthmani_text}>{w.glyph_v4}</span
                       >
@@ -592,6 +642,12 @@
      half of it. */
   .centered .word:last-child {
     margin-inline-end: 0;
+  }
+
+  /* Mirrors .ayah-text.clickable in AyahRow: the cursor is the whole of what
+     tells you tafsir mode is on. */
+  .tafsir-clickable .word {
+    cursor: pointer;
   }
 
   .word {

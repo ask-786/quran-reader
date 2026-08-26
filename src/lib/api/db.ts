@@ -8,6 +8,9 @@ import type {
   Surah,
   Ayah,
   Translation,
+  Tafsir,
+  TafsirEntry,
+  TafsirPack,
   Bookmark,
   Note,
   Settings,
@@ -175,4 +178,47 @@ export function setSetting(key: string, value: string): Promise<void> {
 
 export function getTranslations(): Promise<Translation[]> {
   return invoke('get_translations');
+}
+
+// =============================================================================
+// TAFSIR
+// =============================================================================
+
+/** Installed editions, bundled first. */
+export function getTafsirs(): Promise<Tafsir[]> {
+  return invoke('get_tafsirs');
+}
+
+/**
+ * Commentary on one Ayah, or null where this edition passes over it — an
+ * ordinary outcome, not an error. Al-Jalalayn's Arabic glosses 6,010 of the
+ * 6,236 Ayahs; the panel shows the gap rather than an empty box.
+ */
+export function getTafsirForAyah(tafsirId: number, ayahId: number): Promise<TafsirEntry | null> {
+  return invoke('get_tafsir_for_ayah', { tafsirId, ayahId });
+}
+
+// =============================================================================
+// TAFSIR PACKS
+// =============================================================================
+
+/** Every edition this build can install, marked with whether it already is. */
+export function listTafsirPacks(): Promise<TafsirPack[]> {
+  return invoke('list_tafsir_packs');
+}
+
+/**
+ * Download, verify and install one edition; resolves with its new tafsir id.
+ *
+ * Long-running — tens of megabytes — and reports itself through the
+ * `tafsir-pack-progress` event rather than this promise. A rejection here is
+ * final: a download that fails verification is discarded, never installed.
+ */
+export function installTafsirPack(slug: string): Promise<number> {
+  return invoke('install_tafsir_pack', { slug });
+}
+
+/** Remove an installed edition. Bundled editions are refused. */
+export function removeTafsirPack(slug: string): Promise<void> {
+  return invoke('remove_tafsir_pack', { slug });
 }

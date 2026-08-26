@@ -8,9 +8,12 @@
   import ReaderContextBar from './ReaderContextBar.svelte';
   import ReaderZoomControl from './ReaderZoomControl.svelte';
   import ReaderJumpControl from './ReaderJumpControl.svelte';
+  import TafsirPanel from '$lib/components/tafsir/TafsirPanel.svelte';
+  import TafsirPopover from '$lib/components/tafsir/TafsirPopover.svelte';
   import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
 
   let {
     ayahs,
@@ -114,26 +117,82 @@
   // Leaving the reader entirely (focus-mode remount aside, only closing the
   // window does this) still owes the range its pending position.
   $effect(() => () => readingStore.flush());
+
+  /** Whether the side panel is on screen — it and the inset it opens must be
+   *  the same condition, or the controls step aside for a panel that isn't
+   *  there. */
+  const panelOpen = $derived(tafsirStore.view === 'panel' && tafsirStore.panelOpen);
 </script>
 
-<div class="reader-page">
-  {#if renderedMode === 'mushaf'}
-    <PageView {ayahs} scrollToAyahId={viewTarget} />
-  {:else}
-    <ReaderView {ayahs} scrollToAyahId={viewTarget} />
-  {/if}
-  <ReaderContextBar {ayahs} />
-  <ProgressIndicator />
-  <AutoScrollHandle />
-  <div class="control-slot">
-    <ReaderZoomControl />
-    <ReaderJumpControl />
+<!-- --tafsir-inset is how wide the panel is covering the right edge right now,
+     0px when it is closed. The panel reads it for its own width and the corner
+     controls subtract it from theirs, so one number keeps the two in step —
+     including mid-drag, which is why the live width sits in the store. -->
+<div
+  class="reader-page"
+  class:tafsir-open={panelOpen}
+  style:--tafsir-width="{tafsirStore.liveWidth}px"
+>
+  <!-- The reader and its overlays share a positioned box. The tafsir drawer
+       covers the right of it rather than shrinking it, so the reading measure
+       never changes; the corner controls anchor to the right edge of *this*
+       element and move inward by --tafsir-inset to stay out from under it. -->
+  <div class="reader-main">
+    {#if renderedMode === 'mushaf'}
+      <PageView {ayahs} scrollToAyahId={viewTarget} />
+    {:else}
+      <ReaderView {ayahs} scrollToAyahId={viewTarget} />
+    {/if}
+    <ReaderContextBar {ayahs} />
+    <ProgressIndicator />
+    <AutoScrollHandle />
+    <div class="control-slot">
+      <ReaderZoomControl />
+      <ReaderJumpControl />
+    </div>
   </div>
+  {#if panelOpen}
+    <TafsirPanel />
+  {/if}
 </div>
+<!-- Outside `.reader-page` on purpose, and moved to the body by its own portal
+     once mounted: the popover must not be able to take part in the reader's
+     layout, which is the whole reason it exists. -->
+{#if tafsirStore.view === 'popover' && tafsirStore.selection}
+  <TafsirPopover />
+{/if}
 
 <style>
   .reader-page {
     position: relative;
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+
+    /* Closed: nothing is covered, so nothing steps aside. */
+    --tafsir-inset: 0px;
+  }
+
+  .reader-page.tafsir-open {
+    --tafsir-inset: var(--tafsir-width, 0px);
+  }
+
+  /* The one place the panel stops honouring the stored width: below the
+     tablet breakpoint it takes the window instead. Overriding the inset here
+     rather than the panel's width is what keeps the corner controls agreeing
+     with it — they are outside the panel and cannot see a rule scoped to it.
+     (They end up off-screen at 100%, which is correct: there is no reader
+     left to control.) */
+  @media (max-width: 900px) {
+    .reader-page.tafsir-open {
+      --tafsir-inset: min(100%, 480px);
+    }
+  }
+
+  .reader-main {
+    position: relative;
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -145,7 +204,7 @@
   .control-slot {
     position: absolute;
     top: 16px;
-    right: 30px;
+    right: calc(30px + var(--tafsir-inset));
     z-index: 6;
     display: flex;
     flex-direction: column;

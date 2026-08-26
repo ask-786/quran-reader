@@ -9,3 +9,8 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 importer/target/
+
+# Content packs built by `quran-importer --emit-pack`. These are release
+# assets, not repository contents: they are tens of megabytes each and a
+# committed binary of that size is in every clone for good.
+/packs/

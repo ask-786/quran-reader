@@ -22,6 +22,14 @@ permissions:
 jobs:
   publish:
     name: quran-reader-bin
+    # Only app releases. `packs-v*` tags carry downloadable tafsir editions and
+    # are published by packs.yml; they are content, not a build, and there is
+    # nothing for AUR in them. Without this the job would start on every packs
+    # publish and stop at "Validate the tag" below — a red run for something
+    # that behaved exactly as intended. That step stays: it still guards the
+    # dispatch input, and a tag like "vNext" would pass this check and not that
+    # one.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     steps:

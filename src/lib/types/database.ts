@@ -79,12 +79,54 @@ export interface Tafsir {
   title: string;
   version: string;
   is_bundled: boolean;
+  slug: string | null;
+  /** Set when this edition is a translation of the work rather than the original. */
+  translator: string | null;
+  name_native: string | null;
+  direction: 'ltr' | 'rtl';
+  /** Madhhab and creed of the commentary — shown in the picker, since neither
+   *  is visible in the text and both decide how it reads whole classes of verse. */
+  school: string | null;
+  creed: string | null;
 }
 
-export interface TafsirAyah {
+/**
+ * A tafsir edition that can be downloaded, and whether it is already here.
+ *
+ * Separate from `Tafsir`, which describes an edition the database *has*: this
+ * is what the app knows about one before any of it has been fetched, so it
+ * carries sizes and a licence rather than an id and a direction.
+ */
+export interface TafsirPack {
+  slug: string;
+  title: string;
+  author: string;
+  language: string;
+  license: string;
+  /** Size of the download itself. */
+  download_bytes: number;
+  /** Roughly what it adds to the database once installed. */
+  installed_bytes: number;
+  installed: boolean;
+}
+
+/** Payload of the `tafsir-pack-progress` event, emitted while downloading. */
+export interface TafsirPackProgress {
+  slug: string;
+  received: number;
+  total: number;
+}
+
+export interface TafsirEntry {
   tafsir_id: number;
   ayah_id: number;
+  surah_id: number;
+  ayah_number: number;
   text: string;
+  /** Verse keys ("2:1" / "2:5") when the edition comments on a run of verses
+   *  at once. Both null for per-Ayah editions such as al-Jalalayn. */
+  group_start_key: string | null;
+  group_end_key: string | null;
 }
 
 // =============================================================================
@@ -115,6 +157,8 @@ export interface Note {
 // =============================================================================
 
 export type Theme = 'dark' | 'light' | 'sepia';
+/** Which surface a tafsir trigger opens — see docs/tafsir-popover-plan.md. */
+export type TafsirView = 'popover' | 'panel';
 export type Font = 'amiri-quran' | 'noto-naskh-arabic';
 export type ReaderWidth = 'narrow' | 'normal' | 'wide';
 
@@ -126,6 +170,15 @@ export interface Settings {
   reader_width: ReaderWidth;
   preferred_translation_id: number | null;
   show_translation: boolean;
+  /** Null until an edition is chosen; the app falls back to the first bundled one. */
+  tafsir_id: number | null;
+  /** The side panel's state. Popover openness is transient and not persisted. */
+  show_tafsir: boolean;
+  tafsir_panel_width: number;
+  tafsir_view: TafsirView;
+  /** Whether clicking a verse opens its commentary. Off by default — a stray
+   *  click in the reader should not become an interruption. */
+  tafsir_click: boolean;
   show_transliteration: boolean;
   show_ayah_numbers: boolean;
   app_zoom: number;

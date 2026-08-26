@@ -17,9 +17,11 @@
     ZoomOut,
     Focus,
     Search,
+    ScrollText,
   } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import type { Theme } from '$lib/types/database';
 
   const THEMES: Theme[] = ['dark', 'light', 'sepia'];
@@ -27,6 +29,19 @@
 
   const heading = $derived($page.data?.title as string | undefined);
   const hasReader = $derived(Array.isArray($page.data?.ayahs));
+
+  // One meaning in both views: tafsir mode, not whatever it has put on screen.
+  // The card and the panel come and go under a mode that stays put, so lighting
+  // this for the panel being open made it read as a panel switch — and left the
+  // mode itself with no control at all in that view.
+  const tafsirOn = $derived(tafsirStore.clickOpens);
+  const tafsirLabel = $derived(
+    tafsirOn
+      ? 'Turn off tafsir mode'
+      : tafsirStore.view === 'panel'
+        ? 'Turn on tafsir mode — click a verse to open its commentary in the panel'
+        : 'Turn on tafsir mode — click a verse for its commentary',
+  );
 
   let isMaximized = $state(false);
 
@@ -96,6 +111,16 @@
   </div>
 
   {#if hasReader}
+    <button
+      class="icon-btn"
+      class:active={tafsirOn}
+      onclick={() => tafsirStore.toggle()}
+      aria-pressed={tafsirOn}
+      aria-label={tafsirLabel}
+      title="{tafsirLabel} (t)"
+    >
+      <ScrollText size={18} />
+    </button>
     <button
       class="icon-btn"
       onclick={() => uiStore.toggleFocusMode()}
@@ -189,6 +214,12 @@
   .icon-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text);
+  }
+
+  /* Toggles, unlike the one-shot buttons around them, have to show that they
+     are currently on. */
+  .icon-btn.active {
+    color: var(--color-accent);
   }
 
   .icon-btn.small {

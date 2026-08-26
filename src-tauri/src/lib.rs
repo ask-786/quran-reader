@@ -7,11 +7,17 @@ use tauri::Manager;
 mod commands;
 mod db;
 mod models;
+mod packs;
 
 pub use db::error::{DbError, DbResult};
 
 /// Global database connection wrapped in a Mutex for thread-safe Tauri state.
 pub struct AppDb(pub Mutex<Connection>);
+
+/// Where that database lives, kept alongside the connection because a pack
+/// install needs the *path* and not the handle: it stages the download beside
+/// the database so the verified file and its destination share a filesystem.
+pub struct DbPath(pub PathBuf);
 
 /// The application name handed to [`ProjectDirs`], and with it the data
 /// directory the database lives in.
@@ -66,6 +72,7 @@ pub fn run() {
             let conn = db::connection::open(&db_path).expect("Failed to open database");
 
             app.manage(AppDb(Mutex::new(conn)));
+            app.manage(DbPath(db_path));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -93,6 +100,11 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::get_translations,
+            commands::get_tafsirs,
+            commands::get_tafsir_for_ayah,
+            commands::list_tafsir_packs,
+            commands::install_tafsir_pack,
+            commands::remove_tafsir_pack,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

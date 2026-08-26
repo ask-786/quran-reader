@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Bookmark, BookmarkCheck, Copy, Check } from 'lucide-svelte';
+  import { Bookmark, BookmarkCheck, ScrollText, Copy, Check } from 'lucide-svelte';
   import type { Ayah, AyahGlyphWord } from '$lib/types/database';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
 
   let {
     ayah,
@@ -27,6 +28,21 @@
     await navigator.clipboard.writeText(ayah.uthmani_text);
     copied = true;
     setTimeout(() => (copied = false), 1200);
+  }
+
+  function tafsirOnClick(node: HTMLElement) {
+    const onClick = () => {
+      // A click that ends a drag-selection is the user selecting text to copy,
+      // not asking for commentary.
+      if (!window.getSelection()?.isCollapsed) return;
+      tafsirStore.openFromClick(ayah.id, node);
+    };
+    node.addEventListener('click', onClick);
+    return {
+      destroy() {
+        node.removeEventListener('click', onClick);
+      },
+    };
   }
 </script>
 
@@ -56,9 +72,27 @@
       <button class="action-btn" onclick={copyText} aria-label="Copy ayah text">
         {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
       </button>
+      <button
+        class="action-btn"
+        onclick={(e) => tafsirStore.openFor(ayah.id, e.currentTarget)}
+        aria-label="Show tafsir for this ayah"
+        title="Tafsir"
+      >
+        <ScrollText size={15} />
+      </button>
     </div>
 
-    <p class="ayah-text quran-text">
+    <!-- Click the verse, get its commentary. Deliberately NOT `role="button"`
+         with a key handler: this is running Quranic text, and announcing a
+         verse to a screen reader as a button would be a worse reading
+         experience than the shortcut is worth. The keyboard and AT route is
+         the labelled button above, plus `t`. Hence an imperative listener
+         through an action, which claims nothing about what this element is. -->
+    <p
+      class="ayah-text quran-text"
+      class:clickable={tafsirStore.clicksOpenTafsir}
+      use:tafsirOnClick
+    >
       {#each words as w, i (i)}<span
           class="word"
           style:font-family={w.fontFamily}
@@ -150,6 +184,13 @@
        restores both the word order and the verse-marker position within each
        span. See docs/qcf-v4-font-migration-plan.md, risk 2. */
     unicode-bidi: bidi-override;
+  }
+
+  /* The only sign that a click will do something. Without it tafsir mode is
+     invisible until you happen to click, which is the same guesswork the mode
+     exists to remove. */
+  .ayah-text.clickable {
+    cursor: pointer;
   }
 
   .word {

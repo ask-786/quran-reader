@@ -84,7 +84,11 @@
 <style>
   .auto-scroll-handle {
     position: absolute;
-    right: 10px;
+    /* Steps inward when the tafsir panel is covering the right edge, so the
+       track stays grabbable instead of sitting underneath it. ReaderPage owns
+       the variable and inherits it down; the fallback keeps this honest if the
+       handle is ever mounted outside a reader page. */
+    right: calc(10px + var(--tafsir-inset, 0px));
     top: 16px;
     bottom: 16px;
     width: 4px;

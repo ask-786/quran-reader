@@ -11,6 +11,7 @@
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
+  import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
@@ -56,7 +57,10 @@
   }
 
   onMount(() => {
-    settingsStore.init();
+    // Tafsir state (chosen edition, panel width, whether it is open) lives in
+    // the settings row, so its store can only read it once settings have
+    // landed — hence the chain rather than another fire-and-forget init.
+    settingsStore.init().then(() => tafsirStore.init());
     surahsStore.init();
     bookmarksStore.init();
 
@@ -75,10 +79,15 @@
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        // The palette clears its own filter on the first Escape and only lets
-        // the key reach here when there is nothing left to clear.
+        // Outermost first. The palette clears its own filter on the first
+        // Escape and only lets the key reach here when there is nothing left
+        // to clear, so it goes before the tafsir popover beneath it — and the
+        // popover before focus mode, or dismissing a card in focus mode would
+        // tear down the whole chrome instead.
         if (uiStore.paletteOpen) {
           uiStore.closePalette();
+        } else if (tafsirStore.selection) {
+          tafsirStore.closePopover();
         } else if (uiStore.focusMode) {
           uiStore.exitFocusMode();
         }
@@ -233,6 +242,9 @@
           break;
         case 'a':
           autoScrollStore.toggle();
+          break;
+        case 't':
+          tafsirStore.toggle();
           break;
       }
     }
