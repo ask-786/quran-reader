@@ -305,9 +305,12 @@ fn verify_pack_contents(conn: &Connection) -> PackResult<()> {
         .map_err(|err| PackError::Malformed(err.to_string()))
     };
 
-    let format = meta("format")?
-        .ok_or_else(|| PackError::Malformed("no format recorded".to_string()))?;
-    if format != PACK_FORMAT.to_string() {
+    let format =
+        meta("format")?.ok_or_else(|| PackError::Malformed("no format recorded".to_string()))?;
+    // Parsed rather than compared as a string, so "01" and "1" are one format
+    // and a non-numeric value is reported as the wrong format rather than
+    // silently failing to match.
+    if format.parse::<u32>() != Ok(PACK_FORMAT) {
         return Err(PackError::Format { found: format });
     }
 
@@ -354,9 +357,11 @@ pub fn remove(conn: &Connection, slug: &str) -> PackResult<()> {
 }
 
 fn find_installed_id(conn: &Connection, slug: &str) -> PackResult<Option<u32>> {
-    conn.query_row("SELECT id FROM tafsir WHERE slug = ?1", params![slug], |r| {
-        r.get(0)
-    })
+    conn.query_row(
+        "SELECT id FROM tafsir WHERE slug = ?1",
+        params![slug],
+        |r| r.get(0),
+    )
     .optional()
     .map_err(Into::into)
 }

@@ -212,6 +212,54 @@ permission, not the reading of the text.
 The importer reduces each entry to plain text (markup stripped, entities
 decoded) and does not otherwise alter the translation.
 
+### Tafsir — Tafsīr Ibn Kathīr (Arabic)
+
+|         |                                                                                          |
+| ------- | ---------------------------------------------------------------------------------------- |
+| Work    | Tafsīr al-Qurʾān al-ʿAẓīm, by Ismāʿīl ibn ʿUmar ibn Kathīr (d. 774/1373)                 |
+| Source  | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `ar-tafsir-ibn-kathir`) |
+| License | Public domain — the work predates copyright by six centuries                             |
+
+Not bundled. Published as a downloadable content pack and installed only when
+the reader asks for it; see `src-tauri/src/packs`.
+
+Like the Arabic al-Jalālayn above, the composition itself is long out of
+copyright and what is credited here is the digital edition. The pack carries
+23.6 MB of text, which is the reason it is a download rather than part of the
+installer.
+
+This edition comments on runs of verses rather than single Ayahs — 1,911
+blocks covering all 6,236 — and the importer records each run rather than
+repeating its text under every verse it covers.
+
+### Tafsir — Tafsīr Ibn Kathīr (English, abridged)
+
+|           |                                                                                          |
+| --------- | ---------------------------------------------------------------------------------------- |
+| Work      | Tafsīr al-Qurʾān al-ʿAẓīm, by Ismāʿīl ibn ʿUmar ibn Kathīr (d. 774/1373)                 |
+| Abridger  | A committee under Ṣafī al-Raḥmān al-Mubārakfūrī                                          |
+| Publisher | © Darussalam, Riyadh                                                                     |
+| Source    | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `en-tafisr-ibn-kathir`) |
+| License   | **Unverified — see below**                                                               |
+
+Not bundled, and for this edition that is not only a question of size. This is
+not a translation of the Arabic above but a modern _abridgement_ of it: most
+of the isnads and much of the linguistic discussion are gone, and an editorial
+apparatus that Ibn Kathīr did not write has been added. The two are listed as
+separate editions for that reason.
+
+The abridgement is a Darussalam publication and its copyright is live. Whether
+it may be redistributed in this form has not been established, and no claim
+either way is made here.
+
+**Open task before this edition is offered:** establish those terms from
+Darussalam directly. Until then this entry documents an edition the importer
+can build, not one the app is publishing — `PACKS` in `src-tauri/src/packs`
+carries no URL for it, so nothing can be downloaded.
+
+The importer reduces each entry to plain text (markup stripped, entities
+decoded) and does not otherwise alter the text.
+
 ### Ayah metadata — alquran.cloud
 
 |        |                                                      |

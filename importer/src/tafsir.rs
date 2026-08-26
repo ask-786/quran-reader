@@ -658,8 +658,7 @@ pub fn emit_pack(db_path: &Path, edition: &Edition, entries: Vec<Entry>, out: &P
         std::fs::remove_file(out)
             .with_context(|| format!("Replacing existing pack {}", out.display()))?;
     }
-    let pack =
-        Connection::open(out).with_context(|| format!("Creating {}", out.display()))?;
+    let pack = Connection::open(out).with_context(|| format!("Creating {}", out.display()))?;
 
     pack.execute_batch(
         "CREATE TABLE pack_meta (
@@ -779,8 +778,8 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
 
-    let mut file = std::fs::File::open(path)
-        .with_context(|| format!("Hashing {}", path.display()))?;
+    let mut file =
+        std::fs::File::open(path).with_context(|| format!("Hashing {}", path.display()))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 64 * 1024];
     loop {
@@ -948,10 +947,7 @@ mod tests {
 
     #[test]
     fn a_surah_boundary_ends_the_run() {
-        let groups = group_entries(vec![
-            entry(1, 7, "same text"),
-            entry(2, 1, "same text"),
-        ]);
+        let groups = group_entries(vec![entry(1, 7, "same text"), entry(2, 1, "same text")]);
         assert_eq!(
             shape(&groups),
             vec![(1, 7, 7, "same text"), (2, 1, 1, "same text")]
