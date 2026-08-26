@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { GlyphSpan, Surah } from '$lib/types/database';
-  import { stripTashkeel } from '$lib/utils/arabic-text';
   import { BISMILLAH_TEXT, shouldShowBismillahHeader } from '$lib/utils/bismillah';
 
   let {
@@ -22,7 +21,12 @@
 <div class="surah-banner" dir="rtl">
   <div class="banner-frame">
     <span class="motif" aria-hidden="true">۞</span>
-    <h2 class="surah-name">{stripTashkeel(surah.name_ar)}</h2>
+    <!-- Vocalised, as stored. It was stripped while --font-surah-name was
+         Scheherazade, which the WebKitGTK mark bug left misplacing 59% of
+         these marks; under Amiri that is 2%. See app.css. The sidebar's copy
+         in NavPanel is still stripped — that is a dense 17px list at
+         line-height 1, where restoring marks means re-pitching every row. -->
+    <h2 class="surah-name">{surah.name_ar}</h2>
     <span class="motif" aria-hidden="true">۞</span>
   </div>
 
@@ -90,7 +94,10 @@
        zoom 1.2 on narrow viewports; at zoom 1 the px value always wins. */
     font-size: min(calc(32px * var(--reader-zoom)), 13vw);
     font-weight: 400;
-    line-height: 1.3;
+    /* Room for the marks the name carries again: a kasra drops below the
+       baseline and a damma sits well above it, and 1.3 was set for a line
+       with neither. */
+    line-height: 1.5;
     white-space: nowrap;
     color: var(--color-accent);
   }

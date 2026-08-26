@@ -114,13 +114,38 @@
   /* Live-shaped vocalized Arabic: Surah names, the Bismillah fallback, and the
      ۞ banner ornament. Deliberately NOT --font-quran — see the note above.
 
-     The previously bundled Amiri Quran and Noto Naskh both anchored the dagger
-     alef (U+0670) at baseline height, so it detached and floated as a stray
-     "١" on Surahs 42, 55, 87, 93, dropping those banners off the line.
-     Scheherazade New anchors it correctly and carries no Mushaf
-     line-justification stagger. Verified by rendering all 114 names + the
-     Bismillah through WebKitGTK. */
-  --font-surah-name: 'Scheherazade New', serif;
+     Amiri, for the same reason --font-arabic-prose is Amiri: the WebKitGTK
+     mark-attachment defect described at that @font-face, measured here on the
+     surface it actually damages. Shaping all 114 Surah names plus the Bismillah
+     with GPOS mark attachment on and then off — which is exactly what the
+     engine drops — and counting the marks it moves more than 0.15 em
+     vertically:
+
+       Scheherazade New   440 of 746 marks (59%), all 115 titles
+       Amiri               19 of 790 marks  (2%),  15 of 115 titles
+
+     That 59% is why the titles were unvocalised at all (5b3fb58). At 2% they
+     are worth reading again, so SurahHeader renders surah.name_ar as it is
+     stored. The stragglers are real but few — الأَعۡرَافِ and مَرۡيَمَ are the
+     worst of them, one mark each.
+
+     This replaces a note that credited Scheherazade with anchoring the dagger
+     alef (U+0670) correctly and blamed Amiri for floating it. Measured, it is
+     the other way round: Scheherazade's U+0670 is displaced 0.225 em, Amiri's
+     0.035. The floating dagger alef was Amiri *Quran*, a different font that
+     used to be bundled here — see the @font-face note above.
+
+     Not collapsed into --font-arabic-prose despite both being Amiri today:
+     display Arabic and running Arabic are different jobs and may want
+     different faces again. If the engine is ever fixed, revisit — the choice
+     above was forced by a bug, unlike the prose one, which stands on merit.
+
+     The remaining stragglers have a known proper fix: GSUB is unaffected, so
+     base+mark clusters can be precomposed as `rlig` ligatures, the trick the
+     QCF mushaf fonts already use. Only 128 distinct clusters exist across all
+     114 names and the Bismillah, at most two marks on a base. It needs a
+     modified Amiri and a font build step, which is why it is not done here. */
+  --font-surah-name: 'Amiri', serif;
 
   /* Flowing Arabic paragraphs: the Arabic tafsir today, Arabic translations
      later. Kept apart from both variables above on purpose — see the
