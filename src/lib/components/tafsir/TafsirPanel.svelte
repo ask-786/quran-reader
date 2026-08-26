@@ -4,24 +4,25 @@
   import TafsirMeta from './TafsirMeta.svelte';
   import TafsirBody from './TafsirBody.svelte';
 
-  /** Live width while dragging; null when the stored width is in force. */
-  let dragWidth = $state<number | null>(null);
   let dragging = $state(false);
 
-  const width = $derived(dragWidth ?? tafsirStore.width);
+  // The live width lives in the store, not here: the reader's right-edge
+  // controls offset by it to stay out from under the panel, and they have to
+  // follow the drag frame by frame. See `liveWidth` there.
+  const width = $derived(tafsirStore.liveWidth);
 
   function startResize(e: PointerEvent) {
     const handle = e.currentTarget as HTMLElement;
     handle.setPointerCapture(e.pointerId);
     dragging = true;
-    dragWidth = width;
+    tafsirStore.dragWidth = width;
   }
 
   function resize(e: PointerEvent) {
     if (!dragging) return;
     // The panel is pinned to the right edge, so its width is whatever is left
     // between the pointer and that edge.
-    dragWidth = clampTafsirWidth(window.innerWidth - e.clientX);
+    tafsirStore.dragWidth = clampTafsirWidth(window.innerWidth - e.clientX);
   }
 
   function endResize(e: PointerEvent) {
@@ -29,8 +30,9 @@
     const handle = e.currentTarget as HTMLElement;
     handle.releasePointerCapture(e.pointerId);
     dragging = false;
-    if (dragWidth !== null) void tafsirStore.setWidth(dragWidth);
-    dragWidth = null;
+    const dragged = tafsirStore.dragWidth;
+    if (dragged !== null) void tafsirStore.setWidth(dragged);
+    tafsirStore.dragWidth = null;
   }
 
   function nudge(e: KeyboardEvent) {
@@ -45,7 +47,7 @@
   }
 </script>
 
-<aside class="tafsir-panel" style:width="{width}px" aria-label="Tafsir">
+<aside class="tafsir-panel" aria-label="Tafsir">
   <!-- A button, not a div with role="separator": the ARIA splitter pattern
        wants a focusable widget, and a real button is the one element that is
        focusable, keyboard-operable and announced as interactive without any
@@ -91,16 +93,28 @@
 </aside>
 
 <style>
+  /* An overlay at every width, not a column beside the reader: the measure of
+     the reading text is a typographic decision the reader made with the zoom
+     control, and opening a reference panel is not a reason to re-flow every
+     line of it. The page underneath keeps its width; this covers part of it.
+
+     Width comes from --tafsir-inset rather than an inline style so that one
+     value drives the panel *and* the reader controls that step aside for it —
+     including under the breakpoint below, where the panel's width stops
+     tracking the stored one. ReaderPage defines it. */
   .tafsir-panel {
-    position: relative;
-    flex-shrink: 0;
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: var(--tafsir-inset);
     display: flex;
     flex-direction: column;
-    height: 100%;
     min-width: 0;
     background: var(--color-bg-elevated);
     border-left: 1px solid var(--color-border);
-    z-index: 7;
+    /* Above ReaderContextBar's 7: both are chrome over the reader, and a
+       floating bar showing through a solid panel reads as a bug. */
+    z-index: 8;
+    box-shadow: -4px 0 24px rgb(0 0 0 / 0.28);
   }
 
   .resize-handle {
@@ -167,16 +181,11 @@
     padding: 14px 16px 32px;
   }
 
-  /* Below the tablet breakpoint the drawer covers the reader rather than
-     squeezing it into a column too narrow to read. */
+  /* Below the tablet breakpoint there is no room left to give: the panel takes
+     the window and the drag handle has nothing useful to do. The width itself
+     is capped in ReaderPage, with --tafsir-inset, so the controls that step
+     aside for the panel agree with it here too. */
   @media (max-width: 900px) {
-    .tafsir-panel {
-      position: absolute;
-      inset: 0 0 0 auto;
-      width: min(100%, 480px) !important;
-      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
-    }
-
     .resize-handle {
       display: none;
     }

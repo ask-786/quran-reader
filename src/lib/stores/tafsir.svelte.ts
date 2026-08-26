@@ -85,6 +85,23 @@ class TafsirStore {
   }
 
   /**
+   * Live width while the resize handle is being dragged; null when the stored
+   * width is in force.
+   *
+   * Session-only, and deliberately here rather than inside TafsirPanel: the
+   * panel overlays the reader now, so the reader's right-edge controls offset
+   * themselves by the panel's width to stay reachable. They have to follow the
+   * drag frame by frame, and a value private to the panel cannot be read by
+   * anything outside it.
+   */
+  dragWidth = $state<number | null>(null);
+
+  /** What the panel is actually this wide right now, drag included. */
+  get liveWidth() {
+    return this.dragWidth ?? this.width;
+  }
+
+  /**
    * The chosen edition, falling back to the first installed one so the panel
    * has something to show before any choice has been made.
    */
