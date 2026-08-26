@@ -21,13 +21,45 @@
 
   const selected = $derived(editions.find((t) => t.id === selectedId) ?? editions[0]);
 
+  const LANGUAGE_LABELS: Record<string, string> = {
+    ar: 'Arabic',
+    en: 'English',
+    ur: 'Urdu',
+    id: 'Indonesian',
+    ml: 'Malayalam',
+    tr: 'Turkish',
+    fr: 'French',
+  };
+
   /**
-   * The original's own name, for an edition that has one. Two al-Jalālayns
-   * differing only by "(Arabic)" in an English title is not a choice anyone
-   * can make; "تفسير الجلالين" underneath is.
+   * Whether to present this edition under its own name rather than the
+   * romanised one. `translator` is the schema's marker for "this is a
+   * translation of the work" — so an edition without one is the original, and
+   * the original is the thing that has a name of its own to be called by.
    */
-  function nativeName(t: Tafsir): string | null {
-    return t.name_native && t.name_native !== t.title ? t.name_native : null;
+  function showsNativeName(t: Tafsir): boolean {
+    return t.translator === null && t.name_native !== null;
+  }
+
+  /**
+   * What to call an edition. Both al-Jalālayns carry the same `title` and the
+   * same `name_native` — the work is one work — so a row that shows only a
+   * name shows the same thing twice. The original answers in Arabic and the
+   * translation in Latin script, which separates them before the sub-line has
+   * to say anything.
+   */
+  function displayName(t: Tafsir): string {
+    return (showsNativeName(t) ? t.name_native : t.title) ?? t.title;
+  }
+
+  /**
+   * The line that actually distinguishes them: which language you will be
+   * reading, and whose hand it came through. "Arabic · the original" against
+   * "English · tr. Feras Hamza" is the whole choice on offer here.
+   */
+  function provenance(t: Tafsir): string {
+    const language = LANGUAGE_LABELS[t.language] ?? t.language.toUpperCase();
+    return `${language} · ${t.translator ? `tr. ${t.translator}` : 'the original'}`;
   }
 
   function openList() {
@@ -122,7 +154,13 @@
     aria-label="Tafsir edition"
     onclick={() => (open ? close(false) : openList())}
   >
-    <span class="trigger-label">{selected?.title ?? 'Tafsir'}</span>
+    <span
+      class="trigger-label"
+      class:native={!!selected && showsNativeName(selected)}
+      dir={selected && showsNativeName(selected) ? selected.direction : null}
+    >
+      {selected ? displayName(selected) : 'Tafsir'}
+    </span>
     <ChevronDown size={14} class="chevron" />
   </button>
 
@@ -142,10 +180,14 @@
             {#if t.id === selected?.id}<Check size={13} />{/if}
           </span>
           <span class="option-text">
-            <span class="option-title">{t.title}</span>
-            {#if nativeName(t)}
-              <span class="option-native" dir={t.direction}>{nativeName(t)}</span>
-            {/if}
+            <span
+              class="option-title"
+              class:native={showsNativeName(t)}
+              dir={showsNativeName(t) ? t.direction : null}
+            >
+              {displayName(t)}
+            </span>
+            <span class="option-provenance">{provenance(t)}</span>
           </span>
         </button>
       {/each}
@@ -265,10 +307,18 @@
     line-height: 1.4;
   }
 
-  .option-native {
+  .option-provenance {
     font-size: 12px;
     font-weight: 400;
     line-height: 1.5;
     color: var(--color-text-muted);
+  }
+
+  /* Noto Naskh Arabic, the same face the Arabic commentary itself is set in
+     (see --font-arabic-prose in app.css). Nudged up a little because vocalised
+     Arabic reads small next to Latin at the same px. */
+  .native {
+    font-family: var(--font-arabic-prose);
+    font-size: 1.08em;
   }
 </style>
