@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ScrollText } from 'lucide-svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
+  import EditionPicker from './EditionPicker.svelte';
 
   /** Compact drops the attribution line, for the popover's tighter header. */
   let { compact = false }: { compact?: boolean } = $props();
@@ -39,16 +40,11 @@
   <div class="title-row">
     <ScrollText size={15} />
     {#if tafsirStore.editions.length > 1}
-      <select
-        class="edition-select"
-        aria-label="Tafsir edition"
-        value={edition?.id}
-        onchange={(e) => tafsirStore.setEdition(Number(e.currentTarget.value))}
-      >
-        {#each tafsirStore.editions as t (t.id)}
-          <option value={t.id}>{t.title}</option>
-        {/each}
-      </select>
+      <EditionPicker
+        editions={tafsirStore.editions}
+        selectedId={edition?.id}
+        onselect={(id) => tafsirStore.setEdition(id)}
+      />
     {:else}
       <span class="edition-title">{edition?.title ?? 'Tafsir'}</span>
     {/if}
@@ -77,25 +73,13 @@
     color: var(--color-text);
   }
 
-  .edition-title,
-  .edition-select {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
   .edition-title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .edition-select {
-    max-width: 100%;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
   }
 
   .attribution {
