@@ -92,13 +92,17 @@
     margin-bottom: 0;
   }
 
-  /* Noto Naskh Arabic, bundled for exactly this (see the --font-arabic-prose
-     note in app.css). Larger and looser than the Latin text above because
-     vocalised Arabic carries marks above and below the line: at the Latin size
-     the harakat collide with the line below. */
+  /* Amiri, bundled for exactly this (see the --font-arabic-prose note in
+     app.css). Larger and looser than the Latin text above because vocalised
+     Arabic carries marks above and below the line: at the Latin size the
+     harakat collide with the line below.
+
+     17px, not the 18px this ran at under Noto Naskh: Amiri sets a larger and
+     darker body at the same pixel size, so the smaller number lands on the
+     same apparent size and colour. */
   .text.rtl p {
     font-family: var(--font-arabic-prose);
-    font-size: 18px;
+    font-size: 17px;
     line-height: 2.05;
   }
 

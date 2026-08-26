@@ -314,7 +314,7 @@
     color: var(--color-text-muted);
   }
 
-  /* Noto Naskh Arabic, the same face the Arabic commentary itself is set in
+  /* Amiri, the same face the Arabic commentary itself is set in
      (see --font-arabic-prose in app.css). Nudged up a little because vocalised
      Arabic reads small next to Latin at the same px. */
   .native {

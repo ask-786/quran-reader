@@ -2,7 +2,7 @@
  * Global styles: theme variables, bundled fonts, typography base.
  * Attribution: Quran text — Tanzil Project (tanzil.net) CC BY 3.0
  *              Scheherazade New — SIL Global, SIL OFL 1.1
- *              Noto Naskh Arabic — The Noto Project Authors, SIL OFL 1.1
+ *              Amiri — The Amiri Project Authors, SIL OFL 1.1
  *              Inter — Rasmus Andersson, SIL OFL 1.1 (via @fontsource-variable/inter)
  */
 
@@ -14,14 +14,15 @@
    the banner ornament — see --font-surah-name.
 
    Amiri Quran and Noto Naskh Arabic used to be bundled here too and are
-   deliberately gone: Noto was unreachable in every font stack, and Amiri was
+   deliberately gone: Noto was unreachable in every font stack, and Amiri
+   Quran — a different font from the Amiri text face now bundled below — was
    left rendering a single character (the sajdah mark), which turned out to be
    a duplicate of one already baked into the page glyphs.
 
    Running Arabic prose is NOT this font's job — that note used to say no
-   bundled font could do it at all, and Noto Naskh Arabic below is the answer,
-   under its own --font-arabic-prose. Do not reuse this variable or
-   --font-quran for paragraphs.
+   bundled font could do it at all, and Amiri below is the answer, under its
+   own --font-arabic-prose. Do not reuse this variable or --font-quran for
+   paragraphs.
 
    Not subsetted: the OFL reserves the name "Scheherazade", so this ships as a
    pure ttf->woff2 format conversion, unmodified otherwise. */
@@ -35,36 +36,60 @@
 
 /* Running Arabic prose — the Arabic tafsir, and any Arabic translation later.
    A text face, not a Quranic one: Scheherazade New is cut for muṣḥaf setting
-   and reads wrong at paragraph length.
+   and reads wrong at paragraph length. Amiri is a revival of the Būlāq Press
+   naskh and was drawn for book setting, which is what tafsir is.
+
+   Amiri and not Noto Naskh Arabic, which this replaces, because of a defect
+   in the engine we actually ship on: WebKitGTK (2.52.6, what Tauri embeds on
+   Linux) does not apply GPOS mark attachment. Marks land wherever their own
+   outline sits instead of on their anchor, so every fatḥa, kasra and shadda
+   drifts up and to the left of its letter. GSUB is unaffected — joining and
+   ligatures are fine — and Latin kerning is fine; only the mark offsets are
+   dropped. Nothing in CSS reaches it (`font-feature-settings: 'mark' 1`,
+   font-kerning, text-rendering, unicode-bidi, WEBKIT_FORCE_COMPLEX_TEXT were
+   all tried), and it is not the font: the same woff2 shaped through HarfBuzz
+   directly is perfect. This is also why the Surah titles lost their harakat —
+   same bug, different surface.
+
+   So the only lever left is picking a face whose marks are drawn close to
+   where its anchors would have put them. Measured over every mark/base pair,
+   mean displacement in em: Amiri 0.144 (0.027 of it vertical), Lateef 0.197,
+   Scheherazade New 0.223, Noto Sans Arabic 0.241, Noto Naskh Arabic 0.282
+   (0.193 vertical — near the worst of twenty faces tested). Amiri's vertical
+   error is what matters and it is essentially nil, so marks sit at the right
+   height and drift only sideways. Verified by rendering this text in a real
+   WebKitGTK MiniBrowser, not a browser. If the engine is ever fixed, this
+   choice still stands on its own typographic merit.
 
    Two files rather than one, because the Arabic subset alone is not enough.
-   The Arabic Jalālayn uses ASCII punctuation (: " . [ ] ( ) - !) about 1,600
-   times, all of which falls outside the Arabic subset's unicode-range and
-   would otherwise resolve to the generic serif mid-sentence — visibly
-   mismatched inside an RTL paragraph. The ranges are fontsource's own, and
-   both files are its unmodified build artifacts.
+   The Arabic Jalālayn uses ASCII punctuation (: " . [ ] ) -) about 1,600
+   times, all of which falls outside the Arabic subset's coverage and would
+   otherwise resolve to the generic serif mid-sentence — visibly mismatched
+   inside an RTL paragraph. Both files are unmodified fontsource build
+   artifacts; the ranges are the ones fontsource publishes for Noto Naskh,
+   since its own Amiri CSS ships no unicode-range at all.
 
-   Subsetting IS permitted here, unlike Scheherazade above: Noto Naskh Arabic
-   carries no Reserved Font Name (checked against the package's own LICENSE —
-   the copyright line has no RFN clause), so these subset builds may ship as
-   they are. */
+   Subsetting IS permitted here, unlike Scheherazade above: Amiri carries no
+   Reserved Font Name (checked against the package's own LICENSE — the
+   copyright line has no RFN clause), so these subset builds may ship as they
+   are. */
 @font-face {
-  font-family: 'Noto Naskh Arabic';
+  font-family: 'Amiri';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/noto-naskh-arabic-arabic-regular.woff2') format('woff2');
+  src: url('/fonts/amiri-arabic-regular.woff2') format('woff2');
   unicode-range:
     U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E,
     U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
 }
 
 @font-face {
-  font-family: 'Noto Naskh Arabic';
+  font-family: 'Amiri';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/noto-naskh-arabic-latin-regular.woff2') format('woff2');
+  src: url('/fonts/amiri-latin-regular.woff2') format('woff2');
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
@@ -101,7 +126,7 @@
      later. Kept apart from both variables above on purpose — see the
      @font-face note. The serif fallback only ever answers for characters
      outside both subsets above, which for the bundled editions is nothing. */
-  --font-arabic-prose: 'Noto Naskh Arabic', serif;
+  --font-arabic-prose: 'Amiri', serif;
 
   --font-size-quran: 28px;
   /* Unchanged across the QCF v2 -> v4 migration, deliberately. Two successive

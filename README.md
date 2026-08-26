@@ -192,7 +192,7 @@ src/              SvelteKit frontend (components, stores, routes)
 src-tauri/        Rust backend — SQLite access, Tauri commands
 importer/         Standalone importer that builds quran.db
 database/         schema.sql, migrations, and the built quran.db
-static/fonts/     Vendored fonts (47 QCF v4 groups, Scheherazade New, Noto Naskh Arabic)
+static/fonts/     Vendored fonts (47 QCF v4 groups, Scheherazade New, Amiri)
 scripts/          Font vendoring, icon generation, version bumping
 docs/             Research and design notes
 ```
@@ -209,7 +209,7 @@ docs/             Research and design notes
 | [spa5k/quran_data](https://github.com/spa5k/quran_data)                       | Surah metadata                        | Open                                                                       |
 | [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | QCF v4 Mushaf glyph fonts + layout    | JSON: MIT · fonts: Restricted (KFGQPC) — see below                         |
 | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api)                       | Tafsīr al-Jalālayn (Arabic + English) | Arabic: public domain · English: © Royal Aal al-Bayt Institute — see below |
-| [notofonts/arabic](https://github.com/notofonts/arabic)                       | Noto Naskh Arabic (Arabic prose)      | SIL OFL 1.1                                                                |
+| [aliftype/amiri](https://github.com/aliftype/amiri)                           | Amiri (Arabic prose)                  | SIL OFL 1.1                                                                |
 
 ---
 

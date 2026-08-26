@@ -81,17 +81,23 @@ Freely redistributable, including in commercial products, provided the
 license text and copyright notice travel with it (which is what this file
 and `licenses/OFL-1.1.txt` are for). Reserved Font Name: "Scheherazade".
 
-### Noto Naskh Arabic — `static/fonts/noto-naskh-arabic-{arabic,latin}-regular.woff2`
+### Amiri — `static/fonts/amiri-{arabic,latin}-regular.woff2`
 
-|           |                                                                                                    |
-| --------- | -------------------------------------------------------------------------------------------------- |
-| Source    | [notofonts/arabic](https://github.com/notofonts/arabic), via `@fontsource/noto-naskh-arabic` 5.3.0 |
-| Copyright | © 2022 The Noto Project Authors                                                                    |
-| License   | SIL Open Font License 1.1 — see `licenses/OFL-1.1.txt`                                             |
+|           |                                                                                    |
+| --------- | ---------------------------------------------------------------------------------- |
+| Source    | [aliftype/amiri](https://github.com/aliftype/amiri), via `@fontsource/amiri` 5.3.0 |
+| Copyright | © 2010–2022 The Amiri Project Authors                                              |
+| License   | SIL Open Font License 1.1 — see `licenses/OFL-1.1.txt`                             |
 
 Used for running Arabic prose — the Arabic tafsir today, Arabic translations
 later. Scheherazade New above is a Quranic face and reads wrong at paragraph
-length, which is why this is a second Arabic font rather than a reuse.
+length, which is why this is a second Arabic font rather than a reuse. Amiri
+is a revival of the Būlāq Press naskh, drawn for book setting.
+
+It replaces Noto Naskh Arabic, which was bundled for this same job through
+v0.1.9. The reason is a WebKitGTK defect rather than a matter of taste — see
+the long note in `src/app.css` — and Amiri is the face that degrades best
+under it.
 
 Two files, both unmodified fontsource build artifacts: the Arabic subset plus
 the Latin one, because the Arabic subset does not cover the ASCII punctuation
