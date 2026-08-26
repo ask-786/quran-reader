@@ -293,7 +293,9 @@ fn install_blocking(app: &tauri::AppHandle, slug: &str) -> Result<u32, String> {
     // per chunk buys the user nothing but a busier bridge.
     let mut last_percent = u64::MAX;
     let progress = |received: u64, total: u64| {
-        let percent = if total > 0 { received * 100 / total } else { 0 };
+        // checked_div rather than a guard, so a response with no
+        // content-length reports 0% instead of dividing by zero.
+        let percent = (received * 100).checked_div(total).unwrap_or(0);
         if percent == last_percent {
             return;
         }
