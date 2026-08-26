@@ -79,10 +79,15 @@
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        // The palette clears its own filter on the first Escape and only lets
-        // the key reach here when there is nothing left to clear.
+        // Outermost first. The palette clears its own filter on the first
+        // Escape and only lets the key reach here when there is nothing left
+        // to clear, so it goes before the tafsir popover beneath it — and the
+        // popover before focus mode, or dismissing a card in focus mode would
+        // tear down the whole chrome instead.
         if (uiStore.paletteOpen) {
           uiStore.closePalette();
+        } else if (tafsirStore.selection) {
+          tafsirStore.closePopover();
         } else if (uiStore.focusMode) {
           uiStore.exitFocusMode();
         }
@@ -239,7 +244,7 @@
           autoScrollStore.toggle();
           break;
         case 't':
-          tafsirStore.toggle();
+          tafsirStore.toggleForReaderPosition();
           break;
       }
     }

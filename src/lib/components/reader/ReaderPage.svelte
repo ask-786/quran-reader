@@ -9,6 +9,7 @@
   import ReaderZoomControl from './ReaderZoomControl.svelte';
   import ReaderJumpControl from './ReaderJumpControl.svelte';
   import TafsirPanel from '$lib/components/tafsir/TafsirPanel.svelte';
+  import TafsirPopover from '$lib/components/tafsir/TafsirPopover.svelte';
   import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
@@ -137,10 +138,16 @@
       <ReaderJumpControl />
     </div>
   </div>
-  {#if tafsirStore.open}
+  {#if tafsirStore.view === 'panel' && tafsirStore.panelOpen}
     <TafsirPanel />
   {/if}
 </div>
+<!-- Outside `.reader-page` on purpose, and moved to the body by its own portal
+     once mounted: the popover must not be able to take part in the reader's
+     layout, which is the whole reason it exists. -->
+{#if tafsirStore.view === 'popover' && tafsirStore.selection}
+  <TafsirPopover />
+{/if}
 
 <style>
   .reader-page {

@@ -323,8 +323,11 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     -- Empty = "no tafsir chosen yet"; the app falls back to the
     -- lowest-sort_order bundled edition on first open of the panel.
     ('tafsir_id',               ''),
+    -- 'show_tafsir' is specifically the side panel's state. The popover is
+    -- transient and deliberately not persisted — see docs/tafsir-popover-plan.md.
     ('show_tafsir',             'false'),
     ('tafsir_panel_width',      '420'),
+    ('tafsir_view',             'popover'),   -- 'popover' | 'panel'
     ('show_transliteration',    'false'),
     ('show_ayah_numbers',       'true'),
     ('app_zoom',                '1'),

@@ -29,6 +29,21 @@
     copied = true;
     setTimeout(() => (copied = false), 1200);
   }
+
+  function tafsirOnClick(node: HTMLElement) {
+    const onClick = () => {
+      // A click that ends a drag-selection is the user selecting text to copy,
+      // not asking for commentary.
+      if (!window.getSelection()?.isCollapsed) return;
+      tafsirStore.openFor(ayah.id, node);
+    };
+    node.addEventListener('click', onClick);
+    return {
+      destroy() {
+        node.removeEventListener('click', onClick);
+      },
+    };
+  }
 </script>
 
 <div
@@ -59,7 +74,7 @@
       </button>
       <button
         class="action-btn"
-        onclick={() => tafsirStore.openForAyah(ayah.id)}
+        onclick={(e) => tafsirStore.openFor(ayah.id, e.currentTarget)}
         aria-label="Show tafsir for this ayah"
         title="Tafsir"
       >
@@ -67,7 +82,13 @@
       </button>
     </div>
 
-    <p class="ayah-text quran-text">
+    <!-- Click the verse, get its commentary. Deliberately NOT `role="button"`
+         with a key handler: this is running Quranic text, and announcing a
+         verse to a screen reader as a button would be a worse reading
+         experience than the shortcut is worth. The keyboard and AT route is
+         the labelled button above, plus `t`. Hence an imperative listener
+         through an action, which claims nothing about what this element is. -->
+    <p class="ayah-text quran-text" use:tafsirOnClick>
       {#each words as w, i (i)}<span
           class="word"
           style:font-family={w.fontFamily}
