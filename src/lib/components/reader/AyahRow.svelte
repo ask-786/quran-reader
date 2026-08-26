@@ -88,7 +88,11 @@
          experience than the shortcut is worth. The keyboard and AT route is
          the labelled button above, plus `t`. Hence an imperative listener
          through an action, which claims nothing about what this element is. -->
-    <p class="ayah-text quran-text" class:clickable={tafsirStore.clickOpens} use:tafsirOnClick>
+    <p
+      class="ayah-text quran-text"
+      class:clickable={tafsirStore.clicksOpenTafsir}
+      use:tafsirOnClick
+    >
       {#each words as w, i (i)}<span
           class="word"
           style:font-family={w.fontFamily}

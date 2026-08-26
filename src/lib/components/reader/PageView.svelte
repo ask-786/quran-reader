@@ -412,7 +412,7 @@
   <div
     bind:this={container}
     class="page-surface scrollbar-none"
-    class:tafsir-clickable={tafsirStore.clickOpens}
+    class:tafsir-clickable={tafsirStore.clicksOpenTafsir}
     use:tafsirOnWordClick
   >
     {#if error}

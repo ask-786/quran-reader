@@ -127,6 +127,27 @@ class TafsirStore {
     return settingsStore.current.tafsir_view;
   }
 
+  /**
+   * Whether clicking a verse actually opens commentary right now.
+   *
+   * Popover only, whatever `tafsir_click` says. The panel follows the reader
+   * on its own, so while it is open a click tells it nothing scrolling has not
+   * already said — and while it is closed, it is closed because the reader
+   * closed it, and reopening on a stray click is precisely the harm the
+   * setting exists to prevent.
+   *
+   * It also cannot be the control there: in panel view the toolbar button
+   * means "show the panel", so nothing in that view can reach `tafsir_click`,
+   * and a reader who had it on in popover view would find every click
+   * reopening a panel they had just dismissed with no way to stop it.
+   *
+   * The explicit routes are unaffected in both views — the per-Ayah button,
+   * `t`, and the toolbar all still open commentary on demand.
+   */
+  get clicksOpenTafsir() {
+    return this.view === 'popover' && this.clickOpens;
+  }
+
   get width() {
     return settingsStore.current.tafsir_panel_width;
   }
@@ -267,7 +288,7 @@ class TafsirStore {
    * cheap and too accidental to be a request on its own.
    */
   openFromClick(ayahId: number, anchor: HTMLElement | null = null) {
-    if (!this.clickOpens) return;
+    if (!this.clicksOpenTafsir) return;
     this.openFor(ayahId, anchor);
   }
 
