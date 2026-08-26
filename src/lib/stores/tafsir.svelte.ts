@@ -128,24 +128,14 @@ class TafsirStore {
   }
 
   /**
-   * Whether clicking a verse actually opens commentary right now.
+   * Whether clicking a verse opens commentary right now.
    *
-   * Popover only, whatever `tafsir_click` says. The panel follows the reader
-   * on its own, so while it is open a click tells it nothing scrolling has not
-   * already said — and while it is closed, it is closed because the reader
-   * closed it, and reopening on a stray click is precisely the harm the
-   * setting exists to prevent.
-   *
-   * It also cannot be the control there: in panel view the toolbar button
-   * means "show the panel", so nothing in that view can reach `tafsir_click`,
-   * and a reader who had it on in popover view would find every click
-   * reopening a panel they had just dismissed with no way to stop it.
-   *
-   * The explicit routes are unaffected in both views — the per-Ayah button,
-   * `t`, and the toolbar all still open commentary on demand.
+   * One meaning in both views: tafsir mode is the question "does the next
+   * click ask for commentary", and the surface that answers it — a card or the
+   * panel — is a separate choice the reader already made.
    */
   get clicksOpenTafsir() {
-    return this.view === 'popover' && this.clickOpens;
+    return this.clickOpens;
   }
 
   get width() {
@@ -307,13 +297,14 @@ class TafsirStore {
    * is not the card: it is whether the next click asks for one.
    */
   toggle() {
-    if (this.view === 'panel') {
-      void this.setPanelOpen(!this.panelOpen);
-      return;
-    }
     const on = !this.clickOpens;
     void this.setClickOpens(on);
-    if (on) this.openAtReaderPosition();
+    // Popover view shows the card straight away, so one press still answers
+    // "what does this verse say" rather than arming something you then have to
+    // click. The panel deliberately does not: it is a surface that stays, and
+    // opening one the reader has not asked for is what made this control feel
+    // like a panel switch instead of a mode.
+    if (on && this.view === 'popover') this.openAtReaderPosition();
   }
 
   /** Open on whatever the reader is looking at — the only defensible target
@@ -327,11 +318,21 @@ class TafsirStore {
     this.selection = { ayahId, anchor };
   }
 
-  /** Turning the mode off takes the open card with it: leaving one behind
-   *  would say the mode was still on. */
+  /**
+   * Turning the mode off takes whatever it opened with it — the card in
+   * popover view, the panel in panel view. Leaving either behind would say the
+   * mode was still on.
+   *
+   * Closing them individually does not work the other way round: dismissing a
+   * card or closing the panel leaves the mode alone, because the mode is not
+   * the thing on screen, it is whether the next click asks for one.
+   */
   async setClickOpens(on: boolean) {
     settingsStore.current.tafsir_click = on;
-    if (!on) this.closePopover();
+    if (!on) {
+      this.closePopover();
+      if (this.panelOpen) await this.setPanelOpen(false);
+    }
     await setSetting('tafsir_click', String(on));
   }
 

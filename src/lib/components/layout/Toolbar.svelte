@@ -30,20 +30,16 @@
   const heading = $derived($page.data?.title as string | undefined);
   const hasReader = $derived(Array.isArray($page.data?.ayahs));
 
-  /** Whichever surface is in force — the button reflects what is on screen. */
-  // What the button is lit for. In panel view that is the panel being open; in
-  // popover view it is tafsir mode being on, not a card being up — the card
-  // comes and goes under one steady mode.
-  const tafsirOn = $derived(
-    tafsirStore.view === 'panel' ? tafsirStore.panelOpen : tafsirStore.clickOpens,
-  );
+  // One meaning in both views: tafsir mode, not whatever it has put on screen.
+  // The card and the panel come and go under a mode that stays put, so lighting
+  // this for the panel being open made it read as a panel switch — and left the
+  // mode itself with no control at all in that view.
+  const tafsirOn = $derived(tafsirStore.clickOpens);
   const tafsirLabel = $derived(
-    tafsirStore.view === 'panel'
-      ? tafsirOn
-        ? 'Hide tafsir panel'
-        : 'Show tafsir panel'
-      : tafsirOn
-        ? 'Turn off tafsir mode'
+    tafsirOn
+      ? 'Turn off tafsir mode'
+      : tafsirStore.view === 'panel'
+        ? 'Turn on tafsir mode — click a verse to open its commentary in the panel'
         : 'Turn on tafsir mode — click a verse for its commentary',
   );
 
