@@ -103,42 +103,6 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // `--import-tafsir <slug> [--bundle] [--tafsir-dir <path>]`. `--bundle`
-    // marks the edition as shipping with the app, which is only true for the
-    // seed database this repo commits — see write_tafsir.
-    if let Some(slug) = args
-        .iter()
-        .position(|a| a == "--import-tafsir")
-        .and_then(|i| args.get(i + 1))
-    {
-        let db_path = db_output_path();
-        let edition = tafsir::find_edition(slug).with_context(|| {
-            format!("Unknown tafsir edition '{slug}' — run with --list-tafsir to see the editions this reader carries")
-        })?;
-        let bundled = args.iter().any(|a| a == "--bundle");
-
-        log::info!("=== Importing tafsir: {} ===", edition.title);
-        log::info!("Database: {}", db_path.display());
-
-        let entries = match tafsir::local_dir_arg(&args) {
-            Some(dir) => {
-                log::info!("[1/2] Loading {} from {} …", edition.slug, dir.display());
-                tafsir::load_edition(&dir)?
-            }
-            None => {
-                log::info!("[1/2] Fetching {} (114 surahs) …", edition.slug);
-                tafsir::fetch_edition(edition)?
-            }
-        };
-
-        log::info!("[2/2] Writing {} entries …", entries.len());
-        tafsir::write_tafsir(&db_path, edition, entries, bundled)
-            .context("Failed to write tafsir")?;
-
-        log::info!("=== Tafsir import complete ===");
-        return Ok(());
-    }
-
     if std::env::args().any(|a| a == "--import-mushaf-v4") {
         let db_path = db_output_path();
         log::info!("=== Importing QCF v4 glyphs ===");

@@ -40,7 +40,15 @@
 </script>
 
 {#if !edition}
-  <p class="state">No tafsir is installed.</p>
+  <!-- The app ships with no commentary at all, so this is what a new reader
+       sees first. Saying only "none installed" would be a dead end; the panel
+       can open the list, the popover cannot, so only the panel offers it. -->
+  <p class="state">No commentary is installed yet.</p>
+  {#if tafsirStore.view === 'panel'}
+    <button class="cta" onclick={() => (tafsirStore.managing = true)}>Browse editions</button>
+  {:else}
+    <p class="state">Open the tafsir panel to download one.</p>
+  {/if}
 {:else if tafsirStore.error}
   <p class="state">{tafsirStore.error}</p>
 {:else if tafsirStore.targetAyahId === null}
@@ -67,6 +75,24 @@
 {/if}
 
 <style>
+  .cta {
+    margin-top: 4px;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 7px;
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .cta:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-accent);
+  }
+
   .verse-ref {
     display: flex;
     align-items: baseline;

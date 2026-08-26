@@ -111,14 +111,64 @@ pub struct PackSpec {
 ///
 /// Adding one is three steps and they have to happen in this order:
 ///
-///   1. `cargo run -p quran-importer -- --emit-pack <slug>` — writes
+///   1. `cd importer && cargo run --release -- --emit-pack <slug>` — writes
 ///      `packs/<slug>-v<version>.qpack` and prints its SHA-256.
-///   2. Upload that file to the `packs` release on GitHub.
+///   2. Upload that file to the `packs-v1` release on GitHub.
 ///   3. Add the entry below with the asset's URL and the printed hash.
+///
+/// The sizes are the file's own and the bytes of commentary it carries, both
+/// printed by the same run. They are shown to the reader before the download
+/// starts, so they are worth keeping honest, but nothing depends on them being
+/// exact — only `sha256` is load-bearing.
 ///
 /// A wrong hash here does not install the wrong thing; it refuses to install
 /// anything. That is the intended failure.
-pub const PACKS: &[PackSpec] = &[];
+pub const PACKS: &[PackSpec] = &[
+    PackSpec {
+        slug: "tafsir-al-jalalayn",
+        title: "Tafsīr al-Jalālayn",
+        author: "Jalāl al-Dīn al-Maḥallī & Jalāl al-Dīn al-Suyūṭī",
+        language: "en",
+        license: "tr. Feras Hamza — © 2007 Royal Aal al-Bayt Institute",
+        download_bytes: 2_576_384,
+        installed_bytes: 2_269_500,
+        url: "https://github.com/ask-786/quran-reader/releases/download/packs-v1/tafsir-al-jalalayn-v1.0.qpack",
+        sha256: "9695c3dc75beb286fd8a6822c08551e3ba2a1d6dc76c098119f6e5513710dc36",
+    },
+    PackSpec {
+        slug: "ar-tafsir-al-jalalayn",
+        title: "Tafsīr al-Jalālayn",
+        author: "Jalāl al-Dīn al-Maḥallī & Jalāl al-Dīn al-Suyūṭī",
+        language: "ar",
+        license: "Public domain (composed 864–911 AH)",
+        download_bytes: 3_129_344,
+        installed_bytes: 2_739_105,
+        url: "https://github.com/ask-786/quran-reader/releases/download/packs-v1/ar-tafsir-al-jalalayn-v1.0.qpack",
+        sha256: "573ee6b55f9d394a93916fbc424e85749d3146db3e05548c429b8c29bc018cc1",
+    },
+    PackSpec {
+        slug: "en-tafisr-ibn-kathir",
+        title: "Tafsīr Ibn Kathīr (abridged)",
+        author: "Ismāʿīl ibn ʿUmar ibn Kathīr",
+        language: "en",
+        license: "Abridgement © Darussalam — redistribution terms unverified",
+        download_bytes: 12_943_360,
+        installed_bytes: 11_420_986,
+        url: "https://github.com/ask-786/quran-reader/releases/download/packs-v1/en-tafisr-ibn-kathir-v1.0.qpack",
+        sha256: "d97f3f7e32a21f94a02f8fec9d6e9ee0338df3e783abdc8d83bcd392623e4192",
+    },
+    PackSpec {
+        slug: "ar-tafsir-ibn-kathir",
+        title: "Tafsīr Ibn Kathīr",
+        author: "Ismāʿīl ibn ʿUmar ibn Kathīr",
+        language: "ar",
+        license: "Public domain (d. 774 AH)",
+        download_bytes: 26_206_208,
+        installed_bytes: 24_727_149,
+        url: "https://github.com/ask-786/quran-reader/releases/download/packs-v1/ar-tafsir-ibn-kathir-v1.0.qpack",
+        sha256: "fb7ef932f700b3113b7c4aa2039c4d68de47a8d92598b32fa46cb8c621d59458",
+    },
+];
 
 /// A pack as the frontend sees it: the spec, plus whether it is already here.
 #[derive(Debug, Clone, Serialize)]
@@ -328,9 +378,11 @@ fn verify_pack_contents(conn: &Connection) -> PackResult<()> {
 
 /// Remove an installed edition and everything it wrote.
 ///
-/// Refuses to touch a bundled one: those are the app's, restored by every
-/// upgrade anyway, and "uninstall" would be a button that appears to work and
-/// silently undoes itself.
+/// The bundled check is defensive rather than load-bearing: nothing ships with
+/// the app today, so no row should ever carry `is_bundled = 1`. If one does it
+/// was put there by a build that predates that decision, and deleting it would
+/// be undone by the next upgrade — a button that appears to work and silently
+/// reverses itself.
 pub fn remove(conn: &Connection, slug: &str) -> PackResult<()> {
     let id = find_installed_id(conn, slug)?.ok_or_else(|| PackError::Unknown(slug.to_string()))?;
 
@@ -341,7 +393,7 @@ pub fn remove(conn: &Connection, slug: &str) -> PackResult<()> {
     )?;
     if bundled {
         return Err(PackError::Malformed(
-            "that edition ships with the app and cannot be removed".to_string(),
+            "that edition was installed by an older build and cannot be removed here".to_string(),
         ));
     }
 

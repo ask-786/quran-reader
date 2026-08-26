@@ -293,11 +293,13 @@ New subcommands, following the existing `--import-mushaf-v4` pattern:
 
 ```
 cargo run --release -- --import-translation eng-mohammedmarmadu [--bundle]
-cargo run --release -- --import-tafsir ar-tafsir-al-jalalayn [--bundle]
+cargo run --release -- --emit-pack ar-tafsir-al-jalalayn
 cargo run --release -- --build-pack <slug> --out ../packs/<slug>.qrpack
 cargo run --release -- --import-custom <metadata.json> <text.csv>
 ```
 
+- Superseded for tafsir: no commentary is bundled at all, so `--emit-pack`
+  replaced `--import-tafsir`. What follows describes translations.
 - `--bundle` writes into `database/quran.db` (so the edition ships in the
   seed); without it, output is a `.qrpack`.
 - A small `editions.rs` registry maps slug → {source URL template, language,
@@ -455,7 +457,7 @@ two translations can be shown at once.
 
 ## Phase 11 — Tafsir
 
-- [x] **11.1** `--import-tafsir` with an editions registry, coverage
+- [x] **11.1** `--emit-pack` with an editions registry, coverage
       validation and plain-text normalisation. **Both** Jalālayn editions are
       in the seed: English `tafsir-al-jalalayn` (6,236 entries, 2.13 MB) and
       Arabic `ar-tafsir-al-jalalayn` (6,010 entries — 96.4%, the 226 gaps this

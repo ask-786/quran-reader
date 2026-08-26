@@ -511,7 +511,12 @@ pub fn get_translation_for_surah(
 // TAFSIR QUERIES
 // =============================================================================
 
-/// Return the installed tafsir editions, bundled ones first.
+/// Return the installed tafsir editions.
+///
+/// Every one of them arrived as a downloaded pack — no commentary ships with
+/// the app — so this is empty until the reader installs something, and the
+/// panel has a state saying so. `is_bundled` stays in the ordering because the
+/// column still means what it says; nothing sets it today.
 pub fn get_tafsirs(conn: &Connection) -> DbResult<Vec<Tafsir>> {
     let mut stmt = conn.prepare(
         "SELECT id, language, author, title, version, is_bundled,

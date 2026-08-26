@@ -168,14 +168,19 @@ cd importer && cargo run --release
 
 See [`importer/README.md`](importer/README.md) for details.
 
-**Tafsir** — fetches one commentary edition and writes it into the existing
-`database/quran.db` (`--bundle` marks it as shipping with the app):
+**Tafsir** — no commentary ships with the app. Each edition is built into a
+content pack, published as a release asset, and downloaded by the reader on
+request. `--emit-pack` writes the file and prints the SHA-256 that goes into
+`PACKS` in `src-tauri/src/packs`:
 
 ```bash
 cd importer && cargo run --release -- --list-tafsir
-cd importer && cargo run --release -- --import-tafsir tafsir-al-jalalayn --bundle      # English
-cd importer && cargo run --release -- --import-tafsir ar-tafsir-al-jalalayn --bundle   # Arabic
+cd importer && cargo run --release -- --emit-pack ar-tafsir-al-jalalayn   # → packs/*.qpack
 ```
+
+There is deliberately no way to write a tafsir into `database/quran.db`: that
+file is embedded in the binary with `include_bytes!`, so anything in it is paid
+for by every user of every platform whether they want the edition or not.
 
 **Mushaf fonts** — re-downloads the 47 QCF v4 font-group files (~36MB):
 

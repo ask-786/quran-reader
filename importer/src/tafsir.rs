@@ -9,7 +9,7 @@
 /// Which editions may appear here is a deliberate, narrow question — see
 /// `EDITIONS`.
 use anyhow::{bail, Context, Result};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -53,10 +53,12 @@ pub struct Edition {
 /// what belongs here is a question about the works themselves, decided edition
 /// by edition, and this list is not the place to argue it.
 ///
-/// `bundled` is a separate axis from membership. An edition listed here ships
-/// in the seed database only if `write_tafsir` is called with `bundled: true`;
-/// the rest are emitted as content packs and installed on request. See
-/// `emit_pack`.
+/// None of them ship with the app. The seed database this repo commits carries
+/// no commentary at all, so every edition here reaches a reader the same way:
+/// built into a content pack by `emit_pack`, published, and downloaded on
+/// request. There is deliberately no path from this list into the seed —
+/// writing one there would put it in the binary, since the seed is embedded
+/// with `include_bytes!`.
 pub const EDITIONS: &[Edition] = &[
     Edition {
         slug: "tafsir-al-jalalayn",
@@ -230,7 +232,7 @@ fn parse_surah(body: &str, surah: u32) -> Result<Vec<Entry>> {
         let text = normalize(&e.text);
         // A source that carries the key but no commentary is not an error —
         // it is the same thing as the key being absent, which is ordinary in
-        // this data (see the coverage check in `write_tafsir`).
+        // this data (see the coverage check in `prepare`).
         if text.is_empty() {
             continue;
         }
@@ -364,8 +366,7 @@ impl Group {
 /// commentary differs by so much as a space are two blocks, and treating them
 /// as one would put text under a verse it was not written for.
 ///
-/// `entries` must be sorted by (surah, ayah); `write_tafsir` sorts before
-/// calling.
+/// `entries` must be sorted by (surah, ayah); `prepare` sorts before calling.
 pub fn group_entries(entries: Vec<Entry>) -> Vec<Group> {
     let mut groups: Vec<Group> = Vec::new();
 
@@ -555,71 +556,6 @@ fn prepare(
     })
 }
 
-/// Insert (or replace) an edition and all of its entries in the app database.
-///
-/// `bundled` marks the edition as shipping with the app, which is what stops
-/// an upgrade from deleting it (see `copy_bundled_tafsir_from_seed` in the
-/// app's connection.rs) — so it is only true for editions written into the
-/// seed database that this repo commits. Everything else reaches an install
-/// through `emit_pack`.
-pub fn write_tafsir(
-    db_path: &Path,
-    edition: &Edition,
-    entries: Vec<Entry>,
-    bundled: bool,
-) -> Result<()> {
-    let conn =
-        Connection::open(db_path).with_context(|| format!("Opening {}", db_path.display()))?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
-
-    ensure_migration_007(&conn)?;
-
-    let ayah_ids = load_ayah_ids(&conn)?;
-    if ayah_ids.is_empty() {
-        bail!(
-            "No ayahs in {} — run the main import first",
-            db_path.display()
-        );
-    }
-
-    let prepared = prepare(&ayah_ids, edition, entries)?;
-    let tafsir_id = upsert_edition(&conn, edition, bundled)?;
-
-    let tx = conn.unchecked_transaction()?;
-    tx.execute(
-        "DELETE FROM tafsir_ayah WHERE tafsir_id = ?1",
-        params![tafsir_id],
-    )?;
-    {
-        let mut stmt = tx.prepare(
-            "INSERT INTO tafsir_ayah
-                (tafsir_id, ayah_id, text, group_start_ayah_id, group_end_ayah_id)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-        )?;
-        for (ayah_id, text, group_start, group_end) in &prepared.rows {
-            stmt.execute(params![tafsir_id, ayah_id, text, group_start, group_end])
-                .with_context(|| format!("Inserting ayah id {ayah_id}"))?;
-        }
-    }
-    tx.commit().context("Committing tafsir entries")?;
-
-    conn.execute_batch("INSERT INTO fts_tafsir(fts_tafsir) VALUES ('rebuild');")?;
-
-    // This file is embedded in the binary with include_bytes!, so every page
-    // of slack left by the delete-and-reinsert above is paid for in all seven
-    // release installers.
-    conn.execute_batch("VACUUM;")?;
-
-    log::info!(
-        "  → Wrote {} rows ({:.2} MB of text) as tafsir id {}",
-        prepared.rows.len(),
-        text_bytes(&prepared.rows) as f64 / 1_048_576.0,
-        tafsir_id
-    );
-
-    Ok(())
-}
-
 // ---------------------------------------------------------------------------
 // Content packs
 // ---------------------------------------------------------------------------
@@ -795,75 +731,6 @@ pub fn sha256_file(path: &Path) -> Result<String> {
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect())
-}
-
-fn upsert_edition(conn: &Connection, edition: &Edition, bundled: bool) -> Result<u32> {
-    conn.execute(
-        "INSERT INTO tafsir
-            (language, author, title, version, is_bundled, slug, translator,
-             name_native, direction, school, creed, source_url, license, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-         ON CONFLICT(slug) DO UPDATE SET
-            language    = excluded.language,
-            author      = excluded.author,
-            title       = excluded.title,
-            version     = excluded.version,
-            is_bundled  = excluded.is_bundled,
-            translator  = excluded.translator,
-            name_native = excluded.name_native,
-            direction   = excluded.direction,
-            school      = excluded.school,
-            creed       = excluded.creed,
-            source_url  = excluded.source_url,
-            license     = excluded.license,
-            sort_order  = excluded.sort_order",
-        params![
-            edition.language,
-            edition.author,
-            edition.title,
-            edition.version,
-            bundled as i64,
-            edition.slug,
-            edition.translator,
-            edition.name_native,
-            edition.direction,
-            edition.school,
-            edition.creed,
-            edition.source_url,
-            edition.license,
-            edition.sort_order,
-        ],
-    )?;
-
-    let id: u32 = conn.query_row(
-        "SELECT id FROM tafsir WHERE slug = ?1",
-        params![edition.slug],
-        |r| r.get(0),
-    )?;
-    Ok(id)
-}
-
-/// Apply migration 007 if this database predates it. The committed seed is
-/// still at the schema version it was built with, so the importer has to be
-/// able to bring it forward on its own rather than assuming a fresh
-/// `schema.sql` run.
-fn ensure_migration_007(conn: &Connection) -> Result<()> {
-    let has_slug: Option<String> = conn
-        .query_row(
-            "SELECT name FROM pragma_table_info('tafsir') WHERE name = 'slug'",
-            [],
-            |r| r.get(0),
-        )
-        .optional()?;
-
-    if has_slug.is_some() {
-        return Ok(());
-    }
-
-    log::info!("  → Applying migration 007 to the database");
-    conn.execute_batch(include_str!("../../database/migrations/007_tafsir.sql"))
-        .context("Applying migration 007")?;
-    Ok(())
 }
 
 /// Resolve `--tafsir-dir <path>` into a directory of `1.json … 114.json`.

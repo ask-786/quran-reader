@@ -177,6 +177,9 @@ source's (zonetecde/mushaf-layout), unchanged by which font is active.
 | Source  | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `ar-tafsir-al-jalalayn`), which mirrors qul.tarteel.ai |
 | License | Public domain — the work predates copyright by four centuries                                                           |
 
+Published as a downloadable content pack, like every edition here — no tafsir
+ships with the app.
+
 The Arabic original carries none of the restrictions the English translation
 below does: its authors died in 864 AH and 911 AH, so the text itself is long
 out of copyright. What is credited here is the digital edition and the effort
@@ -203,11 +206,14 @@ be confirmed when this notice was written — altafsir.com was unreachable from
 the build environment (HTTP 403), so the front matter stating the permissions
 has not been read directly.
 
-**Open task before the next release:** read those terms from the primary
-source and either record them here or move this edition out of the bundled
-database and into a download the user requests. The same standard as the QCF
-font entry above — bundling in signed installers is the part that needs the
-permission, not the reading of the text.
+This edition is no longer bundled — no tafsir is — and is published as a
+content pack instead. That does not settle the question: hosting the pack as a
+release asset is redistribution just as shipping it in an installer was. What
+changed is who pays for the bytes, not who is doing the distributing.
+
+**Open task:** read those terms from the primary source and record them here.
+The same standard as the QCF font entry above — distribution is the part that
+needs the permission, not the reading of the text.
 
 The importer reduces each entry to plain text (markup stripped, entities
 decoded) and does not otherwise alter the translation.
@@ -220,13 +226,14 @@ decoded) and does not otherwise alter the translation.
 | Source  | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api) (edition `ar-tafsir-ibn-kathir`) |
 | License | Public domain — the work predates copyright by six centuries                             |
 
-Not bundled. Published as a downloadable content pack and installed only when
-the reader asks for it; see `src-tauri/src/packs`.
+Published as a downloadable content pack and installed only when the reader
+asks for it; see `src-tauri/src/packs`. Nothing forces that choice here — the
+work is public domain — but no tafsir is bundled at all, so it takes the same
+route as every other edition. It is also the largest of them at 23.6 MB of
+text, which is reason enough on its own.
 
 Like the Arabic al-Jalālayn above, the composition itself is long out of
-copyright and what is credited here is the digital edition. The pack carries
-23.6 MB of text, which is the reason it is a download rather than part of the
-installer.
+copyright and what is credited here is the digital edition.
 
 This edition comments on runs of verses rather than single Ayahs — 1,911
 blocks covering all 6,236 — and the importer records each run rather than
@@ -252,10 +259,9 @@ The abridgement is a Darussalam publication and its copyright is live. Whether
 it may be redistributed in this form has not been established, and no claim
 either way is made here.
 
-**Open task before this edition is offered:** establish those terms from
-Darussalam directly. Until then this entry documents an edition the importer
-can build, not one the app is publishing — `PACKS` in `src-tauri/src/packs`
-carries no URL for it, so nothing can be downloaded.
+**Open task:** establish those terms from Darussalam directly. This edition is
+published as a content pack in the meantime, which is a deliberate decision
+taken with the risk in view and not an oversight.
 
 The importer reduces each entry to plain text (markup stripped, entities
 decoded) and does not otherwise alter the text.

@@ -159,14 +159,11 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         rebuild_mushaf_layout_from_seed(conn)?;
     }
 
-    // Same delivery mechanism as the glyphs above, for the same reason: an
-    // upgrading install keeps its own database file, so bundled *content* only
-    // reaches it by being copied out of the embedded seed. Runs after 007 has
-    // reshaped the local tables, since the copy is positional.
-    if from_version < 7 {
-        log::info!("  → Copying bundled tafsir editions from the seed");
-        copy_bundled_tafsir_from_seed(conn)?;
-    }
+    // No equivalent step for tafsir, deliberately. The glyphs above are copied
+    // out of the seed because they ship with the app; no tafsir does. Every
+    // edition arrives as a downloaded pack instead (see `packs`), so an
+    // upgrading install has nothing to be given here and 007's reshaping of
+    // the empty tables is the whole of the work.
 
     let version = get_schema_version(conn)?;
     if version < CURRENT_VERSION {
@@ -196,42 +193,6 @@ fn rebuild_mushaf_layout_from_seed(conn: &Connection) -> DbResult<()> {
              INSERT INTO page_line_word SELECT * FROM seed.page_line_word;
              COMMIT;",
         )?;
-        Ok(())
-    })
-}
-
-/// Copy the bundled tafsir editions out of the embedded `SEED_DB`, for the
-/// same reason the layout tables are copied above: an upgrading install keeps
-/// its own database file, so content that ships with the app only reaches it
-/// this way.
-///
-/// Only `is_bundled = 1` rows are touched on either side. Editions the user
-/// installed themselves are not the app's to delete, and the day packs exist
-/// this is the line that keeps an upgrade from taking them with it. That day
-/// also brings a constraint this copy cannot enforce on its own: pack installs
-/// must allocate `tafsir.id` outside the range the seed uses, or a positional
-/// copy will collide with a user's edition on the primary key. Nothing can hit
-/// that yet — there is no way to install an edition before this migration
-/// exists — but the allocation rule has to land with the installer.
-///
-/// The copy is positional (`SELECT *`), so it is only correct once migration
-/// 007 has given the local tables the same shape as the seed's — see the
-/// ordering note on `run_migrations`.
-fn copy_bundled_tafsir_from_seed(conn: &Connection) -> DbResult<()> {
-    with_seed_attached(conn, |conn| {
-        conn.execute_batch(
-            "BEGIN;
-             DELETE FROM tafsir_ayah
-               WHERE tafsir_id IN (SELECT id FROM tafsir WHERE is_bundled = 1);
-             DELETE FROM tafsir WHERE is_bundled = 1;
-             INSERT INTO tafsir SELECT * FROM seed.tafsir WHERE is_bundled = 1;
-             INSERT INTO tafsir_ayah SELECT * FROM seed.tafsir_ayah
-               WHERE tafsir_id IN (SELECT id FROM seed.tafsir WHERE is_bundled = 1);
-             COMMIT;",
-        )?;
-        // The triggers kept the index in step row by row; this makes the whole
-        // table's index self-consistent again after a wholesale delete+insert.
-        conn.execute_batch("INSERT INTO fts_tafsir(fts_tafsir) VALUES ('rebuild');")?;
         Ok(())
     })
 }
@@ -719,156 +680,91 @@ mod tests {
     /// Tafsir is content, not schema, so migration 007's ALTERs leave an
     /// upgrading install with the right columns and nothing in them. This is
     /// the half that actually puts al-Jalalayn in front of an existing user.
+    /// 007 delivers the *shape* tafsir needs and none of the content, because
+    /// no edition ships with the app any more — every one of them is a pack the
+    /// reader downloads. What used to be asserted here, that both bundled
+    /// editions were copied out of the seed, describes a mechanism that no
+    /// longer exists.
     #[test]
-    fn upgrade_installs_bundled_tafsir() {
+    fn upgrade_creates_the_tafsir_schema_and_installs_nothing() {
         let dir = std::env::temp_dir().join(format!("quranreader-tafsir-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("quran.db");
         let _ = std::fs::remove_file(&path);
         v011_install(&path);
 
-        {
-            let conn = Connection::open(&path).unwrap();
-            let editions: u32 = conn
-                .query_row("SELECT COUNT(*) FROM tafsir", [], |r| r.get(0))
-                .unwrap();
-            assert_eq!(editions, 0, "fixture starts with no commentary");
-        }
-
         let conn = open(&path).unwrap();
 
-        // Every bundled edition has to come across, not just the first — the
-        // copy is a single `SELECT *` over `is_bundled = 1`, so a second
-        // edition either all arrives or exposes a bug in that one statement.
-        let editions: Vec<(String, String, bool, String, String)> = conn
-            .prepare("SELECT slug, language, is_bundled, school, creed FROM tafsir ORDER BY id")
-            .unwrap()
-            .query_map([], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
-            })
-            .unwrap()
-            .collect::<Result<_, _>>()
+        let editions: u32 = conn
+            .query_row("SELECT COUNT(*) FROM tafsir", [], |r| r.get(0))
             .unwrap();
+        assert_eq!(editions, 0, "no commentary ships in the seed");
 
-        assert_eq!(
-            editions
-                .iter()
-                .map(|(slug, lang, ..)| (slug.as_str(), lang.as_str()))
-                .collect::<Vec<_>>(),
-            vec![
-                ("tafsir-al-jalalayn", "en"),
-                ("ar-tafsir-al-jalalayn", "ar"),
-            ]
-        );
-        for (slug, _, is_bundled, school, creed) in &editions {
+        // These are the columns a pack install writes into. Their absence
+        // would not surface until someone had already downloaded 25 MB.
+        let has_column = |table: &str, column: &str| -> bool {
+            conn.query_row(
+                "SELECT 1 FROM pragma_table_info(?1) WHERE name = ?2",
+                params![table, column],
+                |_| Ok(()),
+            )
+            .optional()
+            .unwrap()
+            .is_some()
+        };
+        for column in [
+            "slug",
+            "translator",
+            "name_native",
+            "direction",
+            "school",
+            "creed",
+            "source_url",
+            "license",
+            "sort_order",
+        ] {
+            assert!(has_column("tafsir", column), "tafsir.{column} is missing");
+        }
+        for column in ["group_start_ayah_id", "group_end_ayah_id"] {
             assert!(
-                is_bundled,
-                "{slug} must stay bundled, or the next upgrade deletes it"
-            );
-            // The filter this app applies, asserted rather than assumed: only
-            // Shafi'i/Ash'ari works are carried at all.
-            assert_eq!(
-                (school.as_str(), creed.as_str()),
-                ("shafii", "ashari"),
-                "{slug} is outside the school/creed this reader carries"
+                has_column("tafsir_ayah", column),
+                "tafsir_ayah.{column} is missing — grouped editions need it"
             );
         }
 
-        // English glosses every ayah; the Arabic passes over 226 of them,
-        // which is the source's own shape and not a truncated copy.
-        let per_edition: Vec<(String, u32)> = conn
-            .prepare(
-                "SELECT t.slug, COUNT(ta.ayah_id) FROM tafsir t
-                 JOIN tafsir_ayah ta ON ta.tafsir_id = t.id
-                 GROUP BY t.id ORDER BY t.id",
+        // The index is now kept in step by 007's triggers alone: the wholesale
+        // copy that used to rebuild it went with the bundled editions, so a
+        // downloaded pack's rows reach `fts_tafsir` through these or not at
+        // all. Exercised with a row shaped like one a pack would insert.
+        let ayah_id: i64 = conn
+            .query_row(
+                "SELECT id FROM ayah WHERE surah_id = 2 AND ayah_number = 255",
+                [],
+                |r| r.get(0),
             )
-            .unwrap()
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-            .unwrap()
-            .collect::<Result<_, _>>()
             .unwrap();
-        assert_eq!(
-            per_edition,
-            vec![
-                ("tafsir-al-jalalayn".to_string(), 6236),
-                ("ar-tafsir-al-jalalayn".to_string(), 6010),
-            ]
-        );
+        conn.execute(
+            "INSERT INTO tafsir
+                (id, language, author, title, version, is_bundled, slug, direction, sort_order)
+             VALUES (1000, 'en', 'Anon', 'Test edition', '1.0', 0, 'test-edition', 'ltr', 0)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO tafsir_ayah (tafsir_id, ayah_id, text)
+             VALUES (1000, ?1, 'a distinctive gloss')",
+            params![ayah_id],
+        )
+        .unwrap();
 
-        let entries: u32 = conn
-            .query_row("SELECT COUNT(*) FROM tafsir_ayah", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(entries, 6236 + 6010);
-
-        // The index is rebuilt after the copy, not left holding the pre-copy
-        // rowids — searching tafsir is what Phase 7 will query.
         let indexed: u32 = conn
-            .query_row("SELECT COUNT(*) FROM fts_tafsir", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(indexed, entries);
-
-        // Spot-check a verse whose commentary is unmistakable, per edition —
-        // unscoped this would silently only ever check whichever edition sorts
-        // first.
-        let kursi_of = |slug: &str| -> Option<String> {
-            conn.query_row(
-                "SELECT ta.text FROM tafsir_ayah ta
-                 JOIN ayah a   ON a.id = ta.ayah_id
-                 JOIN tafsir t ON t.id = ta.tafsir_id
-                 WHERE a.surah_id = 2 AND a.ayah_number = 255 AND t.slug = ?1",
-                params![slug],
-                |r| r.get(0),
-            )
-            .optional()
-            .unwrap()
-        };
-
-        let arabic = kursi_of("ar-tafsir-al-jalalayn").expect("Arabic gloss on Ayat al-Kursi");
-        // Deliberately not matching an Arabic word literal: the source is fully
-        // vocalised, and a literal typed here has to reproduce its exact
-        // combining-mark sequence to match. The quote marks and the absence of
-        // Latin letters identify the edition just as well and don't rot.
-        assert!(
-            arabic.contains('\u{FD3E}') && arabic.contains('\u{FD3F}'),
-            "the Arabic gloss should keep its ﴿ ﴾ ayah quotes: {arabic:.60}"
-        );
-        assert!(
-            !arabic.chars().any(|c| c.is_ascii_alphabetic()),
-            "this should be the Arabic edition, not the English one: {arabic:.60}"
-        );
-
-        // 26:27 is one of the 226 ayahs the Arabic passes over, and the
-        // English fills with the plain verse — the asymmetry the panel's empty
-        // state exists for.
-        let gap: Option<String> = conn
             .query_row(
-                "SELECT ta.text FROM tafsir_ayah ta
-                 JOIN ayah a   ON a.id = ta.ayah_id
-                 JOIN tafsir t ON t.id = ta.tafsir_id
-                 WHERE a.surah_id = 26 AND a.ayah_number = 27
-                   AND t.slug = 'ar-tafsir-al-jalalayn'",
-                [],
-                |r| r.get(0),
-            )
-            .optional()
-            .unwrap();
-        assert!(gap.is_none(), "26:27 has no Arabic gloss in this edition");
-
-        let kursi: String = conn
-            .query_row(
-                "SELECT ta.text FROM tafsir_ayah ta
-                 JOIN ayah a   ON a.id = ta.ayah_id
-                 JOIN tafsir t ON t.id = ta.tafsir_id
-                 WHERE a.surah_id = 2 AND a.ayah_number = 255
-                   AND t.slug = 'tafsir-al-jalalayn'",
+                "SELECT COUNT(*) FROM fts_tafsir WHERE fts_tafsir MATCH 'distinctive'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert!(
-            kursi.contains("the Living") && kursi.contains("kursī"),
-            "Ayat al-Kursi's gloss should read like al-Jalalayn: {kursi:.80}"
-        );
+        assert_eq!(indexed, 1, "007's insert trigger must index a pack's rows");
 
         let integrity: String = conn
             .query_row("PRAGMA integrity_check", [], |r| r.get(0))
@@ -886,16 +782,17 @@ mod tests {
     /// Pinned because the numbering is the whole of it. Tafsir was written as
     /// a second migration 006 while reading history was still unreleased, and
     /// a second 006 would be skipped outright by every install that already
-    /// recorded 6 — the tafsir would reach new installs and no one else.
+    /// recorded 6 — the tafsir schema would reach new installs and no one
+    /// else, and a pack would then have nowhere to install itself.
     #[test]
-    fn upgrade_from_v019_installs_tafsir() {
+    fn upgrade_from_v019_applies_007() {
         let dir = std::env::temp_dir().join(format!("quranreader-v019-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("quran.db");
         let _ = std::fs::remove_file(&path);
 
         // A v0.1.9 install: the seed wound back past 007 only, so it keeps the
-        // reading tables 006 gave it and has never seen a commentary.
+        // reading tables 006 gave it.
         std::fs::write(&path, SEED_DB).unwrap();
         let kursi_id: i64 = {
             let conn = Connection::open(&path).unwrap();
@@ -926,23 +823,17 @@ mod tests {
 
         assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
 
-        // Both bundled editions arrive, which is the point of the upgrade.
-        let editions: Vec<String> = conn
-            .prepare("SELECT slug FROM tafsir ORDER BY sort_order")
-            .unwrap()
-            .query_map([], |r| r.get(0))
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
-        assert_eq!(
-            editions,
-            vec!["tafsir-al-jalalayn", "ar-tafsir-al-jalalayn"],
-            "an existing install gets both editions, English first"
-        );
+        // The tables arrive empty and stay that way: no edition ships with
+        // the app, so what this upgrade delivers is the schema a downloaded
+        // pack needs, not any commentary.
         let entries: u32 = conn
             .query_row("SELECT COUNT(*) FROM tafsir_ayah", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(entries, 6236 + 6010);
+        assert_eq!(entries, 0);
+        let editions: u32 = conn
+            .query_row("SELECT COUNT(*) FROM tafsir", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(editions, 0);
 
         // 006's user data is not disturbed on the way past. The seed ships one
         // position of its own — the 1:1 row 006 derives from the default
