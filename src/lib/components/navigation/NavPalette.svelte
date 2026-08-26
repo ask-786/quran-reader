@@ -11,12 +11,28 @@
   import NavPanel from './NavPanel.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
 
-  const KEYS: { keys: string; label: string }[] = [
-    { keys: '↑↓', label: 'move' },
-    { keys: '↵', label: 'open' },
-    { keys: 'Tab', label: 'switch list' },
-    { keys: 'Esc', label: 'close' },
-  ];
+  // Which keys are live depends on whether the box has focus, so the legend
+  // says different things in the two states rather than one thing that is half
+  // wrong in each. Escape walks out of the palette a layer at a time — the
+  // filter, then the box, then the palette — and the legend names the next
+  // layer, which is the only one the key is about to do.
+  let searchFocused = $state(true);
+
+  const KEYS: { keys: string; label: string }[] = $derived(
+    searchFocused
+      ? [
+          { keys: '↑↓', label: 'move' },
+          { keys: '↵', label: 'open' },
+          { keys: 'Tab', label: 'switch list' },
+          { keys: 'Esc', label: 'leave search' },
+        ]
+      : [
+          { keys: '↑↓', label: 'move' },
+          { keys: '←→', label: 'switch list' },
+          { keys: '↵', label: 'open' },
+          { keys: 'Esc', label: 'close' },
+        ],
+  );
 </script>
 
 {#if uiStore.paletteOpen}
@@ -32,6 +48,7 @@
         variant="palette"
         onselect={() => uiStore.closePalette()}
         onclose={() => uiStore.closePalette()}
+        onsearchfocus={(focused) => (searchFocused = focused)}
       />
       <footer class="legend">
         {#each KEYS as k (k.keys)}

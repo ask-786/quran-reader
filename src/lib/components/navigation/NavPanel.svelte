@@ -30,12 +30,17 @@
     variant = 'sidebar',
     onselect,
     onclose,
+    onsearchfocus,
   }: {
     variant?: NavVariant;
     /** A row was opened. The sidebar closes its drawer; the palette closes. */
     onselect?: () => void;
-    /** Escape on an empty filter — as far as this panel is concerned, "done". */
+    /** Escape with nothing left to step out of — as far as this panel is
+        concerned, "done". */
     onclose?: () => void;
+    /** Whether the filter box has the keys. The palette's legend follows it,
+        because which keys are live follows it. */
+    onsearchfocus?: (focused: boolean) => void;
   } = $props();
 
   const isPalette = $derived(variant === 'palette');
@@ -45,6 +50,7 @@
 
   let inputEl = $state<HTMLInputElement>();
   let listEl = $state<HTMLElement>();
+  let panelEl = $state<HTMLElement>();
   let inputFocused = $state(false);
 
   // Seeded before the first render rather than from an effect: both surfaces
@@ -278,16 +284,97 @@
         e.stopPropagation();
         return;
       case 'Escape':
-        // First press clears the filter, second is "done with this panel".
+        // Escape steps back out one layer at a time, and closing is the last
+        // one: first press clears the filter, second hands the keys back to the
+        // panel itself, and only an Escape from there is "done".
         e.stopPropagation();
         if (nav.query) {
           nav.setQuery('');
           return;
         }
-        if (onclose) onclose();
+        // The sidebar has nowhere to step out to — its panel isn't a focus stop
+        // and the reader behind it is right there — so a bare blur, as before.
+        if (isPalette) leaveInput();
+        else if (onclose) onclose();
         else inputEl?.blur();
         return;
     }
+  }
+
+  /**
+   * Hand the keys from the filter box to the panel around it. The palette is
+   * modal, so focus can't just be dropped on the floor: it moves to the panel,
+   * which is a focus stop for exactly this reason and which answers the keys
+   * below while it holds it.
+   */
+  function leaveInput() {
+    inputEl?.blur();
+    panelEl?.focus({ preventScroll: true });
+  }
+
+  /**
+   * The palette's keys with the box unfocused — the same list the box answers,
+   * minus the ones the box needs for itself. Bare ←/→ step the tab strip here,
+   * because with no caret to move there is nothing else for them to do; inside
+   * the box the same thing costs Alt or Ctrl.
+   *
+   * Keydowns from the box bubble through here too, hence the guard: while it
+   * has focus, its own handler is the only one that speaks for these keys.
+   */
+  function onPanelKeydown(e: KeyboardEvent) {
+    if (!isPalette || inputFocused) return;
+
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        cycleMode(1);
+        return;
+      case 'ArrowLeft':
+        e.preventDefault();
+        cycleMode(-1);
+        return;
+      case 'Tab':
+        // Held onto rather than left to the browser: everything in the palette
+        // is tabindex -1, so a native Tab from here walks focus out of a dialog
+        // that is still open.
+        e.preventDefault();
+        cycleMode(e.shiftKey ? -1 : 1);
+        return;
+      case 'ArrowDown':
+        e.preventDefault();
+        move(1);
+        return;
+      case 'ArrowUp':
+        e.preventDefault();
+        move(-1);
+        return;
+      case 'PageDown':
+        e.preventDefault();
+        move(8);
+        return;
+      case 'PageUp':
+        e.preventDefault();
+        move(-8);
+        return;
+      case 'Enter':
+        if (!activate()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      case 'Escape':
+        // Nothing left to step out of.
+        e.stopPropagation();
+        onclose?.();
+        return;
+    }
+
+    // Anything that would type a character goes back to the box and types it —
+    // the point of stepping out is to reach the tab strip, not to strand
+    // yourself somewhere you can't search from. Deliberately not prevented, so
+    // the key lands in the input it just focused.
+    if (e.key.length === 1 || e.key === 'Backspace') inputEl?.focus();
   }
 </script>
 
@@ -295,7 +382,22 @@
      itself; the rule only recognises a resolve() written inline in the
      attribute, so it can't see that and is turned off across the list. -->
 <!-- eslint-disable svelte/no-navigation-without-resolve -->
-<div class="nav-panel" class:palette={isPalette}>
+<!-- In the palette the panel takes focus when the filter box gives it up, and
+     answers the list's keys while it holds it — the cursor is marked on a row
+     rather than by focusing it, which is why the container is what listens. The
+     rule reads a keydown on a grouping role as a mistake; here the group is the
+     thing being driven, and its rows are links the keyboard opens by clicking
+     them. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div
+  class="nav-panel"
+  class:palette={isPalette}
+  bind:this={panelEl}
+  role="group"
+  aria-label="Navigate"
+  tabindex="-1"
+  onkeydown={onPanelKeydown}
+>
   <div class="nav-head" class:flush={!showFilter}>
     <div class="mode-tabs" role="tablist" aria-label="Browse by">
       {#each nav.modes as m (m)}
@@ -325,11 +427,16 @@
           value={nav.query}
           oninput={(e) => nav.setQuery(e.currentTarget.value)}
           onkeydown={onInputKeydown}
-          onfocus={() => (inputFocused = true)}
+          onfocus={() => {
+            inputFocused = true;
+            onsearchfocus?.(true);
+          }}
           onblur={() => {
             inputFocused = false;
+            onsearchfocus?.(false);
             // Don't leave a cursor parked out of sight in the sidebar, ready to
-            // fire on the next Enter. The palette's box never really loses focus.
+            // fire on the next Enter. The palette keeps its cursor: leaving the
+            // box there hands the keys to the panel, which still moves it.
             if (!isPalette) nav.resetCursor();
           }}
           aria-label={placeholder}
@@ -433,6 +540,14 @@
     height: 100%;
     min-height: 0;
     background: var(--color-bg-elevated);
+  }
+
+  /* The palette's panel is a focus stop so the keys have somewhere to live when
+     the box gives them up — but it is the size of the whole dialog, and ringing
+     that tells you nothing. The cursor row is the marker; it is already drawn,
+     and in the palette it is always visible. */
+  .nav-panel:focus {
+    outline: none;
   }
 
   /* Fixed by construction, not by a magic number: three rows that are always
