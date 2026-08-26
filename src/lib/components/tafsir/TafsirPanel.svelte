@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { X, PanelBottom } from 'lucide-svelte';
+  import { X, PanelBottom, Library } from 'lucide-svelte';
   import { tafsirStore, clampTafsirWidth } from '$lib/stores/tafsir.svelte';
   import TafsirMeta from './TafsirMeta.svelte';
   import TafsirBody from './TafsirBody.svelte';
+  import TafsirEditions from './TafsirEditions.svelte';
 
   let dragging = $state(false);
 
@@ -71,6 +72,16 @@
     <div class="actions">
       <button
         class="icon-btn"
+        class:on={tafsirStore.managing}
+        onclick={() => (tafsirStore.managing = !tafsirStore.managing)}
+        aria-pressed={tafsirStore.managing}
+        aria-label="Manage tafsir editions"
+        title="Editions"
+      >
+        <Library size={16} />
+      </button>
+      <button
+        class="icon-btn"
         onclick={() => tafsirStore.setView('popover')}
         aria-label="Show tafsir as a popover instead"
         title="Show as popover"
@@ -88,7 +99,11 @@
   </header>
 
   <div class="panel-body">
-    <TafsirBody />
+    {#if tafsirStore.managing}
+      <TafsirEditions />
+    {:else}
+      <TafsirBody />
+    {/if}
   </div>
 </aside>
 
@@ -172,6 +187,13 @@
   .icon-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text);
+  }
+
+  /* The editions view is a mode the panel stays in, not a one-shot action, so
+     its button holds a pressed state rather than only reacting to hover. */
+  .icon-btn.on {
+    background: var(--color-bg-hover);
+    color: var(--color-accent);
   }
 
   .panel-body {

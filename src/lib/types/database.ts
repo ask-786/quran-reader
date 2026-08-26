@@ -90,6 +90,33 @@ export interface Tafsir {
   creed: string | null;
 }
 
+/**
+ * A tafsir edition that can be downloaded, and whether it is already here.
+ *
+ * Separate from `Tafsir`, which describes an edition the database *has*: this
+ * is what the app knows about one before any of it has been fetched, so it
+ * carries sizes and a licence rather than an id and a direction.
+ */
+export interface TafsirPack {
+  slug: string;
+  title: string;
+  author: string;
+  language: string;
+  license: string;
+  /** Size of the download itself. */
+  download_bytes: number;
+  /** Roughly what it adds to the database once installed. */
+  installed_bytes: number;
+  installed: boolean;
+}
+
+/** Payload of the `tafsir-pack-progress` event, emitted while downloading. */
+export interface TafsirPackProgress {
+  slug: string;
+  received: number;
+  total: number;
+}
+
 export interface TafsirEntry {
   tafsir_id: number;
   ayah_id: number;

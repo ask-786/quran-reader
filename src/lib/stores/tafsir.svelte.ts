@@ -1,5 +1,19 @@
-import { getTafsirs, getTafsirForAyah, setSetting } from '$lib/api/db';
-import type { Tafsir, TafsirEntry, TafsirView } from '$lib/types/database';
+import { listen } from '@tauri-apps/api/event';
+import {
+  getTafsirs,
+  getTafsirForAyah,
+  listTafsirPacks,
+  installTafsirPack,
+  removeTafsirPack,
+  setSetting,
+} from '$lib/api/db';
+import type {
+  Tafsir,
+  TafsirEntry,
+  TafsirPack,
+  TafsirPackProgress,
+  TafsirView,
+} from '$lib/types/database';
 import { settingsStore } from './settings.svelte';
 import { readerPosition } from './reader-position.svelte';
 
@@ -53,6 +67,39 @@ class TafsirStore {
    * transient answer to a click is not worth restoring on launch.
    */
   selection = $state<TafsirSelection | null>(null);
+
+  /**
+   * Editions that can be downloaded, whether or not they already have been.
+   *
+   * Kept beside `editions` rather than merged into it: an installed edition
+   * has an id, a direction and text behind it, and one that is still on a
+   * server has a size and a licence. The picker shows both lists, and the
+   * difference between them is the whole point of showing the second one.
+   */
+  packs = $state<TafsirPack[]>([]);
+
+  /** Slug of the edition being downloaded, or null. One at a time — two
+   *  concurrent 25 MB downloads help nobody. */
+  installing = $state<string | null>(null);
+
+  /** Bytes so far and expected, while `installing`. */
+  progress = $state<{ received: number; total: number } | null>(null);
+
+  /** Why the last install failed, cleared when another is started. */
+  packError = $state<string | null>(null);
+
+  /**
+   * Whether the panel is showing the edition list instead of commentary.
+   *
+   * Panel-only and session-only: the popover has no room for it, and a reader
+   * who opens the app wants the tafsir, not the shop.
+   */
+  managing = $state(false);
+
+  /** Whether the progress subscription is up. It is never torn down — the
+   *  store is a singleton that lives as long as the window does — so this only
+   *  has to stop a second `init()` from subscribing twice. */
+  #progressBound = false;
 
   #cache = new Map<string, TafsirEntry | null>();
   /** Guards against an earlier request resolving after a later one. */
@@ -127,7 +174,78 @@ class TafsirStore {
       console.error('Failed to load tafsir editions', err);
       this.editions = [];
     }
+    await this.refreshPacks();
+
+    // Subscribed once for the life of the app rather than per download: the
+    // events carry their own slug, and a listener torn down and rebuilt around
+    // each install can miss the first chunks of the next one.
+    if (!this.#progressBound) {
+      this.#progressBound = true;
+      await listen<TafsirPackProgress>('tafsir-pack-progress', ({ payload }) => {
+        if (payload.slug !== this.installing) return;
+        this.progress = { received: payload.received, total: payload.total };
+      });
+    }
+
     this.ready = true;
+  }
+
+  async refreshPacks() {
+    try {
+      this.packs = await listTafsirPacks();
+    } catch (err) {
+      console.error('Failed to list tafsir packs', err);
+      this.packs = [];
+    }
+  }
+
+  /**
+   * Download and install one edition, then make it the active one.
+   *
+   * Switching to it afterwards is the point of having asked for it — a
+   * download that finishes and changes nothing on screen reads as a failure.
+   */
+  async installPack(slug: string) {
+    if (this.installing) return;
+    this.installing = slug;
+    this.progress = null;
+    this.packError = null;
+    try {
+      const id = await installTafsirPack(slug);
+      this.editions = await getTafsirs();
+      await this.refreshPacks();
+      await this.setEdition(id);
+    } catch (err) {
+      console.error('Failed to install tafsir pack', err);
+      // The backend's message is the useful one here — it distinguishes a
+      // failed download from a file that did not match its hash.
+      this.packError = String(err);
+    } finally {
+      this.installing = null;
+      this.progress = null;
+    }
+  }
+
+  /** Remove an installed edition, moving off it first if it was in use. */
+  async removePack(slug: string) {
+    const removed = this.editions.find((t) => t.slug === slug);
+    try {
+      await removeTafsirPack(slug);
+      this.editions = await getTafsirs();
+      await this.refreshPacks();
+      if (removed && settingsStore.current.tafsir_id === removed.id) {
+        // `active` already falls back to the first edition, but the stored
+        // setting would otherwise keep pointing at an id that no longer
+        // exists.
+        const fallback = this.editions[0];
+        if (fallback) await this.setEdition(fallback.id);
+      }
+      this.#cache.clear();
+      this.entry = null;
+    } catch (err) {
+      console.error('Failed to remove tafsir pack', err);
+      this.packError = String(err);
+    }
   }
 
   /**

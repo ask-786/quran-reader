@@ -10,6 +10,7 @@ import type {
   Translation,
   Tafsir,
   TafsirEntry,
+  TafsirPack,
   Bookmark,
   Note,
   Settings,
@@ -195,4 +196,29 @@ export function getTafsirs(): Promise<Tafsir[]> {
  */
 export function getTafsirForAyah(tafsirId: number, ayahId: number): Promise<TafsirEntry | null> {
   return invoke('get_tafsir_for_ayah', { tafsirId, ayahId });
+}
+
+// =============================================================================
+// TAFSIR PACKS
+// =============================================================================
+
+/** Every edition this build can install, marked with whether it already is. */
+export function listTafsirPacks(): Promise<TafsirPack[]> {
+  return invoke('list_tafsir_packs');
+}
+
+/**
+ * Download, verify and install one edition; resolves with its new tafsir id.
+ *
+ * Long-running — tens of megabytes — and reports itself through the
+ * `tafsir-pack-progress` event rather than this promise. A rejection here is
+ * final: a download that fails verification is discarded, never installed.
+ */
+export function installTafsirPack(slug: string): Promise<number> {
+  return invoke('install_tafsir_pack', { slug });
+}
+
+/** Remove an installed edition. Bundled editions are refused. */
+export function removeTafsirPack(slug: string): Promise<void> {
+  return invoke('remove_tafsir_pack', { slug });
 }
