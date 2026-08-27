@@ -14,7 +14,7 @@
     "format": "prettier --write src",
     "format:check": "prettier --check src",
     "tauri": "tauri",
-    "prepare": "husky"
+    "prepare": "svelte-kit sync && husky"
   },
   "license": "MIT",
   "dependencies": {
