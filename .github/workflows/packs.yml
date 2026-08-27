@@ -1,4 +1,4 @@
-name: Publish tafsir packs
+name: Publish Tafsir Packs
 
 # Builds the downloadable tafsir editions and attaches them to a release.
 #
