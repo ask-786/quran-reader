@@ -95,6 +95,7 @@
     <button
       class="icon-btn"
       class:active={tafsirOn}
+      data-tafsir-source
       onclick={() => tafsirStore.toggle()}
       aria-pressed={tafsirOn}
       aria-label={tafsirLabel}

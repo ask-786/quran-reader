@@ -48,7 +48,7 @@
   }
 </script>
 
-<aside class="tafsir-panel" aria-label="Tafsir">
+<aside class="tafsir-panel" data-tafsir-surface aria-label="Tafsir">
   <!-- A button, not a div with role="separator": the ARIA splitter pattern
        wants a focusable widget, and a real button is the one element that is
        focusable, keyboard-operable and announced as interactive without any

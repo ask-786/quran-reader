@@ -78,6 +78,26 @@
     window.addEventListener('beforeunload', () => readingStore.flush());
     document.addEventListener('visibilitychange', flushReadingPosition);
 
+    /**
+     * One dismissal rule for both tafsir surfaces — see
+     * `tafsirStore.notePointerDown`. Registered here rather than inside the
+     * card and the panel because it has to hold whichever of them is mounted,
+     * and because a click on a verse has to reach the store before that verse's
+     * own handler can reopen what this just closed.
+     *
+     * Capture, so it lands before the click can reach whatever it was aimed at.
+     * Suspended under a modal: Settings and the palette cover the panel rather
+     * than sitting beside it, so a click in either is not a click away from it
+     * — and dismissing the settings dialog by its backdrop would otherwise take
+     * the panel down too.
+     */
+    function onPointerDown(e: PointerEvent) {
+      if (uiStore.settingsOpen || uiStore.paletteOpen) return;
+      const target = e.target;
+      tafsirStore.notePointerDown(target instanceof Element ? target : null);
+    }
+    window.addEventListener('pointerdown', onPointerDown, true);
+
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         // Outermost first. Settings and the palette never coexist (each closes
@@ -266,6 +286,7 @@
     window.addEventListener('keydown', onKeydown);
     return () => {
       window.removeEventListener('keydown', onKeydown);
+      window.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('visibilitychange', flushReadingPosition);
     };
   });

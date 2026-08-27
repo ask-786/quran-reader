@@ -97,6 +97,7 @@
       </button>
       <button
         class="action-btn"
+        data-tafsir-source
         onclick={(e) => tafsirStore.openFor(ayah.id, e.currentTarget)}
         aria-label="Show tafsir for this ayah"
         title="Tafsir"

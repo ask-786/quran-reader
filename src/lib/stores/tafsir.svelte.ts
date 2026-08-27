@@ -93,6 +93,15 @@ class TafsirStore {
    *  has to stop a second `init()` from subscribing twice. */
   #progressBound = false;
 
+  /**
+   * Set while a pointer gesture is dismissing a surface, so the click that
+   * completes that same gesture cannot reopen what it just closed.
+   *
+   * Reset at the top of every pointerdown, so it can never outlive the gesture
+   * that set it — a drag that ends without a click leaves nothing armed.
+   */
+  #suppressNextOpen = false;
+
   #cache = new Map<string, TafsirEntry | null>();
   /** Guards against an earlier request resolving after a later one. */
   #requestToken = 0;
@@ -100,6 +109,11 @@ class TafsirStore {
   /** Whether the side panel is open. Unrelated to the popover. */
   get panelOpen() {
     return settingsStore.current.show_tafsir;
+  }
+
+  /** Whether commentary is on screen at all, by either surface. */
+  get anyOpen() {
+    return this.selection !== null || this.panelOpen;
   }
 
   /**
@@ -268,10 +282,41 @@ class TafsirStore {
    * The same thing, asked for by clicking the verse itself rather than a
    * control. Silent unless tafsir mode is on — a click on running text is too
    * cheap and too accidental to be a request on its own.
+   *
+   * Also silent when the gesture this click completes has already dismissed a
+   * surface. That is what makes clicking the open verse a toggle rather than a
+   * no-op: the pointerdown closed the card, and without this the click would
+   * put it straight back.
    */
   openFromClick(ayahId: number, anchor: HTMLElement | null = null) {
+    if (this.#suppressNextOpen) {
+      this.#suppressNextOpen = false;
+      return;
+    }
     if (!this.clicksOpenTafsir) return;
     this.openFor(ayahId, anchor);
+  }
+
+  /**
+   * Every pointerdown in the window, from the listener in the root layout.
+   *
+   * One rule for both surfaces, and it is the plain one: while commentary is on
+   * screen, a press anywhere outside it puts it away. Clicking the verse it is
+   * open for therefore toggles, and clicking a different verse closes rather
+   * than re-aims — reading a second verse is a second press, not a hidden mode.
+   *
+   * Two things are not "outside". The surfaces themselves, obviously; and the
+   * controls whose whole job is to open commentary — the toolbar's mode button
+   * and the per-Ayah button — which carry `data-tafsir-source`. Dismissing on
+   * those would fight their own handlers and leave the button dead.
+   */
+  notePointerDown(target: Element | null) {
+    this.#suppressNextOpen = false;
+    if (!this.anyOpen) return;
+    if (target?.closest('[data-tafsir-surface], [data-tafsir-source]')) return;
+    this.#suppressNextOpen = true;
+    this.closePopover();
+    if (this.panelOpen) void this.setPanelOpen(false);
   }
 
   closePopover() {

@@ -131,19 +131,6 @@
     };
   });
 
-  // Dismiss on a click anywhere outside. Registered after the opening click has
-  // already been dispatched, so it cannot see the pointerdown that opened it.
-  $effect(() => {
-    if (!card) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node | null;
-      if (target && (card?.contains(target) || selection?.anchor?.contains(target))) return;
-      tafsirStore.closePopover();
-    };
-    window.addEventListener('pointerdown', onPointerDown, true);
-    return () => window.removeEventListener('pointerdown', onPointerDown, true);
-  });
-
   // Focus moves in on open and back to whatever opened it on close, so the
   // keyboard path is a round trip rather than a one-way door.
   $effect(() => {
@@ -179,7 +166,7 @@
     bind:this={card}
     class="popover"
     class:placed
-    data-tafsir-popover
+    data-tafsir-surface
     role="dialog"
     aria-label="Tafsir"
     tabindex="-1"
