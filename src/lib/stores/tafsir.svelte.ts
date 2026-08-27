@@ -88,14 +88,6 @@ class TafsirStore {
   /** Why the last install failed, cleared when another is started. */
   packError = $state<string | null>(null);
 
-  /**
-   * Whether the panel is showing the edition list instead of commentary.
-   *
-   * Panel-only and session-only: the popover has no room for it, and a reader
-   * who opens the app wants the tafsir, not the shop.
-   */
-  managing = $state(false);
-
   /** Whether the progress subscription is up. It is never torn down — the
    *  store is a singleton that lives as long as the window does — so this only
    *  has to stop a second `init()` from subscribing twice. */

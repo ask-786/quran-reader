@@ -5,10 +5,22 @@
   let {
     editions,
     selectedId,
+    align = 'start',
     onselect,
   }: {
     editions: Tafsir[];
     selectedId: number | undefined;
+    /**
+     * Which edge of the trigger the menu hangs from.
+     *
+     * The menu is wider than the trigger, so it has to grow away from the
+     * nearest edge of whatever contains it. In the tafsir header the picker
+     * sits at the left, so it grows rightwards and `start` is right. In the
+     * settings dialog it sits in a right-hand control column against the
+     * pane's padding, where growing rightwards pushes the menu out of the pane
+     * and puts a horizontal scrollbar on it.
+     */
+    align?: 'start' | 'end';
     onselect: (id: number) => void;
   } = $props();
 
@@ -165,7 +177,14 @@
   </button>
 
   {#if open}
-    <div bind:this={list} class="menu" role="listbox" aria-label="Tafsir edition" tabindex="-1">
+    <div
+      bind:this={list}
+      class="menu"
+      class:end={align === 'end'}
+      role="listbox"
+      aria-label="Tafsir edition"
+      tabindex="-1"
+    >
       {#each editions as t, i (t.id)}
         <button
           type="button"
@@ -261,6 +280,13 @@
     background: var(--color-bg-elevated);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
     outline: none;
+  }
+
+  /* The mirror of the default, carrying the same -5px so the menu lines up
+     with the trigger's text rather than its padding box either way. */
+  .menu.end {
+    inset-inline-start: auto;
+    inset-inline-end: -5px;
   }
 
   .option {

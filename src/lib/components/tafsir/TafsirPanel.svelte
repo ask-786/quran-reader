@@ -1,9 +1,9 @@
 <script lang="ts">
   import { X, PanelBottom, Library } from 'lucide-svelte';
   import { tafsirStore, clampTafsirWidth } from '$lib/stores/tafsir.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
   import TafsirMeta from './TafsirMeta.svelte';
   import TafsirBody from './TafsirBody.svelte';
-  import TafsirEditions from './TafsirEditions.svelte';
 
   let dragging = $state(false);
 
@@ -70,11 +70,12 @@
   <header class="panel-header">
     <TafsirMeta />
     <div class="actions">
+      <!-- The shelf lives in Settings now. It used to open in place here,
+           which meant that in card view — the default — there was no route to
+           it at all. -->
       <button
         class="icon-btn"
-        class:on={tafsirStore.managing}
-        onclick={() => (tafsirStore.managing = !tafsirStore.managing)}
-        aria-pressed={tafsirStore.managing}
+        onclick={() => uiStore.openSettings('editions')}
         aria-label="Manage tafsir editions"
         title="Editions"
       >
@@ -99,11 +100,7 @@
   </header>
 
   <div class="panel-body">
-    {#if tafsirStore.managing}
-      <TafsirEditions />
-    {:else}
-      <TafsirBody />
-    {/if}
+    <TafsirBody />
   </div>
 </aside>
 
@@ -187,13 +184,6 @@
   .icon-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text);
-  }
-
-  /* The editions view is a mode the panel stays in, not a one-shot action, so
-     its button holds a pressed state rather than only reacting to hover. */
-  .icon-btn.on {
-    background: var(--color-bg-hover);
-    color: var(--color-accent);
   }
 
   .panel-body {

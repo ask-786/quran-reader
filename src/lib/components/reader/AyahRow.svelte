@@ -2,7 +2,9 @@
   import { Bookmark, BookmarkCheck, ScrollText, Copy, Check } from 'lucide-svelte';
   import type { Ayah, AyahGlyphWord } from '$lib/types/database';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
+  import { settingsStore } from '$lib/stores/settings.svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
+  import { hasVerseMarker, withoutVerseMarker } from '$lib/utils/ayah-marker';
 
   let {
     ayah,
@@ -23,6 +25,27 @@
 
   const bookmarked = $derived(bookmarksStore.isBookmarked(ayah.id));
   let copied = $state(false);
+
+  /**
+   * The words as they will be drawn, with the end-of-verse marker taken off
+   * when the reader has asked for it (Settings -> Reader).
+   *
+   * Only the verse's last word can carry one, which is a tighter guarantee
+   * than `hasVerseMarker` alone gives, so it is the only word tested. See
+   * `ayah-marker.ts` for how the marker is fused into that word, and for the
+   * 19 verses where it cannot be separated.
+   *
+   * Mushaf page view is deliberately untouched: its lines are justified from
+   * the printed page's own break points, and the marker is one of the glyphs
+   * that line was measured around.
+   */
+  const shownWords = $derived.by(() => {
+    if (settingsStore.current.show_ayah_numbers) return words;
+    const last = words.at(-1);
+    if (!last || !hasVerseMarker(last)) return words;
+    const stripped = withoutVerseMarker(last);
+    return stripped === last ? words : [...words.slice(0, -1), stripped];
+  });
 
   async function copyText() {
     await navigator.clipboard.writeText(ayah.uthmani_text);
@@ -93,7 +116,7 @@
       class:clickable={tafsirStore.clicksOpenTafsir}
       use:tafsirOnClick
     >
-      {#each words as w, i (i)}<span
+      {#each shownWords as w, i (i)}<span
           class="word"
           style:font-family={w.fontFamily}
           aria-label={w.uthmani_text}

@@ -7,6 +7,7 @@
   import Sidebar from '$lib/components/sidebar/Sidebar.svelte';
   import Toolbar from '$lib/components/layout/Toolbar.svelte';
   import NavPalette from '$lib/components/navigation/NavPalette.svelte';
+  import SettingsDialog from '$lib/components/settings/SettingsDialog.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
@@ -79,12 +80,16 @@
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        // Outermost first. The palette clears its own filter on the first
-        // Escape and only lets the key reach here when there is nothing left
-        // to clear, so it goes before the tafsir popover beneath it — and the
+        // Outermost first. Settings and the palette never coexist (each closes
+        // the other), so their order between themselves is academic — but both
+        // sit over the tafsir popover. The palette clears its own filter on the
+        // first Escape and only lets the key reach here when there is nothing
+        // left to clear, so it goes before the popover beneath it — and the
         // popover before focus mode, or dismissing a card in focus mode would
         // tear down the whole chrome instead.
-        if (uiStore.paletteOpen) {
+        if (uiStore.settingsOpen) {
+          uiStore.closeSettings();
+        } else if (uiStore.paletteOpen) {
           uiStore.closePalette();
         } else if (tafsirStore.selection) {
           tafsirStore.closePopover();
@@ -106,6 +111,14 @@
         uiStore.togglePalette();
         return;
       }
+      // Ctrl/Cmd+comma, the platform-standard preferences key. Toggles, so the
+      // same keystroke puts it away.
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        uiStore.toggleSettings();
+        return;
+      }
+
       // The platform-standard find key, pointed at the sidebar's filter box.
       // Unlike `/` below it works from inside a text field too, so the palette
       // has to give way to it.
@@ -139,7 +152,9 @@
         }
       }
 
-      if (uiStore.paletteOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (uiStore.paletteOpen || uiStore.settingsOpen || e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         return;
@@ -279,6 +294,7 @@
 </div>
 
 <NavPalette />
+<SettingsDialog />
 
 <style>
   .app-shell {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
 
   /**
    * The commentary itself, shared by the popover and the side panel so the two
@@ -40,15 +41,12 @@
 </script>
 
 {#if !edition}
-  <!-- The app ships with no commentary at all, so this is what a new reader
-       sees first. Saying only "none installed" would be a dead end; the panel
-       can open the list, the popover cannot, so only the panel offers it. -->
+  <!-- The app can ship with no commentary at all, so this is what a new reader
+       may see first. The shelf lives in Settings now, which is reachable from
+       both surfaces — the popover used to have to send readers to the panel
+       first, because the list only existed inside it. -->
   <p class="state">No commentary is installed yet.</p>
-  {#if tafsirStore.view === 'panel'}
-    <button class="cta" onclick={() => (tafsirStore.managing = true)}>Browse editions</button>
-  {:else}
-    <p class="state">Open the tafsir panel to download one.</p>
-  {/if}
+  <button class="cta" onclick={() => uiStore.openSettings('editions')}>Browse editions</button>
 {:else if tafsirStore.error}
   <p class="state">{tafsirStore.error}</p>
 {:else if tafsirStore.targetAyahId === null}

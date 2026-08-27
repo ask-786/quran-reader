@@ -13,11 +13,10 @@
     Square,
     Copy,
     X,
-    ZoomIn,
-    ZoomOut,
     Focus,
     Search,
     ScrollText,
+    Settings,
   } from 'lucide-svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
@@ -92,25 +91,7 @@
         <Rows3 size={18} />
       {/if}
     </button>
-  {/if}
 
-  <div class="zoom-group" title="App zoom">
-    <button class="icon-btn small" onclick={() => settingsStore.zoomAppOut()} aria-label="Zoom out">
-      <ZoomOut size={15} />
-    </button>
-    <button
-      class="zoom-value"
-      onclick={() => settingsStore.resetAppZoom()}
-      aria-label="Reset app zoom"
-    >
-      {Math.round(settingsStore.current.app_zoom * 100)}%
-    </button>
-    <button class="icon-btn small" onclick={() => settingsStore.zoomAppIn()} aria-label="Zoom in">
-      <ZoomIn size={15} />
-    </button>
-  </div>
-
-  {#if hasReader}
     <button
       class="icon-btn"
       class:active={tafsirOn}
@@ -143,6 +124,17 @@
     {:else}
       <Coffee size={18} />
     {/if}
+  </button>
+
+  <button
+    class="icon-btn"
+    class:active={uiStore.settingsOpen}
+    onclick={() => uiStore.toggleSettings()}
+    aria-pressed={uiStore.settingsOpen}
+    aria-label="Settings"
+    title="Settings (Ctrl+,)"
+  >
+    <Settings size={18} />
   </button>
 
   <div class="window-controls">
@@ -192,7 +184,6 @@
   }
 
   .icon-btn,
-  .zoom-group,
   .window-controls {
     flex-shrink: 0;
   }
@@ -222,37 +213,6 @@
     color: var(--color-accent);
   }
 
-  .icon-btn.small {
-    width: 24px;
-    height: 24px;
-  }
-
-  .zoom-group {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 2px;
-    border-radius: var(--radius);
-    background: var(--color-bg);
-  }
-
-  .zoom-value {
-    min-width: 38px;
-    padding: 2px 4px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-text-muted);
-    border-radius: var(--radius);
-  }
-
-  .zoom-value:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text);
-  }
-
   .window-controls {
     display: flex;
     align-items: center;
@@ -271,10 +231,6 @@
     .toolbar {
       gap: 4px;
       padding: 0 8px;
-    }
-
-    .zoom-group {
-      display: none;
     }
   }
 </style>

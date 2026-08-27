@@ -2,6 +2,19 @@ import { settingsStore } from './settings.svelte';
 
 export type ReadingMode = 'scroll' | 'mushaf';
 
+/** The sections of the settings dialog, in rail order. */
+export const SETTINGS_SECTIONS = [
+  'appearance',
+  'reader',
+  'tafsir',
+  'editions',
+  'data',
+  'shortcuts',
+  'about',
+] as const;
+
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
 class UiStore {
   sidebarOpen = $state(true);
   readingMode = $state<ReadingMode>('mushaf');
@@ -20,6 +33,20 @@ class UiStore {
    * focus-mode toggle, say — doesn't replay a focus the user never asked for.
    */
   searchFocusPending = $state(false);
+
+  /**
+   * The settings dialog — everything that is a preference rather than a mode,
+   * plus the edition downloads, which used to be reachable only from inside an
+   * open tafsir panel.
+   */
+  settingsOpen = $state(false);
+
+  /**
+   * Which section it is showing. Kept across closes for the length of the
+   * session: coming back to change one more thing almost always means coming
+   * back to the same place.
+   */
+  settingsSection = $state<SettingsSection>('appearance');
 
   /**
    * The reader zoom in force right now. Normal and focus view remember separate
@@ -52,6 +79,7 @@ class UiStore {
   }
 
   openPalette() {
+    this.settingsOpen = false;
     this.paletteOpen = true;
   }
 
@@ -60,7 +88,28 @@ class UiStore {
   }
 
   togglePalette() {
-    this.paletteOpen = !this.paletteOpen;
+    if (this.paletteOpen) this.closePalette();
+    else this.openPalette();
+  }
+
+  /**
+   * Open settings, optionally straight to a section. Takes the palette down on
+   * the way: two stacked modal dialogs have no sensible Escape order, and
+   * nothing here needs the navigator.
+   */
+  openSettings(section?: SettingsSection) {
+    if (section) this.settingsSection = section;
+    this.paletteOpen = false;
+    this.settingsOpen = true;
+  }
+
+  closeSettings() {
+    this.settingsOpen = false;
+  }
+
+  toggleSettings() {
+    if (this.settingsOpen) this.closeSettings();
+    else this.openSettings();
   }
 
   /**
@@ -68,6 +117,7 @@ class UiStore {
    * for that, so a collapsed sidebar opens and focus mode ends first.
    */
   focusSearch() {
+    this.settingsOpen = false;
     if (this.focusMode) this.exitFocusMode();
     this.sidebarOpen = true;
     this.searchFocusPending = true;
