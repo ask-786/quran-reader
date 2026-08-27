@@ -979,6 +979,12 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
             .get("show_ayah_numbers")
             .map(|v| v == "true")
             .unwrap_or(true),
+        // Absent in databases predating range focus; like `tafsir_view` above,
+        // a settings key needs no migration to gain a default.
+        range_focus: map
+            .get("range_focus")
+            .cloned()
+            .unwrap_or_else(|| "trim".into()),
         app_zoom: map
             .get("app_zoom")
             .and_then(|v| v.parse().ok())

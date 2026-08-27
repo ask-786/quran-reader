@@ -14,7 +14,7 @@
     LINE_HEIGHT_MAX,
     LINE_HEIGHT_STEP,
   } from '$lib/stores/settings.svelte';
-  import type { ReaderWidth } from '$lib/types/database';
+  import type { RangeFocus, ReaderWidth } from '$lib/types/database';
   import SettingRow from './SettingRow.svelte';
   import Segmented from './Segmented.svelte';
   import Slider from './Slider.svelte';
@@ -25,6 +25,12 @@
     { value: 'narrow', label: 'Narrow' },
     { value: 'normal', label: 'Normal' },
     { value: 'wide', label: 'Wide' },
+  ];
+
+  const RANGE_FOCUS: { value: RangeFocus; label: string }[] = [
+    { value: 'all', label: 'Keep' },
+    { value: 'dim', label: 'Dim' },
+    { value: 'trim', label: 'Trim' },
   ];
 
   const current = $derived(settingsStore.current);
@@ -96,6 +102,21 @@
       label="Show verse numbers"
       checked={current.show_ayah_numbers}
       onchange={(show) => settingsStore.setShowAyahNumbers(show)}
+    />
+  {/snippet}
+</SettingRow>
+
+<SettingRow
+  label="The rest of the page"
+  description="A printed page is shared between Surahs, so opening one hands you the tail of the Surah before it and the opening of the next. Mushaf view can keep those lines, dim them to context, or drop them. The scrolling view is already built from the range's own verses."
+  stacked
+>
+  {#snippet control()}
+    <Segmented
+      label="The rest of the page"
+      options={RANGE_FOCUS}
+      value={current.range_focus}
+      onchange={(mode) => settingsStore.setRangeFocus(mode)}
     />
   {/snippet}
 </SettingRow>

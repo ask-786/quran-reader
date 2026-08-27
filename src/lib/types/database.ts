@@ -162,6 +162,14 @@ export type TafsirView = 'popover' | 'panel';
 export type Font = 'amiri-quran' | 'noto-naskh-arabic';
 export type ReaderWidth = 'narrow' | 'normal' | 'wide';
 
+/**
+ * What Mushaf view does with the parts of a printed page that fall outside the
+ * range you opened — the tail of the previous Surah above, the head of the next
+ * one below. `all` prints the page as it stands, `dim` keeps those lines as
+ * faint context, `trim` drops them so the range is the only thing on the page.
+ */
+export type RangeFocus = 'all' | 'dim' | 'trim';
+
 export interface Settings {
   theme: Theme;
   font: Font;
@@ -181,6 +189,7 @@ export interface Settings {
   tafsir_click: boolean;
   show_transliteration: boolean;
   show_ayah_numbers: boolean;
+  range_focus: RangeFocus;
   app_zoom: number;
   reader_zoom_normal: number;
   reader_zoom_focus: number;

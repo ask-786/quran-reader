@@ -2,7 +2,7 @@
   import { tick } from 'svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { loadPages } from '$lib/api/page-cache';
-  import type { Ayah, MushafPage } from '$lib/types/database';
+  import type { Ayah, MushafPage, RangeFocus } from '$lib/types/database';
   import {
     ensurePageFont,
     familyForPage,
@@ -23,9 +23,21 @@
   let {
     ayahs,
     scrollToAyahId,
+    rangeFocus = 'all',
   }: {
     ayahs: Ayah[];
     scrollToAyahId?: number;
+    /**
+     * What to do with the parts of a page outside the open range. A printed
+     * page is shared — open Al-Mulk and the sheet it starts on carries the last
+     * lines of Al-Mulk's predecessor above the banner — so those lines can be
+     * kept, dimmed to context, or dropped.
+     *
+     * Decided by the caller, not read from settings here, because it is only
+     * meaningful for a range that *can* be a fraction of a page. See ReaderPage
+     * for why the Mushaf page route always asks for `all`.
+     */
+    rangeFocus?: RangeFocus;
   } = $props();
 
   // Al-Fatihah and the opening of Al-Baqarah are set apart in the printed
@@ -48,7 +60,25 @@
 
   let pages = $state<MushafPage[]>([]);
   let basmalaFontFamily = $state<string | null>(null);
-  let loading = $state(true);
+  /**
+   * Whether the page content is fit to be painted — which means the layout is
+   * loaded *and* the glyphs around the landing spot are registered, not just
+   * the first of those.
+   *
+   * Layout arrives well before the ~760KB font group it needs, and a line box
+   * takes its height from `min-height`, not its contents, so between the two
+   * the range renders at full height with every line empty. On a cold open
+   * that empty sheet is on screen long enough to read as a flash of blank page
+   * before the text drops in. Holding the whole thing back until the seed
+   * glyphs are in trades that for a moment longer on "Loading…" — one state
+   * instead of two.
+   *
+   * Not simply "the load effect is running": that effect also re-runs for a
+   * new scroll target inside the range the reader is already looking at (a Go
+   * To), and blanking the view to jump within it would be a far worse flash
+   * than the one being fixed. Only a genuinely different range clears this.
+   */
+  let ready = $state(false);
   let error = $state<string | null>(null);
   let container = $state<HTMLDivElement>();
   let content = $state<HTMLDivElement>();
@@ -65,6 +95,67 @@
 
   const firstPage = $derived(ayahs[0]?.page ?? 1);
   const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
+
+  /**
+   * Whether an Ayah is one of the ones this route opened. Every range the
+   * reader covers is a contiguous run of global Ayah ids, so the two ends of
+   * `ayahs` are the whole test.
+   *
+   * Words with no Ayah of their own — a basmala line's single glyph — count as
+   * in-range: they belong to the Surah banner above them, which is judged
+   * separately by `croppedSurahHeader`.
+   */
+  function inRange(ayahId: number | null): boolean {
+    if (ayahId === null || ayahs.length === 0) return true;
+    return ayahId >= ayahs[0].id && ayahId <= ayahs[ayahs.length - 1].id;
+  }
+
+  /** The Surahs that actually *begin* inside the open range. */
+  const openingSurahs = $derived.by(() => {
+    const ids = new SvelteSet<number>();
+    for (const a of ayahs) if (a.ayah_number === 1) ids.add(a.surah_id);
+    return ids;
+  });
+
+  /**
+   * A Surah banner belongs to the range only when its Surah opens inside it.
+   * The banner at the foot of the last page announces the *next* Surah, which
+   * is exactly what this is for; a banner at the head of the first page
+   * announces the one you opened, so it stays.
+   *
+   * Judged by the Surah's own Ayah 1 rather than by "any Ayah of this Surah is
+   * in range", so a Juz that opens partway into a Surah doesn't keep a banner
+   * for an opening it doesn't contain.
+   */
+  function headerOutOfRange(surahId: number | null): boolean {
+    if (rangeFocus === 'all') return false;
+    return surahId === null || !openingSurahs.has(surahId);
+  }
+
+  /**
+   * Text lines with nothing of the open range on them. Ids rather than a
+   * predicate called per line during render: this runs once per page load
+   * instead of once per line per render, and the render loop is the hot path
+   * the whole view's scrolling performance sits on.
+   *
+   * Surah boundaries always fall between lines — a Surah begins on the line
+   * after its banner and the next banner ends it — so for a Surah route this
+   * is the whole job. A Juz or Hizb boundary can land mid-line, and there the
+   * line stays and its individual out-of-range words are marked instead (see
+   * `.out-of-range` in the markup below).
+   */
+  const outOfRangeLines = $derived.by(() => {
+    const outside = new SvelteSet<string>();
+    if (rangeFocus === 'all' || ayahs.length === 0) return outside;
+    for (const p of pages) {
+      for (const line of p.lines) {
+        if (line.line_type !== 'text') continue;
+        if (line.words.some((w) => w.ayah_id !== null && inRange(w.ayah_id))) continue;
+        outside.add(`line-${p.page}-${line.line_number}`);
+      }
+    }
+    return outside;
+  });
 
   /**
    * Ayah id -> the id of the line element its first word sits on. Scroll
@@ -185,8 +276,17 @@
     };
   }
 
+  /**
+   * The Ayah a line is tagged with for centre tracking. On a line the range
+   * only starts partway through — a Juz boundary, or the continuation of an
+   * Ayah that began on the previous page — the opening word belongs to an Ayah
+   * outside the range, and tagging the line with that publishes a position
+   * ReaderPage can only throw away. The first word actually in range is the
+   * honest answer, and the only one the reader can be sent back to.
+   */
   function lineAyahId(words: { ayah_id: number | null }[]) {
-    return words.find((w) => w.ayah_id !== null)?.ayah_id;
+    const scoped = words.find((w) => w.ayah_id !== null && inRange(w.ayah_id));
+    return (scoped ?? words.find((w) => w.ayah_id !== null))?.ayah_id;
   }
 
   function updateProgress() {
@@ -240,8 +340,18 @@
     const start = firstPage;
     const end = lastPage;
     const targetId = scrollToAyahId;
-    loading = true;
     error = null;
+
+    // Decided synchronously, before anything is awaited, so the view is only
+    // ever blanked for a range it isn't already showing. The window is cleared
+    // here for the same reason it is held back — both describe the outgoing
+    // range, and neither should survive into the incoming one.
+    const rangeKey = `${start}-${end}`;
+    if (rangeKey !== loadedRangeKey) {
+      loadedRangeKey = rangeKey;
+      renderedPages.clear();
+      ready = false;
+    }
 
     let cancelled = false;
     let observer: IntersectionObserver | undefined;
@@ -262,16 +372,6 @@
         basmalaFontFamily = basmalaFamily;
         pages = loaded;
 
-        // Only a genuinely different page range resets the render window. This
-        // effect also re-runs when just the scroll target changes — a Go To
-        // inside the open Surah — and clearing there would blank every page on
-        // screen and reload the fonts it already had.
-        const rangeKey = `${start}-${end}`;
-        if (rangeKey !== loadedRangeKey) {
-          loadedRangeKey = rangeKey;
-          renderedPages.clear();
-        }
-
         // Only the pages around the landing spot are fetched before the first
         // paint. Loading the whole range's fonts up front was the reader's
         // startup stall: 48 files and 5.9MB for Al-Baqara, versus 3 files and
@@ -285,6 +385,10 @@
         await Promise.all(seeds.map((p) => ensurePageFont(p)));
         if (cancelled) return;
         for (const p of seeds) renderedPages.add(p);
+        // Same update as the glyphs above, so the page's first paint is a page
+        // with text on it. `tick()` then lands the scroll before that paint —
+        // it resolves on the DOM update, still inside this task's microtasks.
+        ready = true;
 
         await tick();
         if (cancelled || !container) return;
@@ -326,8 +430,6 @@
         updateProgress();
       } catch (err) {
         if (!cancelled) error = err instanceof Error ? err.message : String(err);
-      } finally {
-        if (!cancelled) loading = false;
       }
     })();
 
@@ -340,24 +442,32 @@
   });
 
   /**
-   * Reader zoom scales every line box, so the scroll offset that was showing
-   * one line points at a different one the moment it changes. Nothing here
-   * remounts on a focus toggle — the two modes just carry separate zoom levels
-   * — so the view would silently keep an offset that no longer means anything.
+   * Reader zoom scales every line box, and trimming adds or removes whole
+   * ones, so either way the scroll offset that was showing one line points at
+   * a different one the moment it changes. Nothing here remounts on a focus
+   * toggle or a settings change — the two modes just carry separate zoom
+   * levels, and the page-focus control lives in a dialog over the reader — so
+   * the view would silently keep an offset that no longer means anything.
    * Re-centring the Ayah the centre tracker last reported is the same
    * record-then-restore round trip a Mushaf/list toggle makes.
    *
    * Only on an actual change: with both modes at the same zoom the current
    * offset is still exact, and re-centring would round it to the nearest line
-   * for nothing. `lastZoom` starts unset so the first run (mount) is skipped
+   * for nothing. Dimming is tracked as "does this mode trim" for the same
+   * reason — going between `all` and `dim` recolours the page without moving a
+   * single line. Both trackers start unset so the first run (mount) is skipped
    * too — the load effect above does its own landing.
    */
   let lastZoom: number | null = null;
+  let lastTrims: boolean | null = null;
 
   $effect(() => {
     const zoom = uiStore.readerZoom;
-    const changed = lastZoom !== null && zoom !== lastZoom;
+    const trims = rangeFocus === 'trim';
+    const changed =
+      (lastZoom !== null && zoom !== lastZoom) || (lastTrims !== null && trims !== lastTrims);
     lastZoom = zoom;
+    lastTrims = trims;
     if (!changed) return;
 
     void (async () => {
@@ -417,10 +527,10 @@
   >
     {#if error}
       <p class="state-message">Couldn't load pages: {error}</p>
-    {:else if loading && pages.length === 0}
+    {:else if !ready}
       <p class="state-message">Loading…</p>
     {:else}
-      <div bind:this={content} class="page-content">
+      <div bind:this={content} class="page-content" class:dim={rangeFocus === 'dim'}>
         {#each pages as p (p.page)}
           <div class="mushaf-page" data-page={p.page} dir="rtl">
             {#each p.lines as line, li (line.line_number)}
@@ -428,12 +538,20 @@
                 {@const headerSurah =
                   line.surah_id !== null ? surahsStore.get(line.surah_id) : undefined}
                 {@const nextLine = p.lines[li + 1]}
-                {#if headerSurah}
-                  <SurahHeader
-                    surah={headerSurah}
-                    basmalaWords={nextLine?.line_type === 'basmala' ? nextLine.words : []}
-                    {basmalaFontFamily}
-                  />
+                {@const bannerOutside = headerOutOfRange(line.surah_id)}
+                <!-- The wrapper is what carries the out-of-range mark: the
+                     banner is a component, and a class it doesn't know about
+                     has to land on something in this file. It adds no box of
+                     its own — no padding or border, so the banner's margins
+                     collapse through it exactly as before. -->
+                {#if headerSurah && !(rangeFocus === 'trim' && bannerOutside)}
+                  <div class="banner-slot" class:out-of-range={bannerOutside}>
+                    <SurahHeader
+                      surah={headerSurah}
+                      basmalaWords={nextLine?.line_type === 'basmala' ? nextLine.words : []}
+                      {basmalaFontFamily}
+                    />
+                  </div>
                 {/if}
               {:else if line.line_type === 'basmala'}
                 <!-- rendered as part of the preceding surah_header, above -->
@@ -448,10 +566,13 @@
                      and a full one are exactly the same height. That is what
                      lets pages load and unload as you scroll without ever
                      moving the content around them. -->
+                {@const lineId = `line-${p.page}-${line.line_number}`}
+                {@const lineOutside = outOfRangeLines.has(lineId)}
                 <div
-                  id="line-{p.page}-{line.line_number}"
+                  id={lineId}
                   class="line text-line"
                   class:centered={CENTERED_PAGES.has(p.page)}
+                  class:out-of-range={lineOutside}
                   data-line-ayah-id={lineAyahId(line.words)}
                   style:font-family={familyForPage(p.page)}
                 >
@@ -466,6 +587,9 @@
                            docs/tafsir-popover-plan.md — not this one. -->
                       <span
                         class="word"
+                        class:out-of-range={!lineOutside &&
+                          rangeFocus !== 'all' &&
+                          !inRange(w.ayah_id)}
                         data-ayah-id={w.ayah_id}
                         data-word-index={w.word_index}
                         aria-label={w.uthmani_text}
@@ -619,6 +743,52 @@
        app.css. Keep in step with .line's min-height above. */
     line-height: 2.5;
     color: var(--color-text);
+  }
+
+  /* The rest of the printed page — see `rangeFocus`. Trim is the default and
+     is expressed as the absence of `.dim` on the content root, so a page with
+     nothing out of range costs no extra rules either way.
+
+     Whole lines and the Surah banner go out of flow: the point of trimming is
+     that the Surah you opened starts at the top of its page, which a run of
+     reserved-but-empty lines above the banner would not give you. The line box
+     stays in the DOM so the centre tracker and the visibility observer keep the
+     element references they were set up with — a display:none box simply never
+     intersects. */
+  .line.out-of-range,
+  .banner-slot.out-of-range {
+    display: none;
+  }
+
+  /* The partial-line case, which only a Juz or Hizb boundary produces (Surahs
+     always break between lines). Hidden in place rather than removed: a
+     justified line gets its word spacing from `space-between`, so dropping a
+     word would re-space the whole line and stop it being the printed line. */
+  .word.out-of-range {
+    visibility: hidden;
+  }
+
+  /* Dim: the same three marks, kept on the page as context. Opacity rather
+     than a faint colour so one number covers the Quran glyphs, the banner's
+     accent rules and its subtitle alike, and reads the same in every theme.
+     `pointer-events` is what stops a click on faint text opening commentary
+     for a verse the reader did not open — the delegated handler finds no
+     `.word` and no tagged line, so it does nothing. */
+  .page-content.dim .line.out-of-range,
+  .page-content.dim .banner-slot.out-of-range {
+    display: flex;
+    opacity: 0.26;
+    pointer-events: none;
+  }
+
+  .page-content.dim .banner-slot.out-of-range {
+    display: block;
+  }
+
+  .page-content.dim .word.out-of-range {
+    visibility: visible;
+    opacity: 0.26;
+    pointer-events: none;
   }
 
   /* Al-Fatihah / the opening of Al-Baqarah (see CENTERED_PAGES): the lines

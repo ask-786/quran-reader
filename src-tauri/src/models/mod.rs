@@ -195,6 +195,11 @@ pub struct Settings {
     pub tafsir_click: bool,
     pub show_transliteration: bool,
     pub show_ayah_numbers: bool,
+    /// "all" | "dim" | "trim" — what the Mushaf page view does with the parts
+    /// of a printed page outside the opened range. A page is shared between
+    /// Surahs, and opening one Surah should not hand you the tail of the one
+    /// before it.
+    pub range_focus: String,
     pub app_zoom: f32,
     pub reader_zoom_normal: f32,
     pub reader_zoom_focus: f32,
@@ -217,6 +222,7 @@ impl Default for Settings {
             tafsir_click: false,
             show_transliteration: false,
             show_ayah_numbers: true,
+            range_focus: "trim".to_string(),
             app_zoom: 1.0,
             reader_zoom_normal: 1.0,
             reader_zoom_focus: 1.0,

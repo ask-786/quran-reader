@@ -339,6 +339,7 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     ('tafsir_view',             'popover'),   -- 'popover' | 'panel'
     ('show_transliteration',    'false'),
     ('show_ayah_numbers',       'true'),
+    ('range_focus',             'trim'),   -- 'all' | 'dim' | 'trim'
     ('app_zoom',                '1'),
     ('reader_zoom',             '1');
 

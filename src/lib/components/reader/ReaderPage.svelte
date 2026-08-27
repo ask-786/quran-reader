@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { Ayah, ReadingScope } from '$lib/types/database';
+  import type { Ayah, RangeFocus, ReadingScope } from '$lib/types/database';
   import ReaderView from './ReaderView.svelte';
   import PageView from './PageView.svelte';
   import AutoScrollHandle from './AutoScrollHandle.svelte';
@@ -14,6 +14,7 @@
   import { readerPosition } from '$lib/stores/reader-position.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
+  import { settingsStore } from '$lib/stores/settings.svelte';
 
   let {
     ayahs,
@@ -118,6 +119,24 @@
   // window does this) still owes the range its pending position.
   $effect(() => () => readingStore.flush());
 
+  /**
+   * What Mushaf view does with the parts of a page outside the Ayahs this route
+   * opened. A printed page is shared between Surahs, so opening Al-Mulk hands
+   * you the last lines of the Surah before it and, at the far end, the opening
+   * of the one after.
+   *
+   * Always `all` for the Mushaf page route, whatever the setting says, and not
+   * as an oversight: `ayah.page` records where an Ayah *begins*, so the page
+   * route's Ayah list leaves out an Ayah that started on the page before and
+   * spills onto this one. Dimming or trimming to that list would grey out or
+   * blank the top of the very page the reader asked to see. The other three
+   * routes are ranges that may be a fraction of a page, which is the case this
+   * is for.
+   */
+  const rangeFocus = $derived<RangeFocus>(
+    scope === 'page' ? 'all' : settingsStore.current.range_focus,
+  );
+
   /** Whether the side panel is on screen — it and the inset it opens must be
    *  the same condition, or the controls step aside for a panel that isn't
    *  there. */
@@ -139,7 +158,7 @@
        element and move inward by --tafsir-inset to stay out from under it. -->
   <div class="reader-main">
     {#if renderedMode === 'mushaf'}
-      <PageView {ayahs} scrollToAyahId={viewTarget} />
+      <PageView {ayahs} scrollToAyahId={viewTarget} {rangeFocus} />
     {:else}
       <ReaderView {ayahs} scrollToAyahId={viewTarget} />
     {/if}

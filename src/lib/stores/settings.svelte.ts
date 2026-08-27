@@ -1,6 +1,6 @@
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { loadSettings, setSetting } from '$lib/api/db';
-import type { ReaderWidth, Settings, Theme } from '$lib/types/database';
+import type { RangeFocus, ReaderWidth, Settings, Theme } from '$lib/types/database';
 
 const APP_ZOOM_MIN = 0.7;
 const APP_ZOOM_MAX = 1.5;
@@ -65,6 +65,7 @@ function defaultSettings(): Settings {
     tafsir_click: false,
     show_transliteration: false,
     show_ayah_numbers: true,
+    range_focus: 'trim',
     app_zoom: 1,
     reader_zoom_normal: 1,
     reader_zoom_focus: 1,
@@ -163,6 +164,21 @@ class SettingsStore {
   async setShowAyahNumbers(show: boolean) {
     this.current.show_ayah_numbers = show;
     await setSetting('show_ayah_numbers', String(show));
+  }
+
+  /**
+   * What the Mushaf page view does with the rest of the printed page.
+   *
+   * A printed page is shared: open Al-Mulk and the sheet it starts on carries
+   * the last lines of Al-Mulk's predecessor above the banner, and the sheet it
+   * ends on carries the opening of the next Surah below.
+   *
+   * Mushaf view only. The scrolling view is built from the range's own Ayahs
+   * and has never had anything else in it to dim or drop.
+   */
+  async setRangeFocus(mode: RangeFocus) {
+    this.current.range_focus = mode;
+    await setSetting('range_focus', mode);
   }
 
   /** Back to the shipped typography in one action — three controls to put back
