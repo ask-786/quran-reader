@@ -30,6 +30,7 @@
           { keys: '↑↓', label: 'move' },
           { keys: '←→', label: 'switch list' },
           { keys: '↵', label: 'open' },
+          { keys: 'Tab', label: 'search' },
           { keys: 'Esc', label: 'close' },
         ],
   );

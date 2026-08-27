@@ -316,7 +316,8 @@
    * The palette's keys with the box unfocused — the same list the box answers,
    * minus the ones the box needs for itself. Bare ←/→ step the tab strip here,
    * because with no caret to move there is nothing else for them to do; inside
-   * the box the same thing costs Alt or Ctrl.
+   * the box the same thing costs Alt or Ctrl. Tab goes back into the box, so
+   * the step out has a step in of its own rather than only the typing below.
    *
    * Keydowns from the box bubble through here too, hence the guard: while it
    * has focus, its own handler is the only one that speaks for these keys.
@@ -336,11 +337,13 @@
         cycleMode(-1);
         return;
       case 'Tab':
-        // Held onto rather than left to the browser: everything in the palette
-        // is tabindex -1, so a native Tab from here walks focus out of a dialog
-        // that is still open.
+        // The way back into the box, matching the Escape that left it — the
+        // strip has ←/→ out here, so Tab is free for it. Either way the key has
+        // to be held onto rather than left to the browser: everything in the
+        // palette is tabindex -1, so a native Tab walks focus clean out of a
+        // dialog that is still open.
         e.preventDefault();
-        cycleMode(e.shiftKey ? -1 : 1);
+        inputEl?.focus();
         return;
       case 'ArrowDown':
         e.preventDefault();
