@@ -108,9 +108,18 @@ jobs:
 
       # Artifacts are unsigned: macOS shows a Gatekeeper warning and Windows
       # SmartScreen flags the installer until signing certificates are added.
+      #
+      # RELEASE_TOKEN, not GITHUB_TOKEN: from the v0.2.1 build on, the Actions
+      # token gets a hard 403 ("Resource not accessible by integration") on
+      # POST /releases even though the job is granted contents: write and the
+      # run log confirms it. Listing releases succeeds; only the write is
+      # refused, and nothing in the workflow or the repo settings changed
+      # between the v0.2.0 run that worked and the v0.2.1 run that didn't.
+      # A fine-grained PAT scoped to this repo with Contents: read and write
+      # goes around it.
       - uses: tauri-apps/tauri-action@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: 'Quran Reader ${{ github.event.inputs.tag || github.ref_name }}'
@@ -129,7 +138,8 @@ jobs:
       - name: Repack AppImage without bundled wayland libraries
         if: matrix.platform == 'ubuntu-22.04'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Same reason as the token on tauri-action above.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           # The runners have no libfuse2, which AppImages need to mount themselves.
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
