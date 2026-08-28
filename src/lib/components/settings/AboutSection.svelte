@@ -41,7 +41,6 @@
       group: 'Fonts',
       items: [
         { name: 'Amiri — The Amiri Project Authors', terms: 'SIL OFL 1.1' },
-        { name: 'Scheherazade New — SIL Global', terms: 'SIL OFL 1.1' },
         { name: 'Inter — Rasmus Andersson', terms: 'SIL OFL 1.1' },
       ],
     },

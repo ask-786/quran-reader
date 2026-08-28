@@ -30,7 +30,7 @@ curl -fsSL --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 \
   -o "$DEST/font-map.json" "$RAW_BASE/font-map.json"
 
 # QBSML is the Surah-title *banner* font only. It is not used at runtime (the
-# banner is drawn live from surah.name_ar in Scheherazade New), and it is NOT
+# banner is drawn live from surah.name_ar in Amiri), and it is NOT
 # the basmala font despite the name — its basmala codepoints are zero-contour
 # blanks, while QCF4_Hafs_01 carries the real artwork. Vendored anyway so the
 # v4 asset set stays complete for anyone wanting real banner glyphs later.

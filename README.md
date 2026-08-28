@@ -204,7 +204,7 @@ src/              SvelteKit frontend (components, stores, routes)
 src-tauri/        Rust backend — SQLite access, Tauri commands
 importer/         Standalone importer that builds quran.db
 database/         schema.sql, migrations, and the built quran.db
-static/fonts/     Vendored fonts (47 QCF v4 groups, Scheherazade New, Amiri)
+static/fonts/     Vendored fonts (47 QCF v4 groups, Amiri)
 scripts/          Font vendoring, icon generation, version bumping
 docs/             Research and design notes
 ```
