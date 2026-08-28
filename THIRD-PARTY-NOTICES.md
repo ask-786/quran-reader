@@ -69,18 +69,6 @@ terms, from the same repository. It is vendored for completeness but not used
 at runtime — the banner is drawn live from `surah.name_ar`, and the Basmala
 glyph comes from `QCF4_Hafs_01` rather than from this font.
 
-### Scheherazade New — `static/fonts/scheherazade-new-regular.woff2`
-
-|           |                                                             |
-| --------- | ----------------------------------------------------------- |
-| Source    | [SIL International](https://software.sil.org/scheherazade/) |
-| Copyright | © 2015–2024 SIL International                               |
-| License   | SIL Open Font License 1.1 — see `licenses/OFL-1.1.txt`      |
-
-Freely redistributable, including in commercial products, provided the
-license text and copyright notice travel with it (which is what this file
-and `licenses/OFL-1.1.txt` are for). Reserved Font Name: "Scheherazade".
-
 ### Amiri — `static/fonts/amiri-{arabic,latin}-regular.woff2`
 
 |           |                                                                                    |
@@ -89,10 +77,14 @@ and `licenses/OFL-1.1.txt` are for). Reserved Font Name: "Scheherazade".
 | Copyright | © 2010–2022 The Amiri Project Authors                                              |
 | License   | SIL Open Font License 1.1 — see `licenses/OFL-1.1.txt`                             |
 
-Used for running Arabic prose — the Arabic tafsir today, Arabic translations
-later. Scheherazade New above is a Quranic face and reads wrong at paragraph
-length, which is why this is a second Arabic font rather than a reuse. Amiri
-is a revival of the Būlāq Press naskh, drawn for book setting.
+The only bundled font for live-shaped Arabic: running prose (the Arabic
+tafsir today, Arabic translations later), Surah names, the Bismillah fallback
+and the banner ornament. Amiri is a revival of the Būlāq Press naskh, drawn
+for book setting, which is what prose at paragraph length wants.
+
+It also replaces Scheherazade New, a Quranic face bundled for the display
+jobs through v0.2.2. The mark measurements in `src/app.css` moved those onto
+Amiri as well, leaving Scheherazade named by nothing, so it was dropped.
 
 It replaces Noto Naskh Arabic, which was bundled for this same job through
 v0.1.9. The reason is a WebKitGTK defect rather than a matter of taste — see
@@ -103,9 +95,10 @@ Two files, both unmodified fontsource build artifacts: the Arabic subset plus
 the Latin one, because the Arabic subset does not cover the ASCII punctuation
 the tafsir text uses throughout.
 
-Unlike Scheherazade New, this font declares **no Reserved Font Name** (checked
-against the package's own LICENSE), so subset builds may ship as they are and
-this project does not have to carry the full font.
+This font declares **no Reserved Font Name** (checked against the package's
+own LICENSE), so subset builds may ship as they are and this project does not
+have to carry the full font. Scheherazade New, which it replaced, reserved
+the name "Scheherazade" and so had to ship whole.
 
 ### Inter — bundled via `@fontsource-variable/inter`
 

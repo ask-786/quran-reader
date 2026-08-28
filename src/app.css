@@ -1,43 +1,30 @@
 /**
  * Global styles: theme variables, bundled fonts, typography base.
  * Attribution: Quran text — Tanzil Project (tanzil.net) CC BY 3.0
- *              Scheherazade New — SIL Global, SIL OFL 1.1
  *              Amiri — The Amiri Project Authors, SIL OFL 1.1
  *              Inter — Rasmus Andersson, SIL OFL 1.1 (via @fontsource-variable/inter)
  */
 
 @import '@fontsource-variable/inter/wght.css';
 
-/* The only bundled font for live-shaped Arabic. Everything in the reader
-   itself renders from the per-page QCF glyph fonts instead (see
-   mushaf-fonts.ts), so this covers Surah names, the Bismillah fallback, and
-   the banner ornament — see --font-surah-name.
+/* The only bundled font for live-shaped Arabic, and it does every such job:
+   running prose (the Arabic tafsir, and any Arabic translation later), Surah
+   names, the Bismillah fallback, and the banner ornament. Everything in the
+   reader itself renders from the per-page QCF glyph fonts instead (see
+   mushaf-fonts.ts).
 
-   Amiri Quran and Noto Naskh Arabic used to be bundled here too and are
-   deliberately gone: Noto was unreachable in every font stack, and Amiri
-   Quran — a different font from the Amiri text face now bundled below — was
-   left rendering a single character (the sajdah mark), which turned out to be
-   a duplicate of one already baked into the page glyphs.
+   A text face rather than a Quranic one, which is what running prose wants:
+   Amiri is a revival of the Būlāq Press naskh and was drawn for book setting,
+   which is what tafsir is.
 
-   Running Arabic prose is NOT this font's job — that note used to say no
-   bundled font could do it at all, and Amiri below is the answer, under its
-   own --font-arabic-prose. Do not reuse this variable or --font-quran for
-   paragraphs.
-
-   Not subsetted: the OFL reserves the name "Scheherazade", so this ships as a
-   pure ttf->woff2 format conversion, unmodified otherwise. */
-@font-face {
-  font-family: 'Scheherazade New';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/scheherazade-new-regular.woff2') format('woff2');
-}
-
-/* Running Arabic prose — the Arabic tafsir, and any Arabic translation later.
-   A text face, not a Quranic one: Scheherazade New is cut for muṣḥaf setting
-   and reads wrong at paragraph length. Amiri is a revival of the Būlāq Press
-   naskh and was drawn for book setting, which is what tafsir is.
+   Three other Arabic fonts used to be bundled alongside it and are
+   deliberately gone. Noto Naskh Arabic was unreachable in every font stack.
+   Amiri Quran — a different font from this Amiri text face — was left
+   rendering a single character (the sajdah mark), which turned out to be a
+   duplicate of one already baked into the page glyphs. Scheherazade New held
+   out longest: it was the display face behind --font-surah-name until the
+   mark measurements below moved that variable here too, after which nothing
+   named it and its 123 KB rendered nothing at all.
 
    Amiri and not Noto Naskh Arabic, which this replaces, because of a defect
    in the engine we actually ship on: WebKitGTK (2.52.6, what Tauri embeds on
@@ -69,10 +56,12 @@
    artifacts; the ranges are the ones fontsource publishes for Noto Naskh,
    since its own Amiri CSS ships no unicode-range at all.
 
-   Subsetting IS permitted here, unlike Scheherazade above: Amiri carries no
-   Reserved Font Name (checked against the package's own LICENSE — the
-   copyright line has no RFN clause), so these subset builds may ship as they
-   are. */
+   Subsetting is permitted: Amiri carries no Reserved Font Name (checked
+   against the package's own LICENSE — the copyright line has no RFN clause),
+   so these subset builds may ship as they are. This is why it can be subset
+   at all where Scheherazade New could not — the OFL reserves the name
+   "Scheherazade", so that font had to ship as a whole-face ttf->woff2
+   conversion for as long as it was bundled. */
 @font-face {
   font-family: 'Amiri';
   font-style: normal;

@@ -22,7 +22,7 @@
  * The Basmala glyph lives in `QCF4_Hafs_01` — *not* in `QCF4_QBSML`, despite
  * what that font's name suggests. QBSML holds the Surah-title banner glyphs,
  * which this app never renders (SurahHeader draws the name live from
- * `surah.name_ar` in Scheherazade New); QBSML's copies of the Basmala
+ * `surah.name_ar` in Amiri); QBSML's copies of the Basmala
  * codepoints are zero-contour blanks, so rendering the Basmala with it
  * silently produces an empty line.
  *
