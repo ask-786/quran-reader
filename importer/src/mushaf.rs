@@ -210,9 +210,9 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
                     // SurahHeader.svelte), so the line carries the name as text
                     // and no word rows at all.
                     "surah_header" => {
-                        let surah_id = first
-                            .sura
-                            .with_context(|| format!("{}: surah_header without `sura`", where_()))?;
+                        let surah_id = first.sura.with_context(|| {
+                            format!("{}: surah_header without `sura`", where_())
+                        })?;
                         let name = surah_names
                             .get(&surah_id)
                             .with_context(|| format!("{}: unknown Surah {surah_id}", where_()))?;
@@ -281,7 +281,8 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
 
     validate_layout(&tx)?;
 
-    tx.commit().context("Committing mushaf layout transaction")?;
+    tx.commit()
+        .context("Committing mushaf layout transaction")?;
 
     log::info!("      Inserted {line_count} page lines, {word_count} words");
 
@@ -378,7 +379,10 @@ fn build_text_line(
                 rows.push(row);
             }
 
-            other => bail!("{}: unexpected entry type `{other}` on a text line", where_()),
+            other => bail!(
+                "{}: unexpected entry type `{other}` on a text line",
+                where_()
+            ),
         }
     }
 
@@ -437,14 +441,12 @@ fn validate_layout(tx: &rusqlite::Transaction) -> Result<()> {
     }
 
     // Every Surah is announced exactly once, on the page its first Ayah is on.
-    let misplaced = one(
-        "SELECT COUNT(*) FROM surah s
+    let misplaced = one("SELECT COUNT(*) FROM surah s
          JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
          WHERE NOT EXISTS (
            SELECT 1 FROM page_line pl
            WHERE pl.line_type = 'surah_header' AND pl.surah_id = s.id AND pl.page = a.page
-         )",
-    )?;
+         )")?;
     if misplaced != 0 {
         bail!("{misplaced} Surah(s) have no header on their opening page");
     }
@@ -455,28 +457,25 @@ fn validate_layout(tx: &rusqlite::Transaction) -> Result<()> {
     if basmalas != 112 {
         bail!("Expected 112 basmala lines, got {basmalas}");
     }
-    let missing_basmala = one(
-        "SELECT COUNT(*) FROM surah s
+    let missing_basmala = one("SELECT COUNT(*) FROM surah s
          JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
          WHERE s.id NOT IN (1, 9) AND NOT EXISTS (
            SELECT 1 FROM page_line pl WHERE pl.page = a.page AND pl.line_type = 'basmala'
-         )",
-    )?;
+         )")?;
     if missing_basmala != 0 {
         bail!("{missing_basmala} Surah(s) open with no Basmala line");
     }
 
     // Nothing renders as an empty box.
-    let no_glyph = one(
-        "SELECT COUNT(*) FROM page_line_word
-         WHERE glyph_v4 IS NULL OR glyph_v4 = ''",
-    )?;
+    let no_glyph = one("SELECT COUNT(*) FROM page_line_word
+         WHERE glyph_v4 IS NULL OR glyph_v4 = ''")?;
     if no_glyph != 0 {
         bail!("{no_glyph} word row(s) have no glyph");
     }
 
     // Every Ayah is laid out, and laid out whole: one row per Uthmani word.
-    let laid_out = one("SELECT COUNT(DISTINCT ayah_id) FROM page_line_word WHERE ayah_id IS NOT NULL")?;
+    let laid_out =
+        one("SELECT COUNT(DISTINCT ayah_id) FROM page_line_word WHERE ayah_id IS NOT NULL")?;
     if laid_out != 6236 {
         bail!("Expected all 6236 Ayahs in the layout, got {laid_out}");
     }
@@ -495,15 +494,13 @@ fn validate_layout(tx: &rusqlite::Transaction) -> Result<()> {
     // This is the bug that started all of it: an Ayah whose last word never got
     // its ﴿n﴾ marker appended. Every Ayah's highest-indexed word must carry a
     // second glyph.
-    let no_marker = one(
-        "SELECT COUNT(*) FROM (
+    let no_marker = one("SELECT COUNT(*) FROM (
            SELECT w.ayah_id FROM page_line_word w
            JOIN (SELECT ayah_id, MAX(word_index) AS mw FROM page_line_word
                  WHERE ayah_id IS NOT NULL GROUP BY ayah_id) last
              ON last.ayah_id = w.ayah_id AND last.mw = w.word_index
            WHERE INSTR(w.glyph_v4, ' ') = 0
-         )",
-    )?;
+         )")?;
     if no_marker != 0 {
         bail!("{no_marker} Ayah(s) end without an Ayah-marker glyph");
     }

@@ -729,7 +729,11 @@ mod tests {
                  DELETE FROM schema_version WHERE version >= 8;",
             )
             .unwrap();
-            assert_eq!(get_schema_version(&conn).unwrap(), 7, "fixture starts at v7");
+            assert_eq!(
+                get_schema_version(&conn).unwrap(),
+                7,
+                "fixture starts at v7"
+            );
             id
         };
 
