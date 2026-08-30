@@ -27,7 +27,7 @@
           name: 'Mushaf page glyphs — QCF v4, King Fahd Complex',
           terms: 'Use and distribution permitted; not open source',
         },
-        { name: 'Page layout data — zonetecde/mushaf-layout', terms: 'See notices' },
+        { name: 'Page layout data — MohamadHajjRabee/quran-qcf4', terms: 'MIT' },
       ],
     },
     {

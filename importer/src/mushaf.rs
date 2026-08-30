@@ -2,430 +2,57 @@
 /// page can be rendered with the same line breaks and word placement as the
 /// printed Mushaf.
 ///
-/// Data source: zonetecde/mushaf-layout (ISC license), 604 page JSON files.
-/// Glyphs are QCF v2 (King Fahd Complex, Uthman Taha calligraphy); the
-/// matching font files are vendored separately (see scripts/vendor-mushaf-fonts.sh).
+/// Data source: MohamadHajjRabee/quran-qcf4 (MIT JSON), 604 page files.
+/// Glyphs are QCF v4 (King Fahd Complex, Uthman Taha calligraphy); the
+/// matching font files are vendored separately (see
+/// scripts/vendor-mushaf-fonts-v4.sh).
+///
+/// This used to be a two-source import: zonetecde/mushaf-layout supplied the
+/// line structure and v2 glyphs, and a second pass *attached* v4 glyphs to the
+/// rows it had already created, matching on `(ayah_id, word_index)`. That join
+/// was wrong in both directions:
+///
+///   * The two sources don't segment words identically. The v2 layout packs
+///     two v4 tokens into one row in 19 Ayahs — every sajdah `۩`, the three
+///     `بَعْدَ مَا`, and 37:130's `إِلْ يَاسِينَ` — so the surplus v4 glyph and
+///     the Ayah-end marker after it matched no row and were silently dropped.
+///     37:130 rendered as `سَلَامٌ عَلَىٰ إِلْ` with no `يَاسِينَ` and no ﴿١٣٠﴾.
+///   * The two sources don't break lines identically either. 4785 of 8820 text
+///     lines placed their words differently, so v4 glyphs — whose advances are
+///     cut for v4's own line breaks — were being laid out on v2's.
+///
+/// Since nothing reads v2 glyphs any more, the fix is to stop consulting v2 at
+/// all and build the whole layout from the source the fonts belong to. Per-word
+/// Uthmani text, which is the one thing v4 doesn't carry in the right
+/// orthography (its `text` field is a simplified script), comes from splitting
+/// our own already-validated `ayah.uthmani_text` — whose token count matches v4's
+/// word count for all 6236 Ayahs once the sajdah ornament, which is a print
+/// mark rather than a word, is set aside.
 use anyhow::{bail, Context, Result};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
-const LAYOUT_RAW_BASE: &str =
-    "https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf";
-
-#[derive(Debug, Deserialize)]
-pub struct PageJson {
-    page: u32,
-    lines: Vec<LineJson>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LineJson {
-    line: u32,
-    #[serde(rename = "type")]
-    line_type: String, // "surah-header" | "basmala" | "text"
-    // Note: `surah-header` lines also carry `surah`/`text` fields, but we
-    // don't trust them (see comment at the "surah-header" match arm below)
-    // so they aren't even deserialized here.
-    #[serde(default, rename = "verseRange")]
-    verse_range: Option<String>,
-    #[serde(default)]
-    words: Option<Vec<WordJson>>,
-}
-
-// This source's `qpcV2` glyph strings are deliberately not deserialized. It
-// remains the authority for *layout* — which words fall on which line, and
-// where the lines break — but the glyphs themselves now come from the v4 pass
-// below, so reading qpcV2 would only be to throw it away.
-#[derive(Debug, Deserialize)]
-struct WordJson {
-    location: String, // "surah:ayah:word", e.g. "2:255:1"
-    word: String,
-}
-
-/// Download all 604 page layout files. One request per page — this is a
-/// one-time developer-run step, not something end users' installs do.
-pub fn fetch_all_pages() -> Result<Vec<PageJson>> {
-    let mut pages = Vec::with_capacity(604);
-
-    for n in 1..=604u32 {
-        let url = format!("{LAYOUT_RAW_BASE}/page-{n:03}.json");
-        let body = crate::fetch::get_pub(&url)
-            .with_context(|| format!("Fetching mushaf layout page {n}"))?;
-        let page: PageJson = serde_json::from_str(&body)
-            .with_context(|| format!("Parsing mushaf layout page {n}"))?;
-        pages.push(page);
-
-        if n % 50 == 0 {
-            log::info!("      … layout {n}/604");
-        }
-    }
-
-    Ok(pages)
-}
-
-/// Insert the fetched page layout into an existing database (opened fresh at
-/// `db_path`, after Surahs/Ayahs are already present — needed to resolve
-/// `surah:ayah` references to `ayah.id`).
-pub fn write_mushaf_layout(db_path: &Path, pages: &[PageJson]) -> Result<()> {
-    let conn = Connection::open(db_path).context("Opening database for mushaf layout")?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
-
-    // (surah_id, ayah_number) -> ayah.id, built once from the already-inserted Ayahs.
-    let mut ayah_ids: HashMap<(u32, u32), i64> = HashMap::new();
-    {
-        let mut stmt = conn.prepare("SELECT id, surah_id, ayah_number FROM ayah")?;
-        let rows = stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, i64>(0)?,
-                r.get::<_, u32>(1)?,
-                r.get::<_, u32>(2)?,
-            ))
-        })?;
-        for row in rows {
-            let (id, surah_id, ayah_number) = row?;
-            ayah_ids.insert((surah_id, ayah_number), id);
-        }
-    }
-
-    let basmala_text: String = conn.query_row(
-        "SELECT uthmani_text FROM ayah WHERE surah_id = 1 AND ayah_number = 1",
-        [],
-        |r| r.get(0),
-    )?;
-
-    let tx = conn.unchecked_transaction()?;
-    let mut line_count = 0u32;
-    let mut word_count = 0u32;
-
-    {
-        let mut line_stmt = tx.prepare(
-            "INSERT INTO page_line
-             (page, line_number, line_type, surah_id, first_ayah_id, last_ayah_id, text)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        )?;
-        let mut word_stmt = tx.prepare(
-            "INSERT INTO page_line_word
-             (page_line_id, position, ayah_id, word_index, uthmani_text)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-        )?;
-
-        for page in pages {
-            for line in &page.lines {
-                match line.line_type.as_str() {
-                    // The source dataset's own surah-header lines are unreliable: some
-                    // surahs are missing one entirely, and a few carry a stray duplicate
-                    // with the wrong surah attached to a boundary page (spot-checked
-                    // against the actual Mushaf — e.g. a bogus "surah 3" header on page 76,
-                    // the page *after* Aal-Imran already ended). We skip them here and
-                    // synthesize all 114 headers below from our own validated Surah/Ayah
-                    // data instead, which we already trust.
-                    "surah-header" => {}
-
-                    "basmala" => {
-                        let page_line_id = {
-                            line_stmt.execute(params![
-                                page.page,
-                                line.line,
-                                "basmala",
-                                Option::<i64>::None,
-                                Option::<i64>::None,
-                                Option::<i64>::None,
-                                Option::<String>::None,
-                            ])?;
-                            tx.last_insert_rowid()
-                        };
-                        line_count += 1;
-
-                        // A basmala line's glyph used to be validated here, via
-                        // the source's own qpcV2 field. The v4 pass's closing
-                        // "still have no glyph_v4" count now covers this — and
-                        // covers it better, since it checks the glyph actually
-                        // being rendered rather than the one being discarded.
-                        word_stmt.execute(params![
-                            page_line_id,
-                            0i64,
-                            Option::<i64>::None,
-                            Option::<i64>::None,
-                            basmala_text,
-                        ])?;
-                        word_count += 1;
-                    }
-
-                    "text" => {
-                        let (first_ayah_id, last_ayah_id) =
-                            verse_range_bounds(line.verse_range.as_deref(), &ayah_ids)
-                                .with_context(|| {
-                                    format!("page {} line {}", page.page, line.line)
-                                })?;
-
-                        line_stmt.execute(params![
-                            page.page,
-                            line.line,
-                            "text",
-                            Option::<i64>::None,
-                            first_ayah_id,
-                            last_ayah_id,
-                            Option::<String>::None,
-                        ])?;
-                        let page_line_id = tx.last_insert_rowid();
-                        line_count += 1;
-
-                        for (position, w) in line.words.as_deref().unwrap_or(&[]).iter().enumerate()
-                        {
-                            let (surah_id, ayah_number, word_index) = parse_location(&w.location)
-                                .with_context(|| {
-                                format!("page {} line {}", page.page, line.line)
-                            })?;
-                            let ayah_id = ayah_ids.get(&(surah_id, ayah_number)).copied();
-
-                            word_stmt.execute(params![
-                                page_line_id,
-                                position as i64,
-                                ayah_id,
-                                word_index,
-                                w.word,
-                            ])?;
-                            word_count += 1;
-                        }
-                    }
-
-                    other => bail!(
-                        "page {} line {}: unknown line type `{other}`",
-                        page.page,
-                        line.line
-                    ),
-                }
-            }
-        }
-    }
-
-    let header_count = synthesize_surah_headers(&tx)?;
-    line_count += header_count;
-    log::info!("      Synthesized {header_count} surah_header lines from Surah/Ayah data");
-
-    warn_missing_basmala(&tx)?;
-
-    tx.commit()
-        .context("Committing mushaf layout transaction")?;
-
-    log::info!("      Inserted {line_count} page lines, {word_count} words");
-
-    Ok(())
-}
-
-/// Insert exactly one `surah_header` line where each of the 114 Surahs
-/// begins, using our own already-validated Surah/Ayah data rather than the
-/// source dataset's unreliable `surah-header` lines. The header is anchored
-/// immediately before that Surah's own opening Basmala (or its opening text
-/// line, for Surahs 1 and 9, which have none) — not unconditionally at the
-/// top of the page — since several pages (short Surahs near the end of the
-/// Mushaf) hold more than one Surah's opening on the same page. Existing
-/// lines from the anchor onward are shifted down by one to make room.
-fn synthesize_surah_headers(tx: &rusqlite::Transaction) -> Result<u32> {
-    let mut stmt = tx.prepare(
-        "SELECT s.id, s.name_ar, a.page
-         FROM surah s
-         JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
-         ORDER BY s.id ASC",
-    )?;
-    let starts: Vec<(u32, String, u32)> = stmt
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
-        .collect::<rusqlite::Result<_>>()?;
-
-    for (surah_id, name_ar, page) in &starts {
-        let anchor = header_anchor_line(tx, *page, *surah_id)?;
-
-        // Two-step offset avoids transiently colliding with the UNIQUE(page, line_number)
-        // index while lines at/after the anchor shift down by one.
-        tx.execute(
-            "UPDATE page_line SET line_number = line_number + 1000
-             WHERE page = ?1 AND line_number >= ?2",
-            params![page, anchor],
-        )?;
-        tx.execute(
-            "UPDATE page_line SET line_number = line_number - 999
-             WHERE page = ?1 AND line_number >= ?2 + 1000",
-            params![page, anchor],
-        )?;
-        tx.execute(
-            "INSERT INTO page_line (page, line_number, line_type, surah_id, first_ayah_id, last_ayah_id, text)
-             VALUES (?1, ?2, 'surah_header', ?3, NULL, NULL, ?4)",
-            params![page, anchor, surah_id, name_ar],
-        )?;
-    }
-
-    Ok(starts.len() as u32)
-}
-
-/// The `line_number` a new header for `surah_id` on `page` should occupy:
-/// right before that Surah's Basmala line if it has one on this page,
-/// otherwise right before its opening text line.
-fn header_anchor_line(tx: &rusqlite::Transaction, page: u32, surah_id: u32) -> Result<u32> {
-    let text_line: u32 = tx
-        .query_row(
-            "SELECT pl.line_number
-             FROM page_line pl
-             JOIN ayah a ON a.surah_id = ?2 AND a.ayah_number = 1
-             WHERE pl.page = ?1 AND pl.line_type = 'text'
-               AND pl.first_ayah_id <= a.id AND pl.last_ayah_id >= a.id
-             ORDER BY pl.line_number ASC LIMIT 1",
-            params![page, surah_id],
-            |r| r.get(0),
-        )
-        .with_context(|| format!("Surah {surah_id}: no opening text line found on page {page}"))?;
-
-    let preceding_basmala: Option<u32> = match text_line.checked_sub(1) {
-        Some(prev) => tx
-            .query_row(
-                "SELECT line_number FROM page_line
-                 WHERE page = ?1 AND line_number = ?2 AND line_type = 'basmala'",
-                params![page, prev],
-                |r| r.get(0),
-            )
-            .optional()?,
-        None => None,
-    };
-
-    Ok(preceding_basmala.unwrap_or(text_line))
-}
-
-/// Every Surah except 1 (Al-Fatihah, whose Basmala IS Ayah 1) and 9 (At-Tawbah,
-/// which has none) should show a basmala line on its opening page. The source
-/// dataset is missing the glyph string for a couple of these outright — unlike
-/// the header, we can't safely synthesize a replacement (QCF v2 glyph
-/// codepoints are specific to each page's own font file, so borrowing a glyph
-/// string from a different page would render as the wrong shapes). We just
-/// surface the gap loudly instead of silently shipping bad or absent data.
-fn warn_missing_basmala(tx: &rusqlite::Transaction) -> Result<()> {
-    let mut stmt = tx.prepare(
-        "SELECT s.id, s.transliteration, a.page
-         FROM surah s
-         JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
-         WHERE s.id NOT IN (1, 9)
-           AND NOT EXISTS (
-             SELECT 1 FROM page_line pl WHERE pl.page = a.page AND pl.line_type = 'basmala'
-           )
-         ORDER BY s.id ASC",
-    )?;
-    let missing: Vec<(u32, String, u32)> = stmt
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
-        .collect::<rusqlite::Result<_>>()?;
-
-    for (surah_id, name, page) in &missing {
-        log::warn!(
-            "      No basmala glyphs in source data for Surah {surah_id} ({name}), page {page}"
-        );
-    }
-
-    Ok(())
-}
-
-/// One-off repair for a database built before the header-anchoring fix
-/// above: clears every synthesized `surah_header` line, closes the gaps
-/// their (wrong) insertion left behind, then re-synthesizes them at the
-/// correct anchors. Content lines' relative order on each page was never
-/// disturbed by the original bug — only where headers landed — so this is
-/// safe to run against already-imported data without re-fetching anything.
-pub fn repair_surah_headers(db_path: &Path) -> Result<()> {
-    let conn = Connection::open(db_path).context("Opening database for header repair")?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
-    let tx = conn.unchecked_transaction()?;
-
-    let removed = tx.execute("DELETE FROM page_line WHERE line_type = 'surah_header'", [])?;
-    log::info!("      Removed {removed} existing surah_header lines");
-
-    let pages: Vec<u32> = {
-        let mut stmt = tx.prepare("SELECT DISTINCT page FROM page_line ORDER BY page")?;
-        let rows = stmt.query_map([], |r| r.get(0))?;
-        rows.collect::<rusqlite::Result<_>>()?
-    };
-    for page in pages {
-        let ids: Vec<i64> = {
-            let mut stmt =
-                tx.prepare("SELECT id FROM page_line WHERE page = ?1 ORDER BY line_number ASC")?;
-            let rows = stmt.query_map(params![page], |r| r.get(0))?;
-            rows.collect::<rusqlite::Result<_>>()?
-        };
-        // Two-step offset dodges the UNIQUE(page, line_number) index while
-        // closing the gaps left by the removed headers.
-        for (i, id) in ids.iter().enumerate() {
-            tx.execute(
-                "UPDATE page_line SET line_number = ?1 + 10000 WHERE id = ?2",
-                params![i as i64 + 1, id],
-            )?;
-        }
-        for id in &ids {
-            tx.execute(
-                "UPDATE page_line SET line_number = line_number - 10000 WHERE id = ?1",
-                params![id],
-            )?;
-        }
-    }
-
-    let header_count = synthesize_surah_headers(&tx)?;
-    log::info!("      Re-synthesized {header_count} surah_header lines");
-
-    tx.commit().context("Committing header repair")?;
-    Ok(())
-}
-
-/// Parse a word `location` field: `"surah:ayah:word"` (all 1-based).
-fn parse_location(loc: &str) -> Result<(u32, u32, u32)> {
-    let parts: Vec<&str> = loc.split(':').collect();
-    let [s, a, w] = parts[..] else {
-        bail!("Malformed word location `{loc}` (expected surah:ayah:word)");
-    };
-    Ok((s.parse()?, a.parse()?, w.parse()?))
-}
-
-/// Resolve a `verseRange` field (`"2:253-2:254"`) to `(first_ayah_id, last_ayah_id)`.
-fn verse_range_bounds(
-    range: Option<&str>,
-    ayah_ids: &HashMap<(u32, u32), i64>,
-) -> Result<(Option<i64>, Option<i64>)> {
-    let Some(range) = range else {
-        return Ok((None, None));
-    };
-    let (a, b) = range
-        .split_once('-')
-        .with_context(|| format!("Malformed verseRange `{range}`"))?;
-    let (sid1, an1) = parse_surah_ayah(a)?;
-    let (sid2, an2) = parse_surah_ayah(b)?;
-    Ok((
-        ayah_ids.get(&(sid1, an1)).copied(),
-        ayah_ids.get(&(sid2, an2)).copied(),
-    ))
-}
-
-fn parse_surah_ayah(s: &str) -> Result<(u32, u32)> {
-    let (a, b) = s
-        .split_once(':')
-        .with_context(|| format!("Malformed surah:ayah `{s}`"))?;
-    Ok((a.parse()?, b.parse()?))
-}
-
-// =============================================================================
-// QCF v4 — see docs/qcf-v4-font-migration-plan.md
-//
-// v4 ships its own per-page JSON with a `code`/`font` pair per word instead of
-// v2's `qpcV2` glyph string, and a 47-file font-group set instead of 604
-// per-page fonts. The v2 layout above stays the trusted source for line
-// breaks, word boundaries, and surah-header synthesis (independent of font
-// version — see the migration plan's "Scope boundary"); this section only
-// *attaches* a v4 glyph to each `page_line_word` row v2 already created.
-// =============================================================================
-
 const V4_RAW_BASE: &str = "https://raw.githubusercontent.com/MohamadHajjRabee/quran-qcf4/main";
+
+/// The `text` a v4 word entry carries when it is really the sajdah ornament
+/// `۩` rather than a word — the only entry typed `"word"` that has no Uthmani
+/// token of its own. It always sits at the end of its Ayah, on all 15 sajdah
+/// Ayahs and nowhere else (both asserted in `validate_layout`).
+const SAJDAH_ENTRY_TEXT: &str = "#1969";
+const SAJDAH_SIGN: char = '۩';
+const QUARTER_SIGN: char = '۞';
 
 #[derive(Debug, Deserialize)]
 pub struct PageV4Json {
+    page: u32,
     lines: Vec<LineV4Json>,
 }
 
 #[derive(Debug, Deserialize)]
 struct LineV4Json {
+    line: u32,
     words: Vec<WordV4Json>,
 }
 
@@ -435,9 +62,11 @@ struct WordV4Json {
     #[serde(rename = "type")]
     word_type: String, // "word" | "end" | "surah_header" | "bismillah" | "quarter"
     #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
     verse_key: Option<String>,
     #[serde(default)]
-    position: Option<u32>, // 1-based within the ayah — same numbering as v2's word_index
+    position: Option<u32>, // 1-based within the Ayah, counting the sajdah ornament
     #[serde(default)]
     sura: Option<u32>,
 }
@@ -446,10 +75,10 @@ struct WordV4Json {
 /// `001.json` … `604.json` — the layout the upstream repo and its npm package
 /// (`quran-qcf4`) both use, so extracting either one gives a usable directory.
 ///
-/// Preferred over `fetch_all_pages_v4` when you have the files: one 604-file
-/// read beats 604 sequential HTTPS requests, and it makes the pass repeatable
+/// Preferred over `fetch_all_pages` when you have the files: one 604-file
+/// read beats 604 sequential HTTPS requests, and it makes the import repeatable
 /// offline rather than dependent on a CDN staying reachable for ten minutes.
-pub fn load_all_pages_v4(dir: &Path) -> Result<Vec<PageV4Json>> {
+pub fn load_all_pages(dir: &Path) -> Result<Vec<PageV4Json>> {
     let mut pages = Vec::with_capacity(604);
 
     for n in 1..=604u32 {
@@ -466,7 +95,7 @@ pub fn load_all_pages_v4(dir: &Path) -> Result<Vec<PageV4Json>> {
 
 /// Download all 604 QCF v4 page-layout files. The JSON itself is MIT
 /// licensed; the fonts it references are not (see THIRD-PARTY-NOTICES.md).
-pub fn fetch_all_pages_v4() -> Result<Vec<PageV4Json>> {
+pub fn fetch_all_pages() -> Result<Vec<PageV4Json>> {
     let mut pages = Vec::with_capacity(604);
 
     for n in 1..=604u32 {
@@ -478,224 +107,420 @@ pub fn fetch_all_pages_v4() -> Result<Vec<PageV4Json>> {
         pages.push(page);
 
         if n % 50 == 0 {
-            log::info!("      … v4 layout {n}/604");
+            log::info!("      … layout {n}/604");
         }
     }
 
     Ok(pages)
 }
 
-/// Populate `page_line_word.glyph_v4` on the rows the v2 import already
-/// created. Doesn't touch line structure, `uthmani_text`, `ayah_id`, or
-/// `word_index` — those stay v2's, per the migration plan's scope boundary.
+/// One `page_line_word` row under construction. Ayah-end markers, the sajdah
+/// ornament and the rub-el-hizb `۞` are not words: each is folded into a
+/// neighbouring word's row, so a row stays one *word* and a line keeps the word
+/// count the printed line justifies to.
+struct WordRow {
+    ayah_id: Option<i64>,
+    word_index: Option<u32>,
+    uthmani: String,
+    glyph: String,
+}
+
+/// Rebuild `page_line` / `page_line_word` from the v4 layout, replacing
+/// whatever was there. Runs against a database that already has Surahs and
+/// Ayahs — it needs `ayah.uthmani_text` for per-word text, and `surah.name_ar`
+/// for the header banners.
 ///
-/// Matching is purely by `(ayah_id, word_index)`: v4's `position` numbers a
-/// word 1-based within its ayah, exactly like v2's `word_index` (confirmed
-/// against Ayat al-Kursi, 2:255 — 50 words across 6 lines, `position` running
-/// 1..50 before its `end` marker at 51). This is more robust than matching by
-/// page/line number, since it doesn't assume the two sources break lines
-/// identically.
-///
-/// A v4 `"end"` verse-marker entry is appended (space-joined) onto the glyph
-/// of the word at `position - 1`, mirroring how v2 already embeds its own end
-/// marker in the last word's `qpcV2` string two-glyphs-in-one-row — so v2 and
-/// v4 glyphs stay one row per `(ayah_id, word_index)`, never diverging in row
-/// count.
-///
-/// v4's `"bismillah"` entries (one whole-phrase glyph per Surah-opening page,
-/// like v2's `basmala` line) are matched to the existing basmala row via the
-/// Surah of the text line immediately following it on the same page —
-/// basmala rows carry no `ayah_id`/`surah_id` of their own.
-///
-/// v4's `"quarter"` (rub-el-hizb ۞) entries carry a `verse_key` but no
-/// `position` of their own — the ornament is glued to the word that follows
-/// it on the line, so it's resolved through that word and *prepended* onto
-/// its glyph, the mirror of how `"end"` appends onto the word before it. v2
-/// never rendered these at all, which is why `uthmani_text` has long read
-/// `۞ سَيَقُولُ` while the glyph beside it rendered only the word.
-///
-/// The prepends run in a second pass, after every `"word"` entry has been
-/// written. A quarter precedes its word in the line, so applying it inline
-/// would be overwritten moments later by that word's own `UPDATE` — and
-/// deferring keeps the whole function idempotent, since a re-run resets each
-/// glyph to the bare word before anything is attached to it again.
-///
-/// `"surah_header"` entries are still skipped: the banner text is
-/// live-rendered from `surah.name_ar`, not from page-glyph data (see
-/// `SurahHeader.svelte`), for both font versions.
-pub fn write_glyph_v4(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
-    let conn = Connection::open(db_path).context("Opening database for QCF v4 glyphs")?;
+/// Safe to re-run: it clears the two tables first, so a rebuild against an
+/// already-imported database needs no re-fetch of anything else.
+pub fn write_mushaf_layout(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
+    let conn = Connection::open(db_path).context("Opening database for mushaf layout")?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
+    // (surah_id, ayah_number) -> ayah.id, and ayah.id -> its Uthmani words.
     let mut ayah_ids: HashMap<(u32, u32), i64> = HashMap::new();
+    let mut ayah_words: HashMap<i64, Vec<String>> = HashMap::new();
     {
-        let mut stmt = conn.prepare("SELECT id, surah_id, ayah_number FROM ayah")?;
+        let mut stmt = conn.prepare("SELECT id, surah_id, ayah_number, uthmani_text FROM ayah")?;
         let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, i64>(0)?,
                 r.get::<_, u32>(1)?,
                 r.get::<_, u32>(2)?,
+                r.get::<_, String>(3)?,
             ))
         })?;
         for row in rows {
-            let (id, surah_id, ayah_number) = row?;
+            let (id, surah_id, ayah_number, text) = row?;
             ayah_ids.insert((surah_id, ayah_number), id);
+            ayah_words.insert(id, text.split_whitespace().map(str::to_string).collect());
         }
     }
 
-    // surah_id -> the id of that surah's basmala page_line_word row, found via
-    // the text line immediately following each basmala line on the same page
-    // (the reverse direction of header_anchor_line's own reasoning above).
-    let mut surah_basmala_word: HashMap<u32, i64> = HashMap::new();
+    let mut surah_names: HashMap<u32, String> = HashMap::new();
     {
-        let mut stmt = conn.prepare(
-            "SELECT a.surah_id, bw.id
-             FROM page_line bl
-             JOIN page_line_word bw ON bw.page_line_id = bl.id
-             JOIN page_line nl ON nl.page = bl.page AND nl.line_number = bl.line_number + 1 AND nl.line_type = 'text'
-             JOIN ayah a ON a.id = nl.first_ayah_id
-             WHERE bl.line_type = 'basmala'",
-        )?;
-        let rows = stmt.query_map([], |r| Ok((r.get::<_, u32>(0)?, r.get::<_, i64>(1)?)))?;
+        let mut stmt = conn.prepare("SELECT id, name_ar FROM surah")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?)))?;
         for row in rows {
-            let (surah_id, word_id) = row?;
-            surah_basmala_word.insert(surah_id, word_id);
+            let (id, name) = row?;
+            surah_names.insert(id, name);
         }
     }
+
+    // Surah 1's Ayah 1 *is* the Basmala, so it doubles as the text of every
+    // other Surah's Basmala header line.
+    let basmala_text: String = conn.query_row(
+        "SELECT uthmani_text FROM ayah WHERE surah_id = 1 AND ayah_number = 1",
+        [],
+        |r| r.get(0),
+    )?;
 
     let tx = conn.unchecked_transaction()?;
-    let mut word_updates = 0u32;
-    let mut basmala_updates = 0u32;
-    let mut quarter_updates = 0u32;
-    let mut unmatched = 0u32;
-    // (glyph, ayah_id, word_index) for the second pass — see the doc comment.
-    let mut quarters: Vec<(String, i64, u32)> = Vec::new();
+
+    // page_line_word is ON DELETE CASCADE, and foreign_keys is on above.
+    let cleared = tx.execute("DELETE FROM page_line", [])?;
+    if cleared > 0 {
+        log::info!("      Cleared {cleared} existing page lines");
+    }
+
+    let mut line_count = 0u32;
+    let mut word_count = 0u32;
 
     {
-        let mut update_word = tx.prepare(
-            "UPDATE page_line_word SET glyph_v4 = ?1 WHERE ayah_id = ?2 AND word_index = ?3",
+        let mut line_stmt = tx.prepare(
+            "INSERT INTO page_line
+             (page, line_number, line_type, surah_id, first_ayah_id, last_ayah_id, text)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )?;
-        let mut append_end = tx.prepare(
-            "UPDATE page_line_word SET glyph_v4 = glyph_v4 || ' ' || ?1
-             WHERE ayah_id = ?2 AND word_index = ?3",
+        let mut word_stmt = tx.prepare(
+            "INSERT INTO page_line_word
+             (page_line_id, position, ayah_id, word_index, uthmani_text, glyph_v4)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         )?;
-        let mut update_basmala =
-            tx.prepare("UPDATE page_line_word SET glyph_v4 = ?1 WHERE id = ?2")?;
 
         for page in pages {
             for line in &page.lines {
-                for (i, w) in line.words.iter().enumerate() {
-                    let Some(ch) = char::from_u32(w.code) else {
-                        continue;
-                    };
-                    let glyph = ch.to_string();
+                let where_ = || format!("page {} line {}", page.page, line.line);
+                let Some(first) = line.words.first() else {
+                    bail!("{}: empty line", where_());
+                };
 
-                    match w.word_type.as_str() {
-                        "word" => {
-                            let Some((ayah_id, position)) = resolve_ayah_position(w, &ayah_ids)
-                            else {
-                                continue;
-                            };
-                            let n = update_word.execute(params![glyph, ayah_id, position])?;
-                            if n == 0 {
-                                unmatched += 1;
-                            } else {
-                                word_updates += n as u32;
-                            }
-                        }
-                        "end" => {
-                            let Some((ayah_id, position)) = resolve_ayah_position(w, &ayah_ids)
-                            else {
-                                continue;
-                            };
-                            let Some(prev) = position.checked_sub(1) else {
-                                continue;
-                            };
-                            append_end.execute(params![glyph, ayah_id, prev])?;
-                        }
-                        "bismillah" => {
-                            let Some(sura) = w.sura else { continue };
-                            let Some(&word_id) = surah_basmala_word.get(&sura) else {
-                                continue;
-                            };
-                            update_basmala.execute(params![glyph, word_id])?;
-                            basmala_updates += 1;
-                        }
-                        "quarter" => {
-                            // No `position` of its own: the ornament belongs to
-                            // whichever word comes next on the line, and is
-                            // resolved through that word's key.
-                            let Some(next) =
-                                line.words[i + 1..].iter().find(|n| n.word_type == "word")
-                            else {
-                                unmatched += 1;
-                                continue;
-                            };
-                            let Some((ayah_id, position)) = resolve_ayah_position(next, &ayah_ids)
-                            else {
-                                unmatched += 1;
-                                continue;
-                            };
-                            quarters.push((glyph, ayah_id, position));
-                        }
-                        _ => {} // "surah_header" — see doc comment above
+                let rows: Vec<WordRow> = match first.word_type.as_str() {
+                    // The banner is live-rendered from `surah.name_ar` rather
+                    // than from the page's own header glyph (see
+                    // SurahHeader.svelte), so the line carries the name as text
+                    // and no word rows at all.
+                    "surah_header" => {
+                        let surah_id = first
+                            .sura
+                            .with_context(|| format!("{}: surah_header without `sura`", where_()))?;
+                        let name = surah_names
+                            .get(&surah_id)
+                            .with_context(|| format!("{}: unknown Surah {surah_id}", where_()))?;
+                        line_stmt.execute(params![
+                            page.page,
+                            line.line,
+                            "surah_header",
+                            surah_id,
+                            Option::<i64>::None,
+                            Option::<i64>::None,
+                            name,
+                        ])?;
+                        line_count += 1;
+                        continue;
                     }
+
+                    // One whole-phrase glyph, carrying no Ayah of its own —
+                    // the Basmala is a header, not Ayah 1 of the Surah.
+                    "bismillah" => {
+                        let ch = glyph_of(first, &where_)?;
+                        vec![WordRow {
+                            ayah_id: None,
+                            word_index: None,
+                            uthmani: basmala_text.clone(),
+                            glyph: ch.to_string(),
+                        }]
+                    }
+
+                    _ => build_text_line(line, &ayah_ids, &ayah_words, &where_)?,
+                };
+
+                let line_type = if first.word_type == "bismillah" {
+                    "basmala"
+                } else {
+                    "text"
+                };
+                let first_ayah_id = rows.first().and_then(|r| r.ayah_id);
+                let last_ayah_id = rows.last().and_then(|r| r.ayah_id);
+
+                line_stmt.execute(params![
+                    page.page,
+                    line.line,
+                    line_type,
+                    Option::<u32>::None,
+                    first_ayah_id,
+                    last_ayah_id,
+                    Option::<String>::None,
+                ])?;
+                let page_line_id = tx.last_insert_rowid();
+                line_count += 1;
+
+                for (position, row) in rows.iter().enumerate() {
+                    word_stmt.execute(params![
+                        page_line_id,
+                        position as i64,
+                        row.ayah_id,
+                        row.word_index,
+                        row.uthmani,
+                        row.glyph,
+                    ])?;
+                    word_count += 1;
                 }
             }
         }
     }
 
-    // Second pass: every word glyph is now written, so prepending a rub-el-hizb
-    // ornament can't be clobbered by the word it belongs to.
-    {
-        let mut prepend_quarter = tx.prepare(
-            "UPDATE page_line_word SET glyph_v4 = ?1 || ' ' || glyph_v4
-             WHERE ayah_id = ?2 AND word_index = ?3 AND glyph_v4 IS NOT NULL",
-        )?;
-        for (glyph, ayah_id, position) in &quarters {
-            let n = prepend_quarter.execute(params![glyph, ayah_id, position])?;
-            if n == 0 {
-                unmatched += 1;
-            } else {
-                quarter_updates += n as u32;
-            }
-        }
-    }
+    validate_layout(&tx)?;
 
-    tx.commit().context("Committing QCF v4 glyph update")?;
+    tx.commit().context("Committing mushaf layout transaction")?;
 
-    log::info!(
-        "      Updated {word_updates} word glyphs, {basmala_updates} basmala glyphs, {quarter_updates} rub-el-hizb ornaments ({unmatched} v4 entries unmatched to any v2 row)"
-    );
-
-    let still_null: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM page_line_word plw
-         JOIN page_line pl ON pl.id = plw.page_line_id
-         WHERE plw.glyph_v4 IS NULL AND pl.line_type IN ('text', 'basmala')",
-        [],
-        |r| r.get(0),
-    )?;
-    if still_null > 0 {
-        log::warn!(
-            "      {still_null} page_line_word row(s) still have no glyph_v4 after the v4 pass"
-        );
-    }
+    log::info!("      Inserted {line_count} page lines, {word_count} words");
 
     Ok(())
 }
 
-fn resolve_ayah_position(
-    w: &WordV4Json,
+/// Turn one v4 text line's entries into the word rows it renders as.
+///
+/// Only `"word"` entries become rows. The other three fold into a neighbour:
+///
+///   * `"end"` (the ﴿٢٧﴾ Ayah marker) appends onto the word before it. The
+///     source never starts a line with one, and never separates one from its
+///     own Ayah's last word, so "the word before it" is always the right word
+///     and always on this line (asserted below).
+///   * the sajdah `۩` ornament — a `"word"` entry whose `text` is
+///     `SAJDAH_ENTRY_TEXT` — likewise appends onto the word before it, and
+///     always sits at the end of its Ayah, before that Ayah's end marker.
+///   * `"quarter"` (the rub-el-hizb `۞`) *prepends* onto the word after it,
+///     the mirror image; it can open a line but never closes one.
+fn build_text_line(
+    line: &LineV4Json,
     ayah_ids: &HashMap<(u32, u32), i64>,
-) -> Option<(i64, u32)> {
-    let verse_key = w.verse_key.as_deref()?;
-    let position = w.position?;
-    let (surah_id, ayah_number) = parse_verse_key(verse_key)?;
-    let ayah_id = *ayah_ids.get(&(surah_id, ayah_number))?;
-    Some((ayah_id, position))
+    ayah_words: &HashMap<i64, Vec<String>>,
+    where_: &impl Fn() -> String,
+) -> Result<Vec<WordRow>> {
+    let mut rows: Vec<WordRow> = Vec::with_capacity(line.words.len());
+    let mut pending_quarter: Option<char> = None;
+
+    for w in &line.words {
+        let ch = glyph_of(w, where_)?;
+
+        match w.word_type.as_str() {
+            "quarter" => {
+                if pending_quarter.replace(ch).is_some() {
+                    bail!("{}: two rub-el-hizb marks with no word between", where_());
+                }
+            }
+
+            "end" => {
+                let (_, ayah_number) = verse_key_of(w, where_)?;
+                let row = rows.last_mut().with_context(|| {
+                    format!("{}: Ayah end marker with no word before it", where_())
+                })?;
+                row.glyph.push(' ');
+                row.glyph.push(ch);
+                row.uthmani.push(' ');
+                row.uthmani.push_str(&arabic_indic(ayah_number));
+            }
+
+            "word" if w.text.as_deref() == Some(SAJDAH_ENTRY_TEXT) => {
+                let row = rows.last_mut().with_context(|| {
+                    format!("{}: sajdah ornament with no word before it", where_())
+                })?;
+                row.glyph.push(' ');
+                row.glyph.push(ch);
+                row.uthmani.push(' ');
+                row.uthmani.push(SAJDAH_SIGN);
+            }
+
+            "word" => {
+                let (surah_id, ayah_number) = verse_key_of(w, where_)?;
+                let position = w
+                    .position
+                    .with_context(|| format!("{}: word without `position`", where_()))?;
+                let ayah_id = *ayah_ids.get(&(surah_id, ayah_number)).with_context(|| {
+                    format!("{}: unknown Ayah {surah_id}:{ayah_number}", where_())
+                })?;
+                // The sajdah ornament is the only non-word `"word"` entry and
+                // always comes last in its Ayah, so every real word's
+                // `position` indexes the Uthmani text directly.
+                let uthmani = ayah_words
+                    .get(&ayah_id)
+                    .and_then(|ws| ws.get(position as usize - 1))
+                    .with_context(|| {
+                        format!(
+                            "{}: {surah_id}:{ayah_number} has no Uthmani word {position}",
+                            where_()
+                        )
+                    })?
+                    .clone();
+
+                let mut row = WordRow {
+                    ayah_id: Some(ayah_id),
+                    word_index: Some(position),
+                    uthmani,
+                    glyph: ch.to_string(),
+                };
+                if let Some(q) = pending_quarter.take() {
+                    row.glyph.insert(0, ' ');
+                    row.glyph.insert(0, q);
+                    row.uthmani.insert(0, ' ');
+                    row.uthmani.insert(0, QUARTER_SIGN);
+                }
+                rows.push(row);
+            }
+
+            other => bail!("{}: unexpected entry type `{other}` on a text line", where_()),
+        }
+    }
+
+    if pending_quarter.is_some() {
+        bail!("{}: line ends on a rub-el-hizb mark", where_());
+    }
+    if rows.is_empty() {
+        bail!("{}: text line with no words", where_());
+    }
+
+    Ok(rows)
 }
 
-fn parse_verse_key(s: &str) -> Option<(u32, u32)> {
-    let (a, b) = s.split_once(':')?;
-    Some((a.parse().ok()?, b.parse().ok()?))
+fn glyph_of(w: &WordV4Json, where_: &impl Fn() -> String) -> Result<char> {
+    char::from_u32(w.code)
+        .with_context(|| format!("{}: `code` {} is not a character", where_(), w.code))
+}
+
+fn verse_key_of(w: &WordV4Json, where_: &impl Fn() -> String) -> Result<(u32, u32)> {
+    let key = w
+        .verse_key
+        .as_deref()
+        .with_context(|| format!("{}: entry without `verse_key`", where_()))?;
+    let (a, b) = key
+        .split_once(':')
+        .with_context(|| format!("{}: malformed verse_key `{key}`", where_()))?;
+    Ok((a.parse()?, b.parse()?))
+}
+
+/// `130` -> `١٣٠`. The Ayah number as it reads inside the end marker, so a
+/// row's `uthmani_text` says what its glyphs draw.
+fn arabic_indic(n: u32) -> String {
+    n.to_string()
+        .chars()
+        .map(|c| char::from_u32(0x0660 + c.to_digit(10).unwrap()).unwrap())
+        .collect()
+}
+
+/// Everything the old two-source import got wrong silently, asserted loudly.
+///
+/// The previous pass counted its unmatched rows into a log line and carried on,
+/// which is how 19 Ayahs shipped missing their last word and their end marker.
+/// These run inside the import transaction, so a failure rolls the layout back
+/// rather than committing a bad Mushaf.
+fn validate_layout(tx: &rusqlite::Transaction) -> Result<()> {
+    let one = |sql: &str| -> Result<i64> { Ok(tx.query_row(sql, [], |r| r.get(0))?) };
+
+    let pages = one("SELECT COUNT(DISTINCT page) FROM page_line")?;
+    if pages != 604 {
+        bail!("Expected 604 Mushaf pages, got {pages}");
+    }
+
+    let headers = one("SELECT COUNT(*) FROM page_line WHERE line_type = 'surah_header'")?;
+    if headers != 114 {
+        bail!("Expected 114 surah_header lines, got {headers}");
+    }
+
+    // Every Surah is announced exactly once, on the page its first Ayah is on.
+    let misplaced = one(
+        "SELECT COUNT(*) FROM surah s
+         JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
+         WHERE NOT EXISTS (
+           SELECT 1 FROM page_line pl
+           WHERE pl.line_type = 'surah_header' AND pl.surah_id = s.id AND pl.page = a.page
+         )",
+    )?;
+    if misplaced != 0 {
+        bail!("{misplaced} Surah(s) have no header on their opening page");
+    }
+
+    // Every Surah but Al-Fatihah (whose Basmala is Ayah 1) and At-Tawbah
+    // (which has none) opens with a Basmala line.
+    let basmalas = one("SELECT COUNT(*) FROM page_line WHERE line_type = 'basmala'")?;
+    if basmalas != 112 {
+        bail!("Expected 112 basmala lines, got {basmalas}");
+    }
+    let missing_basmala = one(
+        "SELECT COUNT(*) FROM surah s
+         JOIN ayah a ON a.surah_id = s.id AND a.ayah_number = 1
+         WHERE s.id NOT IN (1, 9) AND NOT EXISTS (
+           SELECT 1 FROM page_line pl WHERE pl.page = a.page AND pl.line_type = 'basmala'
+         )",
+    )?;
+    if missing_basmala != 0 {
+        bail!("{missing_basmala} Surah(s) open with no Basmala line");
+    }
+
+    // Nothing renders as an empty box.
+    let no_glyph = one(
+        "SELECT COUNT(*) FROM page_line_word
+         WHERE glyph_v4 IS NULL OR glyph_v4 = ''",
+    )?;
+    if no_glyph != 0 {
+        bail!("{no_glyph} word row(s) have no glyph");
+    }
+
+    // Every Ayah is laid out, and laid out whole: one row per Uthmani word.
+    let laid_out = one("SELECT COUNT(DISTINCT ayah_id) FROM page_line_word WHERE ayah_id IS NOT NULL")?;
+    if laid_out != 6236 {
+        bail!("Expected all 6236 Ayahs in the layout, got {laid_out}");
+    }
+    let short = one(
+        "SELECT COUNT(*) FROM (
+           SELECT a.id FROM ayah a
+           JOIN page_line_word w ON w.ayah_id = a.id
+           GROUP BY a.id
+           HAVING COUNT(*) <> LENGTH(TRIM(a.uthmani_text)) - LENGTH(REPLACE(TRIM(a.uthmani_text), ' ', '')) + 1
+         )",
+    )?;
+    if short != 0 {
+        bail!("{short} Ayah(s) have a word-row count that disagrees with their Uthmani text");
+    }
+
+    // This is the bug that started all of it: an Ayah whose last word never got
+    // its ﴿n﴾ marker appended. Every Ayah's highest-indexed word must carry a
+    // second glyph.
+    let no_marker = one(
+        "SELECT COUNT(*) FROM (
+           SELECT w.ayah_id FROM page_line_word w
+           JOIN (SELECT ayah_id, MAX(word_index) AS mw FROM page_line_word
+                 WHERE ayah_id IS NOT NULL GROUP BY ayah_id) last
+             ON last.ayah_id = w.ayah_id AND last.mw = w.word_index
+           WHERE INSTR(w.glyph_v4, ' ') = 0
+         )",
+    )?;
+    if no_marker != 0 {
+        bail!("{no_marker} Ayah(s) end without an Ayah-marker glyph");
+    }
+
+    // The 15 sajdah ornaments land on the 15 sajdah Ayahs and nowhere else.
+    let sajdah_rows = one(
+        "SELECT COUNT(*) FROM page_line_word w JOIN ayah a ON a.id = w.ayah_id
+         WHERE INSTR(w.uthmani_text, '۩') > 0 AND a.sajdah = 1",
+    )?;
+    let sajdah_stray = one(
+        "SELECT COUNT(*) FROM page_line_word w JOIN ayah a ON a.id = w.ayah_id
+         WHERE INSTR(w.uthmani_text, '۩') > 0 AND a.sajdah = 0",
+    )?;
+    if sajdah_rows != 15 || sajdah_stray != 0 {
+        bail!("Expected 15 sajdah ornaments on sajdah Ayahs, got {sajdah_rows} (+{sajdah_stray} stray)");
+    }
+
+    log::info!("      ✓ 604 pages, 114 headers, 112 basmalas, 6236 Ayahs, all end markers present");
+    Ok(())
 }

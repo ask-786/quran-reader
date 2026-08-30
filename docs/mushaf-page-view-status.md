@@ -24,13 +24,16 @@ needed.
 
 1. **Schema**: `page_line` / `page_line_word` tables in `database/schema.sql`
    / `database/migrations/002_mushaf_layout.sql`.
-2. **Importer** (`importer/src/mushaf.rs`): fetches all 604 page-layout JSON
-   files from `zonetecde/mushaf-layout` (ISC-licensed), synthesizes all 114
-   Surah headers from validated Surah/Ayah data rather than trusting the
-   source's own unreliable header lines (see git history for the details of
-   the two data-quality bugs found and fixed there). Unchanged by the font
-   fix below — the `qpcV2` glyph codepoints in this data turned out to be
-   exactly the codepoints the fixed font uses.
+2. **Importer** (`importer/src/mushaf.rs`): loads all 604 page-layout JSON
+   files from `MohamadHajjRabee/quran-qcf4` (MIT-licensed) and builds
+   `page_line` / `page_line_word` from them outright — line breaks, word
+   order and glyphs all from the source the v4 fonts belong to. Per-word
+   `uthmani_text` comes from this database's own `ayah.uthmani_text`, split
+   on spaces. The import validates itself (604 pages, 114 headers, 112
+   basmalas, all 6236 Ayahs whole, every Ayah-end marker present) and rolls
+   back rather than committing a bad Mushaf. It used to take its layout from
+   `zonetecde/mushaf-layout` and merely _attach_ v4 glyphs to those rows —
+   see "Removing the v2/v4 split" in the migration plan for what that cost.
 3. **Fonts vendored**: `static/fonts/mushaf/QCF_P001..604.woff2` +
    `QCF_BSML.woff2` via `scripts/vendor-mushaf-fonts.sh` (~54MB).
 4. **Rust API / TS API / Frontend**: unchanged from the original

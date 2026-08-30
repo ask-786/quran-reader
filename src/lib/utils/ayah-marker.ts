@@ -27,12 +27,17 @@ export function hasVerseMarker(word: GlyphSpan): boolean {
 }
 
 /**
- * The same word with its verse number removed, or the word unchanged where it
- * cannot be removed.
+ * The same word with its verse number removed.
  *
- * 19 of the 6,236 verses fall into that second case. In those — the sajdah
- * verses, mostly — the whole cluster of word, sajdah mark and number is a
- * single indivisible ligature glyph, and no string operation separates it.
+ * The marker is the glyph after the last space, so the cut goes there. A
+ * sajdah verse's last word carries three glyphs — word, ۩, marker — and the
+ * same cut keeps the ۩ and drops only the number, which is what the printed
+ * page shows.
+ *
+ * This used to bail out on 19 verses whose glyph string held no space to cut
+ * at, which read as an indivisible ligature. It wasn't: the layout import was
+ * dropping those verses' marker glyph outright (see `importer/src/mushaf.rs`).
+ * All 6,236 verse-final words now carry a separable marker.
  */
 export function withoutVerseMarker<T extends GlyphSpan>(word: T): T {
   const cut = word.glyph_v4?.lastIndexOf(' ') ?? -1;
