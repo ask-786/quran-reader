@@ -127,40 +127,41 @@ Tanzil additionally asks that the text not be modified, that this copyright
 notice be preserved, and that Tanzil be credited as the source. The importer
 does not alter the text it receives.
 
-### Mushaf page layout — zonetecde/mushaf-layout
+### Mushaf page layout — MohamadHajjRabee/quran-qcf4
 
-|         |                                                                       |
-| ------- | --------------------------------------------------------------------- |
-| Source  | [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout) |
-| Data    | Per-page line breaks and word-level QPC v1/v2 glyph codepoints        |
-| License | ISC                                                                   |
+|         |                                                                               |
+| ------- | ----------------------------------------------------------------------------- |
+| Source  | [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) |
+| Data    | Per-page line breaks and word-level QCF v4 glyph codepoints                   |
+| License | MIT (JSON; the fonts it references are proprietary — see above)               |
 
 ```
-ISC License
+MIT License
 
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
-SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
-OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
-CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
-Note: the importer discards this source's `surah-header` lines (they are
-unreliable) and synthesizes all 114 headers from validated Surah data
-instead. The line and word layout is used as published.
-
-Each word's QCF v4 glyph (`page_line_word.glyph_v4`) additionally comes from
-[MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4)
-(MIT-licensed JSON; the fonts it references are proprietary — see the QCF v4
-Mushaf fonts entry above), matched onto these same rows by ayah and
-within-ayah word position. Line breaks and word boundaries are still this
-source's (zonetecde/mushaf-layout), unchanged by which font is active.
+Note: the importer takes this source's line breaks, word order and glyph
+codepoints as published. It renders the Surah-title banner from validated
+Surah data rather than from the page's header glyph, and takes each word's
+`uthmani_text` from this database's own Ayah text rather than from the
+source's simplified `text` field.
 
 ### Tafsir — Tafsīr al-Jalālayn (Arabic)
 

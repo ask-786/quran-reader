@@ -289,7 +289,7 @@ bundled works with no network at all. Say this plainly in the README.
 
 ## 3.3 Importer (`importer/`)
 
-New subcommands, following the existing `--import-mushaf-v4` pattern:
+New subcommands, following the existing `--import-mushaf` pattern:
 
 ```
 cargo run --release -- --import-translation eng-mohammedmarmadu [--bundle]

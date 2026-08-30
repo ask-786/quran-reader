@@ -28,17 +28,30 @@ fn schema_path() -> PathBuf {
         .join("schema.sql")
 }
 
+/// The 604 QCF v4 page-layout files, from a local directory if
+/// `--mushaf-dir <path>` names one, otherwise fetched. Get a local copy with:
+///   npm pack quran-qcf4 && tar xzf quran-qcf4-*.tgz
+/// then point at `package/pages`.
+fn load_mushaf_pages() -> Result<Vec<mushaf::PageV4Json>> {
+    let local_dir = std::env::args()
+        .skip_while(|a| a != "--mushaf-dir")
+        .nth(1)
+        .map(PathBuf::from);
+
+    match local_dir {
+        Some(dir) => {
+            log::info!("[1/2] Loading QCF v4 page layout from {} …", dir.display());
+            mushaf::load_all_pages(&dir).context("Failed to load QCF v4 layout")
+        }
+        None => {
+            log::info!("[1/2] Fetching QCF v4 page layout (604 pages) …");
+            mushaf::fetch_all_pages().context("Failed to fetch QCF v4 layout")
+        }
+    }
+}
+
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
-    if std::env::args().any(|a| a == "--repair-mushaf-headers") {
-        let db_path = db_output_path();
-        log::info!("=== Repairing Mushaf surah_header anchoring ===");
-        log::info!("Database: {}", db_path.display());
-        mushaf::repair_surah_headers(&db_path).context("Failed to repair surah headers")?;
-        log::info!("=== Repair complete ===");
-        return Ok(());
-    }
 
     let args: Vec<String> = std::env::args().collect();
 
@@ -103,33 +116,19 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if std::env::args().any(|a| a == "--import-mushaf-v4") {
+    // Rebuild just the Mushaf layout on an existing database, leaving Surahs,
+    // Ayahs, translations and tafsir untouched. `page_line`/`page_line_word`
+    // are derived entirely from the v4 layout, so this needs no re-fetch of
+    // anything else and is safe to re-run.
+    if std::env::args().any(|a| a == "--import-mushaf") {
         let db_path = db_output_path();
-        log::info!("=== Importing QCF v4 glyphs ===");
+        log::info!("=== Rebuilding Mushaf page layout (QCF v4) ===");
         log::info!("Database: {}", db_path.display());
 
-        // `--mushaf-v4-dir <path>` reads the layout from a local directory of
-        // 001.json … 604.json instead of making 604 sequential requests. Get
-        // one with:  npm pack quran-qcf4 && tar xzf quran-qcf4-*.tgz
-        // then point at `package/pages`.
-        let local_dir = std::env::args()
-            .skip_while(|a| a != "--mushaf-v4-dir")
-            .nth(1)
-            .map(PathBuf::from);
-
-        let pages = match local_dir {
-            Some(dir) => {
-                log::info!("[1/2] Loading QCF v4 page layout from {} …", dir.display());
-                mushaf::load_all_pages_v4(&dir).context("Failed to load QCF v4 layout")?
-            }
-            None => {
-                log::info!("[1/2] Fetching QCF v4 page layout (604 pages) …");
-                mushaf::fetch_all_pages_v4().context("Failed to fetch QCF v4 layout")?
-            }
-        };
-        log::info!("[2/2] Writing glyph_v4 onto existing page_line_word rows …");
-        mushaf::write_glyph_v4(&db_path, &pages).context("Failed to write QCF v4 glyphs")?;
-        log::info!("=== QCF v4 import complete ===");
+        let pages = load_mushaf_pages()?;
+        log::info!("[2/2] Writing page layout …");
+        mushaf::write_mushaf_layout(&db_path, &pages).context("Failed to write mushaf layout")?;
+        log::info!("=== Mushaf layout rebuild complete ===");
         return Ok(());
     }
 
@@ -183,10 +182,10 @@ fn main() -> Result<()> {
     insert::write_db(&db_path, &schema_path, &quran).context("Failed to write database")?;
 
     // -----------------------------------------------------------------------
-    // Step 5 — Fetch Mushaf page layout (line-by-line, QCF v2 glyphs)
+    // Step 5 — Fetch Mushaf page layout (line-by-line, QCF v4 glyphs)
     // -----------------------------------------------------------------------
-    log::info!("[5/6] Fetching Mushaf page layout (604 pages) …");
-    let pages = mushaf::fetch_all_pages().context("Failed to fetch mushaf layout")?;
+    log::info!("[5/6] Loading Mushaf page layout …");
+    let pages = load_mushaf_pages()?;
 
     // -----------------------------------------------------------------------
     // Step 6 — Insert Mushaf page layout

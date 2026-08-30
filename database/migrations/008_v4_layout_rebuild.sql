@@ -1,0 +1,27 @@
+-- Migration 008: Mushaf page layout rebuilt from the QCF v4 source
+-- Pure content update — no schema change, exactly like 005.
+--
+-- The layout used to be assembled from two sources: zonetecde/mushaf-layout
+-- supplied the lines and word rows, and a second pass attached a QCF v4 glyph
+-- to each row, matching on (ayah_id, word_index). The two sources disagree in
+-- ways that join could not express:
+--
+--   * They segment words differently in 19 Ayahs — every sajdah verse (where
+--     v4 carries the ۩ as its own entry), the three `بَعْدَ مَا`, and 37:130's
+--     `إِلْ يَاسِينَ`. The surplus glyph matched no row, and the Ayah-end
+--     marker after it went with it: 37:130 rendered as `سَلَامٌ عَلَىٰ إِلْ`,
+--     with no `يَاسِينَ` and no ﴿١٣٠﴾.
+--   * They break lines differently in 4785 of 8820 text lines, across 570 of
+--     604 pages — so v4 glyphs, whose advances are cut for v4's own line
+--     breaks, were being laid out on v2's.
+--
+-- The v2 source was also missing the Basmala line for Surahs 81 and 85
+-- outright, which is why those two opened with no Bismillah.
+--
+-- The importer now builds the whole layout from the v4 source (see
+-- importer/src/mushaf.rs). As with 005, the data itself arrives via
+-- connection.rs rebuilding page_line/page_line_word wholesale from the
+-- embedded seed, which is why this file has no UPDATEs of its own. Bumping the
+-- version is what triggers that rebuild for installs already sitting at v7.
+
+INSERT INTO schema_version (version) VALUES (8);

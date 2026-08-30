@@ -225,11 +225,13 @@ END;
 -- PAGE_LINE / PAGE_LINE_WORD
 -- Line-by-line Mushaf layout (Madani print, King Fahd Complex), so a page can
 -- be rendered with the same line breaks and word placement as the printed
--- Mushaf instead of a reflowed list of Ayahs. Line breaks and word boundaries
--- come from the QCF v2 source; each word additionally carries its QCF v4
--- glyph, attached to the same rows (see docs/qcf-v4-font-migration-plan.md).
--- Source: zonetecde/mushaf-layout (ISC, v2 layout + glyphs) +
---         MohamadHajjRabee/quran-qcf4 (MIT JSON, v4 glyphs)
+-- Mushaf instead of a reflowed list of Ayahs. Line breaks, word order and
+-- glyphs all come from the QCF v4 source, so a line is laid out with the
+-- advances the v4 fonts were cut for. Per-word `uthmani_text` is this
+-- database's own `ayah.uthmani_text`, split on spaces — v4's `text` field is a
+-- simplified script, and its word count matches the Uthmani token count for
+-- every Ayah.
+-- Source: MohamadHajjRabee/quran-qcf4 (MIT JSON, v4 layout + glyphs)
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS page_line (
@@ -271,8 +273,10 @@ CREATE TABLE IF NOT EXISTS page_line_word (
                                         -- font-map.json family (or 'QCF4_Hafs_01' for basmala,
                                         -- which carries the basmala glyph for every page, not
                                         -- 'QCF4_QBSML' — that font's copies are blank).
-                                        -- Nullable: see mushaf.rs's write_glyph_v4 for which
-                                        -- rows don't get one.
+                                        -- Usually one glyph; a word that ends an Ayah also
+                                        -- carries its ﴿n﴾ marker, a sajdah word its ۩, and a
+                                        -- word opening a rub-el-hizb its ۞ — space-joined, in
+                                        -- reading order, matching uthmani_text.
 
     UNIQUE (page_line_id, position)
 );
@@ -437,3 +441,4 @@ INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 INSERT OR IGNORE INTO schema_version (version) VALUES (2);
 INSERT OR IGNORE INTO schema_version (version) VALUES (3);
 INSERT OR IGNORE INTO schema_version (version) VALUES (7);
+INSERT OR IGNORE INTO schema_version (version) VALUES (8);

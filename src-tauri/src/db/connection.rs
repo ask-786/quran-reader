@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 7;
+const CURRENT_VERSION: u32 = 8;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -145,16 +145,27 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         conn.execute_batch(include_str!("../../../database/migrations/007_tafsir.sql"))?;
     }
 
+    if from_version < 8 {
+        log::info!("  → Applying migration 008: QCF v4 Mushaf page layout");
+        conn.execute_batch(include_str!(
+            "../../../database/migrations/008_v4_layout_rebuild.sql"
+        ))?;
+    }
+
     // page_line/page_line_word carry no user data (bookmarks and notes key off
-    // ayah_id, not page/line/glyph), so glyph content is delivered by
+    // ayah_id, not page/line/glyph), so layout content is delivered by
     // rebuilding both tables wholesale from the bundled seed rather than by
     // re-deriving anything in place. 003 needed it because its ALTER left
-    // every glyph_v4 NULL; 005 needs it because the seed now carries 199
-    // rub-el-hizb ornaments the old one didn't.
+    // every glyph_v4 NULL; 005 needed it for the 199 rub-el-hizb ornaments;
+    // 008 needs it because the whole layout is now built from the v4 source
+    // rather than joined across two that disagree.
     //
-    // One rebuild covers both — an install coming from v2 would otherwise do
-    // the same wholesale copy twice on the same upgrade.
-    if from_version < 5 {
+    // One rebuild covers all of them — an install coming from v2 would
+    // otherwise do the same wholesale copy three times on the same upgrade.
+    // The gate has to track the *newest* of those migrations: at `< 5` an
+    // install already at v7 would never re-run it, and 008 delivers nothing
+    // but this copy.
+    if from_version < 8 {
         log::info!("  → Rebuilding page_line/page_line_word from the bundled seed");
         rebuild_mushaf_layout_from_seed(conn)?;
     }
@@ -432,7 +443,7 @@ mod tests {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .unwrap();
-        assert_eq!(rows, 77_539);
+        assert_eq!(rows, 77_545);
         assert_eq!(null_v4, 0, "every word row must render");
 
         // Migration 005: the rub-el-hizb ornament reaches an existing install.
@@ -636,7 +647,7 @@ mod tests {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .unwrap();
-        assert_eq!(rows, 77_539);
+        assert_eq!(rows, 77_545);
         assert_eq!(null_v4, 0);
 
         // Opening again is a no-op rather than a second application of 006.
@@ -670,8 +681,104 @@ mod tests {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .unwrap();
-        assert_eq!(rows, 77_539);
+        assert_eq!(rows, 77_545);
         assert_eq!(null_v4, 0);
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The upgrade this release exists for. A v0.2.2 install is
+    /// schema-identical to this build — 008 changes no table — so bumping the
+    /// version is the *only* thing that can hand it the rebuilt layout. Put
+    /// the seed-rebuild gate back to `< 5`, where it sat until 008, and this
+    /// is the test that fails while every other upgrade test still passes.
+    #[test]
+    fn upgrade_from_v7_rebuilds_the_mushaf_layout() {
+        let dir = std::env::temp_dir().join(format!("quranreader-v7-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quran.db");
+        let _ = std::fs::remove_file(&path);
+
+        // The current seed wound back to v7 and damaged the way the old
+        // two-source importer damaged it: 37:130 without its last word or its
+        // ﴿١٣٠﴾ marker, and Surahs 81 and 85 with no Basmala line at all.
+        std::fs::write(&path, SEED_DB).unwrap();
+        let yaseen_id: i64 = {
+            let conn = Connection::open(&path).unwrap();
+            let id: i64 = conn
+                .query_row(
+                    "SELECT id FROM ayah WHERE surah_id = 37 AND ayah_number = 130",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            conn.execute(
+                "DELETE FROM page_line_word WHERE ayah_id = ?1 AND word_index = 4",
+                params![id],
+            )
+            .unwrap();
+            conn.execute(
+                "UPDATE page_line_word SET glyph_v4 = 'x'
+                 WHERE ayah_id = ?1 AND word_index = 3",
+                params![id],
+            )
+            .unwrap();
+            conn.execute_batch(
+                "DELETE FROM page_line WHERE line_type = 'basmala' AND page IN (586, 590);
+                 DELETE FROM schema_version WHERE version >= 8;",
+            )
+            .unwrap();
+            assert_eq!(
+                get_schema_version(&conn).unwrap(),
+                7,
+                "fixture starts at v7"
+            );
+            id
+        };
+
+        let conn = open(&path).unwrap();
+
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
+
+        // 37:130 is whole again, and its last word carries the marker as a
+        // second glyph.
+        let (words, marked): (u32, u32) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE glyph_v4 LIKE '% %')
+                 FROM page_line_word WHERE ayah_id = ?1",
+                params![yaseen_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(words, 4, "سَلَامٌ عَلَىٰ إِلْ يَاسِينَ");
+        assert_eq!(marked, 1, "يَاسِينَ carries the ﴿١٣٠﴾ marker");
+
+        // At-Takwir and Al-Burooj open with a Bismillah like every other Surah
+        // that should have one.
+        let basmalas: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM page_line WHERE line_type = 'basmala'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(basmalas, 112);
+
+        // And the class of bug, not just the verse that exposed it: no Ayah
+        // ends on a word without a marker glyph beside it.
+        let unmarked: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM page_line_word w
+                 JOIN (SELECT ayah_id, MAX(word_index) AS mw FROM page_line_word
+                       WHERE ayah_id IS NOT NULL GROUP BY ayah_id) last
+                   ON last.ayah_id = w.ayah_id AND last.mw = w.word_index
+                 WHERE INSTR(w.glyph_v4, ' ') = 0",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(unmarked, 0, "all 6236 Ayahs end with a marker glyph");
 
         drop(conn);
         let _ = std::fs::remove_dir_all(&dir);
@@ -885,7 +992,7 @@ mod tests {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .unwrap();
-        assert_eq!(rows, 77_539);
+        assert_eq!(rows, 77_545);
         assert_eq!(null_v4, 0);
 
         drop(conn);

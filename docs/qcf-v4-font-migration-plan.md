@@ -252,3 +252,50 @@ at all.
   distribution is worth spot-checking against a printed reference.
 - Is the 57.8 ms cold-decode acceptable on first page open, or does the
   group need prefetching on an idle callback?
+
+---
+
+## Removing the v2/v4 split (follow-up)
+
+The plan above deliberately kept `zonetecde/mushaf-layout` as the authority for
+line breaks and word boundaries, and had the v4 pass only _attach_ a glyph to
+each row it had already created, matching on `(ayah_id, word_index)`. That
+"scope boundary" was wrong on both counts, and the importer no longer has one:
+`page_line` / `page_line_word` are built from the v4 layout outright.
+
+**Why the join failed.** It assumed the two sources segment words identically.
+They don't — the v2 layout packs two v4 tokens into one row in 19 Ayahs:
+
+- all 15 sajdah Ayahs, where v4 carries the `۩` ornament as its own entry;
+- 2:181, 8:6 and 13:37, where v4 splits `بَعْدَ مَا` into two words;
+- 37:130, where v4 splits `إِلْ يَاسِينَ` into two words.
+
+In each, the surplus v4 glyph matched no row and was dropped, and the Ayah-end
+marker — appended onto `position - 1`, an index that doesn't exist — went with
+it. 37:130 rendered as `سَلَامٌ عَلَىٰ إِلْ`, with no `يَاسِينَ` and no ﴿١٣٠﴾.
+Neither guard caught it: `still_null` only looks for rows with _no_ glyph, and
+`append_end`'s row count was never checked.
+
+The three `بَعْدَ مَا` Ayahs had a second symptom. Because the shift is uniform,
+every row after the merge point rendered the _previous_ word's glyph — which
+still reads correctly on screen, but leaves each word span's `uthmani_text`,
+`title` and `data-word-index` describing the wrong word.
+
+**Why the boundary was wrong even where the join succeeded.** The two sources
+don't break lines identically either: 4785 of 8820 text lines placed their words
+differently, across 570 of 604 pages. v4 glyph advances are cut for v4's own
+line breaks, so laying them out on v2's was wrong nearly everywhere — and the
+v2 source is also missing the Basmala line for Surahs 81 and 85 outright, which
+is why those two opened with no Bismillah.
+
+**What made a clean cut possible.** v4's `text` field is a simplified script, so
+it can't supply `page_line_word.uthmani_text`. It doesn't have to: splitting our
+own `ayah.uthmani_text` on spaces yields exactly v4's word count for all 6236
+Ayahs, once the sajdah ornament — a print mark, always last in its Ayah, on the
+15 sajdah Ayahs and nowhere else — is set aside. Every Ayah's word rows now
+reconstruct its `ayah.uthmani_text` exactly, which the old two-source data could
+not do even where it wasn't broken.
+
+Surah-header synthesis is gone too. It existed because the v2 source's header
+lines were unreliable; v4 carries exactly 114, each on its Surah's opening page,
+and the import asserts both.

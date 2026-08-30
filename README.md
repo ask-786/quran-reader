@@ -195,6 +195,17 @@ the printed hash into `PACKS`, land that, then run the workflow.
 ./scripts/vendor-mushaf-fonts-v4.sh
 ```
 
+**Mushaf layout** — rebuilds `page_line` / `page_line_word` in an existing
+`database/quran.db` from the QCF v4 page data, leaving everything else alone.
+The full import runs this as its last step; the flag is for re-running it on
+its own:
+
+```bash
+# 604 requests, or point --mushaf-dir at a local copy:
+#   npm pack quran-qcf4 && tar xzf quran-qcf4-*.tgz
+cd importer && cargo run --release -- --import-mushaf [--mushaf-dir ../package/pages]
+```
+
 ---
 
 ## Project structure
@@ -216,10 +227,9 @@ docs/             Research and design notes
 | Source                                                                        | Provides                              | License                                                                    |
 | ----------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------- |
 | [Tanzil Project](https://tanzil.net)                                          | Uthmani and simple Arabic text        | CC BY 3.0                                                                  |
-| [zonetecde/mushaf-layout](https://github.com/zonetecde/mushaf-layout)         | Mushaf page line layout               | ISC                                                                        |
 | [alquran.cloud](https://alquran.cloud)                                        | Per-ayah juz/hizb/page metadata       | Open                                                                       |
 | [spa5k/quran_data](https://github.com/spa5k/quran_data)                       | Surah metadata                        | Open                                                                       |
-| [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | QCF v4 Mushaf glyph fonts + layout    | JSON: MIT · fonts: Restricted (KFGQPC) — see below                         |
+| [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | Mushaf page line layout + glyph fonts | JSON: MIT · fonts: Restricted (KFGQPC) — see below                         |
 | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api)                       | Tafsīr al-Jalālayn (Arabic + English) | Arabic: public domain · English: © Royal Aal al-Bayt Institute — see below |
 | [aliftype/amiri](https://github.com/aliftype/amiri)                           | Amiri (Arabic prose)                  | SIL OFL 1.1                                                                |
 

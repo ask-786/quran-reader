@@ -727,11 +727,13 @@
 
        Lines are laid out edge-to-edge like a real Mushaf page and can't
        reflow, so the size is capped at what the column can actually hold.
-       The widest-line cap below (4.3cqi) was measured against QCF v2's glyph
-       advances (page 123, line 8: 22.82em) — v4 claims narrower glyphs (its
-       own docs cite removed inter-word gaps), so this cap is carried over
-       unverified rather than loosened; it can only bind tighter than
-       necessary, never overflow. Needs re-measuring against v4 glyphs.
+       The widest-line cap below (4.3cqi) admits a line of up to 23.26em. It
+       was measured against QCF v2's glyph advances and v2's line breaks (page
+       123, line 8: 22.82em); now that both come from v4, the widest line is
+       page 577 line 11 at 17.84em, so the cap has ~30% of headroom and binds
+       tighter than it needs to. Left as measured rather than loosened —
+       raising it makes the text bigger at large font settings, which is a
+       type-size decision, not a fitting one.
 
        The preceding declaration is the pre-container-query fallback: engines
        without cqi support drop the min() line as invalid and keep it. */
