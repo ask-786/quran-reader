@@ -203,6 +203,28 @@ pub struct Settings {
     pub app_zoom: f32,
     pub reader_zoom_normal: f32,
     pub reader_zoom_focus: f32,
+
+    // Audio (Phase 12) — see docs/audio-plan.md.
+    /// None until a reciter is chosen. There is no default reciter on purpose:
+    /// choosing one is what makes the app willing to fetch anything, and that
+    /// belongs to the reader.
+    pub reciter_id: Option<u32>,
+    /// 64 or 128. The CDN serves no other rate.
+    pub audio_bitrate: u32,
+    /// "off" | "ayah" | "range"
+    pub audio_repeat_mode: String,
+    pub audio_repeat_count: u32,
+    /// Silence between repetitions, for saying the verse back before it comes
+    /// round again.
+    pub audio_repeat_pause_ms: u32,
+    pub audio_playback_rate: f32,
+    /// Whether the reader scrolls to the verse being recited.
+    pub audio_follow: bool,
+    pub audio_volume: f32,
+    /// The network switch. Off until the reader approves the first fetch;
+    /// turning it back off is "cached only" — everything already downloaded
+    /// still plays and nothing leaves the machine.
+    pub audio_downloads_allowed: bool,
 }
 
 impl Default for Settings {
@@ -226,6 +248,15 @@ impl Default for Settings {
             app_zoom: 1.0,
             reader_zoom_normal: 1.0,
             reader_zoom_focus: 1.0,
+            reciter_id: None,
+            audio_bitrate: 64,
+            audio_repeat_mode: "off".to_string(),
+            audio_repeat_count: 3,
+            audio_repeat_pause_ms: 0,
+            audio_playback_rate: 1.0,
+            audio_follow: true,
+            audio_volume: 1.0,
+            audio_downloads_allowed: false,
         }
     }
 }

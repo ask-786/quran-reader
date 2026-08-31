@@ -316,6 +316,56 @@ CREATE TABLE IF NOT EXISTS reading_session (
 CREATE INDEX IF NOT EXISTS idx_reading_session_updated ON reading_session(updated_at DESC);
 
 -- =============================================================================
+-- RECITATION AUDIO
+-- Reciters, and bookkeeping over the on-disk audio cache. No audio is stored
+-- here or shipped with the app: files are fetched per Ayah from a public CDN
+-- when the reader presses play and cached under the app data directory.
+-- See migrations/009_audio.sql and docs/audio-plan.md.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS reciter (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug        TEXT    NOT NULL UNIQUE,  -- the id the CDN knows them by, e.g. "ar.alafasy"
+    name_ar     TEXT    NOT NULL,
+    name_en     TEXT    NOT NULL,
+    -- Labelled for the reason a tafsir carries school and creed: nearly every
+    -- recording in circulation is Hafs 'an 'Asim, so the one that isn't has to
+    -- announce itself rather than be discovered mid-Surah.
+    riwaya      TEXT    NOT NULL DEFAULT 'Hafs an Asim',
+    style       TEXT    NOT NULL DEFAULT 'murattal' CHECK (style IN ('murattal', 'mujawwad')),
+    source_url  TEXT,
+    license     TEXT,
+    sort_order  INTEGER NOT NULL DEFAULT 0
+);
+
+-- Bookkeeping over the cache directory, not the truth about it — the files on
+-- disk are. This turns "is this Surah downloaded?" and "how much disk is audio
+-- using?" into one query instead of 6,236 stat calls.
+CREATE TABLE IF NOT EXISTS audio_file (
+    reciter_id  INTEGER NOT NULL REFERENCES reciter(id) ON DELETE CASCADE,
+    bitrate     INTEGER NOT NULL,
+    ayah_id     INTEGER NOT NULL REFERENCES ayah(id),
+    bytes       INTEGER NOT NULL,
+    fetched_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+
+    PRIMARY KEY (reciter_id, bitrate, ayah_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_audio_file_ayah ON audio_file(ayah_id);
+
+-- Per-word timings, for word-by-word highlighting. Ships empty; word_index
+-- matches page_line_word.word_index.
+CREATE TABLE IF NOT EXISTS recitation_segment (
+    reciter_id  INTEGER NOT NULL REFERENCES reciter(id) ON DELETE CASCADE,
+    ayah_id     INTEGER NOT NULL REFERENCES ayah(id),
+    word_index  INTEGER NOT NULL,
+    start_ms    INTEGER NOT NULL,
+    end_ms      INTEGER NOT NULL,
+
+    PRIMARY KEY (reciter_id, ayah_id, word_index)
+);
+
+-- =============================================================================
 -- SETTINGS (Key-value store for all user preferences)
 -- =============================================================================
 
@@ -345,7 +395,22 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     ('show_ayah_numbers',       'true'),
     ('range_focus',             'trim'),   -- 'all' | 'dim' | 'trim'
     ('app_zoom',                '1'),
-    ('reader_zoom',             '1');
+    ('reader_zoom',             '1'),
+    -- Audio (Phase 12). Empty reciter = none chosen, and no reciter means no
+    -- network: picking one is what turns fetching on, and that is the reader's
+    -- call to make. 64 and 128 are the only bitrates the CDN serves.
+    ('reciter_id',              ''),
+    ('audio_bitrate',           '64'),
+    ('audio_repeat_mode',       'off'),   -- 'off' | 'ayah' | 'range'
+    ('audio_repeat_count',      '3'),
+    ('audio_repeat_pause_ms',   '0'),
+    ('audio_playback_rate',     '1'),
+    ('audio_follow',            'true'),
+    ('audio_volume',            '1'),
+    -- Off until the reader approves the first fetch, host named. Switching it
+    -- back off is "cached only": everything already on disk still plays and
+    -- nothing leaves the machine.
+    ('audio_downloads_allowed', 'false');
 
 -- =============================================================================
 -- FULL-TEXT SEARCH (FTS5)
@@ -442,3 +507,4 @@ INSERT OR IGNORE INTO schema_version (version) VALUES (2);
 INSERT OR IGNORE INTO schema_version (version) VALUES (3);
 INSERT OR IGNORE INTO schema_version (version) VALUES (7);
 INSERT OR IGNORE INTO schema_version (version) VALUES (8);
+INSERT OR IGNORE INTO schema_version (version) VALUES (9);

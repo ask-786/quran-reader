@@ -4,6 +4,7 @@
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
+  import { playbackStore } from '$lib/stores/playback.svelte';
   import { hasVerseMarker, withoutVerseMarker } from '$lib/utils/ayah-marker';
 
   let {
@@ -24,6 +25,7 @@
   } = $props();
 
   const bookmarked = $derived(bookmarksStore.isBookmarked(ayah.id));
+  const reciting = $derived(playbackStore.isCurrent(ayah.id));
   let copied = $state(false);
 
   /**
@@ -71,6 +73,7 @@
 
 <div
   class="ayah-row"
+  class:reciting
   id="ayah-{ayah.id}"
   data-ayah-id={ayah.id}
   data-page={ayah.page}
@@ -99,8 +102,8 @@
         class="action-btn"
         data-tafsir-source
         onclick={(e) => tafsirStore.openFor(ayah.id, e.currentTarget)}
-        aria-label="Show tafsir for this ayah"
-        title="Tafsir"
+        aria-label="Open this verse — commentary and recitation"
+        title="Verse card"
       >
         <ScrollText size={15} />
       </button>
@@ -145,6 +148,14 @@
     background: var(--color-bg-hover);
   }
 
+  /* The verse being recited. A tint plus a rule down the leading edge, rather
+     than a colour on the text: the glyphs are the one thing on this page whose
+     appearance is not ours to change. */
+  .ayah-row.reciting {
+    background: var(--color-bg-hover);
+    box-shadow: inset 2px 0 0 var(--color-accent);
+  }
+
   .ayah-actions {
     position: absolute;
     top: 6px;
@@ -156,7 +167,8 @@
   }
 
   .ayah-row:hover .ayah-actions,
-  .ayah-row:focus-within .ayah-actions {
+  .ayah-row:focus-within .ayah-actions,
+  .ayah-row.reciting .ayah-actions {
     opacity: 1;
   }
 
@@ -210,8 +222,8 @@
     unicode-bidi: bidi-override;
   }
 
-  /* The only sign that a click will do something. Without it tafsir mode is
-     invisible until you happen to click, which is the same guesswork the mode
+  /* The only sign that a click will do something. Without it the mode is
+     invisible until you happen to click, which is the same guesswork it
      exists to remove. */
   .ayah-text.clickable {
     cursor: pointer;

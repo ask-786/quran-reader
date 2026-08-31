@@ -693,13 +693,61 @@ What the app will carry
 
 # Phase 12 — Audio
 
+> Delivered as **fetch on demand**, not as a bundle or a pack. A verse is
+> pulled from `cdn.islamic.network` the first time it is played, cached under
+> the app data directory, and played from that file for good. Nothing ships in
+> the installer, which is the one thing this feature could not afford given the
+> Phase 13 install-size item below. Full reasoning, sources and measurements:
+> [docs/audio-plan.md](docs/audio-plan.md).
+>
+> The CDN numbers verses 1–6236 in Mushaf order, which is exactly `ayah.id`
+> (`262.mp3` is 2:255 on both sides), so no mapping layer exists at all.
+
 Features
 
-- [ ] Play Surah
-- [ ] Play Ayah
-- [ ] Repeat Ayah
-- [ ] Auto-scroll
-- [ ] Offline audio
+- [x] Play Ayah — a scrubber in the **verse card** (renamed from "tafsir card"
+      when recitation moved in; `t` now toggles verse cards), popover and panel
+      both. One
+      verse, then silence: the "how is this said" question, asked where the
+      "what does this mean" question already is. A seek track rather than a bare
+      play button, because 2:282 runs for minutes and the question is usually
+      about one phrase in it. Nothing on the reading surface, and `Space` stays
+      with auto-scroll
+- [~] Play Surah — the engine is there (the queue is the open range, so Surah,
+  Juz, Hizb and page are one code path) but it has **no surface yet**. It
+  is not going in the reader; the sidebar, a Listen panel, or a toolbar
+  control are the candidates
+- [x] Repeat Ayah — n times, or loop the whole range, with a pause between
+- [x] Auto-scroll — a playing range scrolls the reader and stops auto-scroll
+      rather than fighting it. A single verse from the card is already on
+      screen, so it is left alone
+- [~] Offline audio — earned by playing, and the eager range download works
+  (`download_audio_range`, with progress and cancel) but lost its button
+  when the audio bar came out. It returns with whatever surface Play Surah
+  gets. Storage and clearing live in Settings → Audio
+- [ ] **Verify each reciter over all 6,236 ids before shipping the catalogue.**
+      Five are in and reachable at 64 kbps; `ar.minshawi` is a plausible
+      identifier that 403s, and that failure looks like the app stopping in the
+      middle of a Surah. Wants a `quran-importer --verify-reciter` sweep
+- [x] **The asset protocol cannot play media on Linux.** `convertFileSrc` gives
+      `asset://localhost/…` and WebKitGTK's media pipeline refuses custom
+      schemes — `fetch` and `<img>` work, `<audio>` fails with "The operation is
+      not supported". Audio bytes cross the IPC bridge as a
+      `tauri::ipc::Response` and play from a blob instead; the asset protocol,
+      its feature and its config are gone
+- [ ] **Confirm MP3 playback in the real app**, and add the GStreamer
+      dependency to the deb/rpm if it is not implicit. WebKitGTK decodes
+      through GStreamer, so `gst-plugins-good` is what makes an MP3 audible;
+      the AppImage is the open question
+- [ ] Word-by-word highlighting — `recitation_segment` is defined in migration
+      009 and ships empty; `page_line_word.word_index` is already there to join
+      against
+- [ ] A second host as fallback. everyayah.com serves the same recordings under
+      a padded Surah/Ayah name, for reciters this host lacks
+- [ ] Verify the redistribution terms of the recordings with their publisher,
+      the same standing item as the English Jalalayn. Fetching from the
+      publisher's own CDN avoids redistributing anything, which is why it is a
+      question rather than a blocker
 
 ---
 

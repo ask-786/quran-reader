@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 8;
+const CURRENT_VERSION: u32 = 9;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -150,6 +150,11 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         conn.execute_batch(include_str!(
             "../../../database/migrations/008_v4_layout_rebuild.sql"
         ))?;
+    }
+
+    if from_version < 9 {
+        log::info!("  → Applying migration 009: recitation audio");
+        conn.execute_batch(include_str!("../../../database/migrations/009_audio.sql"))?;
     }
 
     // page_line/page_line_word carry no user data (bookmarks and notes key off
@@ -891,6 +896,52 @@ mod tests {
     /// a second 006 would be skipped outright by every install that already
     /// recorded 6 — the tafsir schema would reach new installs and no one
     /// else, and a pack would then have nowhere to install itself.
+    /// The seed ships at v8, so every install — fresh or upgraded — meets 009
+    /// on its first launch with this build.
+    #[test]
+    fn upgrade_adds_the_audio_schema_and_no_reciters() {
+        let dir = std::env::temp_dir().join(format!("quranreader-v009-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quran.db");
+        let _ = std::fs::remove_file(&path);
+        std::fs::write(&path, SEED_DB).unwrap();
+
+        let conn = open(&path).unwrap();
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
+
+        // The tables arrive, and arrive empty. The catalogue is written by
+        // `audio::sync_catalog` at startup, not by the migration, and no audio
+        // exists until the reader plays a verse.
+        for table in ["reciter", "audio_file", "recitation_segment"] {
+            let rows: u32 = conn
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(rows, 0, "{table} starts empty");
+        }
+
+        // No reciter, and no permission to fetch: audio costs nothing and
+        // reaches nowhere until it is asked for.
+        let reciter: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'reciter_id'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(reciter, "");
+        let allowed: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'audio_downloads_allowed'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(allowed, "false");
+
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn upgrade_from_v019_applies_007() {
         let dir = std::env::temp_dir().join(format!("quranreader-v019-{}", std::process::id()));

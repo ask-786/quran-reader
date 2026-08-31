@@ -28,8 +28,11 @@
       shortcuts: [
         { keys: ['m'], label: 'Switch between scrolling and Mushaf page view' },
         { keys: ['f'], label: 'Focus mode' },
-        { keys: ['t'], label: 'Tafsir mode' },
-        { keys: ['Space'], label: 'Start or stop auto-scroll' },
+        { keys: ['t'], label: 'Verse card — commentary and recitation for a verse' },
+        {
+          keys: ['Space'],
+          label: 'Play or pause recitation in the verse card — auto-scroll when no card is open',
+        },
         { keys: ['a'], label: 'Start or stop auto-scroll' },
         { keys: ['Shift', '↑'], label: 'Auto-scroll faster' },
         { keys: ['Shift', '↓'], label: 'Auto-scroll slower' },

@@ -1,6 +1,13 @@
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { loadSettings, setSetting } from '$lib/api/db';
-import type { RangeFocus, ReaderWidth, Settings, Theme } from '$lib/types/database';
+import type {
+  AudioBitrate,
+  RangeFocus,
+  ReaderWidth,
+  RepeatMode,
+  Settings,
+  Theme,
+} from '$lib/types/database';
 
 const APP_ZOOM_MIN = 0.7;
 const APP_ZOOM_MAX = 1.5;
@@ -41,6 +48,19 @@ export const READER_WIDTHS: Record<ReaderWidth, string> = {
   wide: '900px',
 };
 
+/** Repeats per verse. Two is barely a repeat; past twenty, the counter is the
+ *  wrong control and the reader wants the loop left running. */
+export const AUDIO_REPEAT_MIN = 1;
+export const AUDIO_REPEAT_MAX = 20;
+/** Longest silence offered between repetitions: enough to say back a long
+ *  verse, not so long the player looks stuck. */
+export const AUDIO_REPEAT_PAUSE_MAX = 10_000;
+/** Recitation slowed for following along, or nudged up. Neither end is a
+ *  speed anyone should read the Quran at for long, which is why the range is
+ *  this narrow. */
+export const AUDIO_RATE_MIN = 0.5;
+export const AUDIO_RATE_MAX = 1.5;
+
 function clampZoom(value: number, min: number, max: number): number {
   return Math.round(Math.min(max, Math.max(min, value)) * 10) / 10;
 }
@@ -69,6 +89,17 @@ function defaultSettings(): Settings {
     app_zoom: 1,
     reader_zoom_normal: 1,
     reader_zoom_focus: 1,
+    // No reciter until one is chosen, which is also the point at which audio
+    // appears in the reader at all.
+    reciter_id: null,
+    audio_bitrate: 64,
+    audio_repeat_mode: 'off',
+    audio_repeat_count: 3,
+    audio_repeat_pause_ms: 0,
+    audio_playback_rate: 1,
+    audio_follow: true,
+    audio_volume: 1,
+    audio_downloads_allowed: false,
   };
 }
 
@@ -230,6 +261,84 @@ class SettingsStore {
 
   resetReaderZoom(focusMode: boolean) {
     return this.setReaderZoom(1, focusMode);
+  }
+
+  // ===========================================================================
+  // AUDIO
+  // ===========================================================================
+
+  /**
+   * Choose a reciter, or `null` for none.
+   *
+   * This is the setting that makes audio exist at all: with no reciter the bar
+   * never appears and nothing is ever fetched. There is deliberately no default
+   * — see docs/audio-plan.md, "Privacy".
+   */
+  async setReciter(id: number | null) {
+    this.current.reciter_id = id;
+    await setSetting('reciter_id', id === null ? '' : String(id));
+
+    // Choosing a reciter *is* the consent to fetch, and this is the only place
+    // it can be chosen — a section that states plainly where recitation comes
+    // from and what it costs. Asking again at the first play would be asking
+    // the same question twice, in a worse place for it. The toggle stays, for
+    // turning fetching back off ("cached only") afterwards.
+    if (id !== null && !this.current.audio_downloads_allowed) {
+      await this.setAudioDownloadsAllowed(true);
+    }
+  }
+
+  /** 64 or 128. The cache is keyed by bitrate, so switching starts a second
+   *  cache rather than replacing the first. */
+  async setAudioBitrate(bitrate: AudioBitrate) {
+    this.current.audio_bitrate = bitrate;
+    await setSetting('audio_bitrate', String(bitrate));
+  }
+
+  async setAudioRepeatMode(mode: RepeatMode) {
+    this.current.audio_repeat_mode = mode;
+    await setSetting('audio_repeat_mode', mode);
+  }
+
+  async setAudioRepeatCount(count: number) {
+    const value = Math.round(clamp(count, AUDIO_REPEAT_MIN, AUDIO_REPEAT_MAX));
+    this.current.audio_repeat_count = value;
+    await setSetting('audio_repeat_count', String(value));
+  }
+
+  /** Silence between repetitions, in milliseconds. The point of it is to leave
+   *  room to say the verse back before it comes round again. */
+  async setAudioRepeatPause(ms: number) {
+    const value = Math.round(clamp(ms, 0, AUDIO_REPEAT_PAUSE_MAX));
+    this.current.audio_repeat_pause_ms = value;
+    await setSetting('audio_repeat_pause_ms', String(value));
+  }
+
+  async setAudioPlaybackRate(rate: number) {
+    const value = Math.round(clamp(rate, AUDIO_RATE_MIN, AUDIO_RATE_MAX) * 100) / 100;
+    this.current.audio_playback_rate = value;
+    await setSetting('audio_playback_rate', String(value));
+  }
+
+  async setAudioFollow(follow: boolean) {
+    this.current.audio_follow = follow;
+    await setSetting('audio_follow', String(follow));
+  }
+
+  async setAudioVolume(volume: number) {
+    const value = Math.round(clamp(volume, 0, 1) * 100) / 100;
+    this.current.audio_volume = value;
+    await setSetting('audio_volume', String(value));
+  }
+
+  /**
+   * The network switch. Off means cached verses still play and nothing leaves
+   * the machine, which is what someone who downloaded a Juz for a journey
+   * actually wants.
+   */
+  async setAudioDownloadsAllowed(allowed: boolean) {
+    this.current.audio_downloads_allowed = allowed;
+    await setSetting('audio_downloads_allowed', String(allowed));
   }
 }
 

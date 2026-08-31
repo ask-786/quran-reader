@@ -5,6 +5,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  Reciter,
+  ReciterUsage,
   Surah,
   Ayah,
   Translation,
@@ -221,4 +223,83 @@ export function installTafsirPack(slug: string): Promise<number> {
 /** Remove an installed edition. Bundled editions are refused. */
 export function removeTafsirPack(slug: string): Promise<void> {
   return invoke('remove_tafsir_pack', { slug });
+}
+
+// =============================================================================
+// AUDIO
+// =============================================================================
+
+/** Every reciter this build can fetch. */
+export function listReciters(): Promise<Reciter[]> {
+  return invoke('list_reciters');
+}
+
+/**
+ * Make sure one Ayah is cached, fetching it if it is not.
+ *
+ * False means the verse is not downloaded and downloads are turned off — an
+ * answer to act on (offer to turn them on), not a failure. A rejection is a
+ * fetch that was attempted and did not work.
+ */
+export function ensureAyahAudio(slug: string, bitrate: number, ayahId: number): Promise<boolean> {
+  return invoke('ensure_ayah_audio', { slug, bitrate, ayahId });
+}
+
+/**
+ * The bytes of one Ayah, to be played from a blob.
+ *
+ * Not a file URL, and not for want of trying: `convertFileSrc` yields
+ * `asset://localhost/…` on Linux and WebKitGTK's media pipeline refuses custom
+ * schemes, so `<audio>` fails there with "The operation is not supported" while
+ * `fetch` and `<img>` are fine. A blob has no scheme to refuse. One verse is
+ * 50–420 KB.
+ */
+export function readAyahAudio(slug: string, bitrate: number, ayahId: number): Promise<ArrayBuffer> {
+  return invoke('read_ayah_audio', { slug, bitrate, ayahId });
+}
+
+/** Pull a verse into the cache ahead of the playhead. Resolves false rather
+ *  than rejecting: a failed prefetch is not the reader's problem yet. */
+export function prefetchAyahAudio(slug: string, bitrate: number, ayahId: number): Promise<boolean> {
+  return invoke('prefetch_ayah_audio', { slug, bitrate, ayahId });
+}
+
+/** Which Ayahs of an inclusive range are already on disk. */
+export function cachedAudioInRange(
+  slug: string,
+  bitrate: number,
+  firstAyahId: number,
+  lastAyahId: number,
+): Promise<number[]> {
+  return invoke('cached_audio_in_range', { slug, bitrate, firstAyahId, lastAyahId });
+}
+
+/**
+ * Fetch a whole range up front. Reports through `audio-download-progress` and
+ * resolves with the number of verses fetched.
+ *
+ * One verse at a time against someone else's CDN, so a Juz takes a couple of
+ * minutes. `cancelAudioDownload` stops it.
+ */
+export function downloadAudioRange(
+  slug: string,
+  bitrate: number,
+  firstAyahId: number,
+  lastAyahId: number,
+): Promise<number> {
+  return invoke('download_audio_range', { slug, bitrate, firstAyahId, lastAyahId });
+}
+
+export function cancelAudioDownload(): Promise<void> {
+  return invoke('cancel_audio_download');
+}
+
+/** What each reciter's cached audio costs on disk. */
+export function audioUsage(): Promise<ReciterUsage[]> {
+  return invoke('audio_usage');
+}
+
+/** Delete cached audio, for one reciter or all of them. Returns bytes freed. */
+export function clearAudioCache(slug?: string): Promise<number> {
+  return invoke('clear_audio_cache', { slug: slug ?? null });
 }

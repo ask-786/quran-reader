@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::Manager;
 
+mod audio;
 mod commands;
 mod db;
 mod models;
@@ -18,6 +19,11 @@ pub struct AppDb(pub Mutex<Connection>);
 /// install needs the *path* and not the handle: it stages the download beside
 /// the database so the verified file and its destination share a filesystem.
 pub struct DbPath(pub PathBuf);
+
+/// Root of the recitation cache, `<data dir>/audio`. Held as state for the same
+/// reason as [`DbPath`]: the audio commands work in paths, and the webview is
+/// handed those paths directly through the asset protocol.
+pub struct AudioRoot(pub PathBuf);
 
 /// The application name handed to [`ProjectDirs`], and with it the data
 /// directory the database lives in.
@@ -71,8 +77,25 @@ pub fn run() {
 
             let conn = db::connection::open(&db_path).expect("Failed to open database");
 
+            // The catalogue is compiled in, so it is written on every open
+            // rather than seeded once: a corrected riwaya or a reciter added in
+            // this release reaches an existing install without a migration.
+            if let Err(err) = audio::sync_catalog(&conn) {
+                log::error!("Failed to sync the reciter catalogue: {err}");
+            }
+
+            let audio_root = audio::root(&db_path);
+            // The files on disk are the truth about what is cached; the table
+            // is an index over them. This puts the two back in step after a
+            // restore from backup or a manual delete, and it is cheap when
+            // they already agree.
+            if let Err(err) = audio::reconcile(&conn, &audio_root) {
+                log::error!("Failed to reconcile the audio cache: {err}");
+            }
+
             app.manage(AppDb(Mutex::new(conn)));
             app.manage(DbPath(db_path));
+            app.manage(AudioRoot(audio_root));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -105,6 +128,15 @@ pub fn run() {
             commands::list_tafsir_packs,
             commands::install_tafsir_pack,
             commands::remove_tafsir_pack,
+            commands::list_reciters,
+            commands::ensure_ayah_audio,
+            commands::read_ayah_audio,
+            commands::prefetch_ayah_audio,
+            commands::cached_audio_in_range,
+            commands::download_audio_range,
+            commands::cancel_audio_download,
+            commands::audio_usage,
+            commands::clear_audio_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

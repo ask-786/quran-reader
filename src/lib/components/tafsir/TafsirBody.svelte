@@ -45,7 +45,7 @@
        may see first. The shelf lives in Settings now, which is reachable from
        both surfaces — the popover used to have to send readers to the panel
        first, because the list only existed inside it. -->
-  <p class="state">No commentary is installed yet.</p>
+  <p class="state">No commentary is installed yet. Recitation above still works.</p>
   <button class="cta" onclick={() => uiStore.openSettings('editions')}>Browse editions</button>
 {:else if tafsirStore.error}
   <p class="state">{tafsirStore.error}</p>

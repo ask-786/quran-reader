@@ -18,6 +18,7 @@
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { observeCenteredAyah } from '$lib/utils/centered-ayah';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
+  import { playbackStore } from '$lib/stores/playback.svelte';
   import SurahHeader from './SurahHeader.svelte';
 
   let {
@@ -587,6 +588,8 @@
                            docs/tafsir-popover-plan.md — not this one. -->
                       <span
                         class="word"
+                        class:reciting={w.ayah_id !== null &&
+                          w.ayah_id === playbackStore.currentAyahId}
                         class:out-of-range={!lineOutside &&
                           rangeFocus !== 'all' &&
                           !inRange(w.ayah_id)}
@@ -817,7 +820,7 @@
   }
 
   /* Mirrors .ayah-text.clickable in AyahRow: the cursor is the whole of what
-     tells you tafsir mode is on. */
+     tells you verse cards are on. */
   .tafsir-clickable .word {
     cursor: pointer;
   }
@@ -832,6 +835,14 @@
        rtl direction places them, not the bidi algorithm. (The Ayah list has
        no such luck: see the same fix on .ayah-text in AyahRow.) */
     unicode-bidi: bidi-override;
+  }
+
+  /* The verse being recited, marked on its own words — the page's lines are
+     shared between verses, so there is no row here to tint. Background only:
+     recolouring a QCF glyph would change how the printed page reads. */
+  .word.reciting {
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    border-radius: 3px;
   }
 
   .word:hover {

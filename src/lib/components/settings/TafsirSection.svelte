@@ -49,12 +49,12 @@
 </SettingRow>
 
 <SettingRow
-  label="Tafsir mode"
-  description="While it is on, clicking a verse opens its commentary. The toolbar button and the t key toggle the same thing."
+  label="Verse cards"
+  description="While it is on, clicking a verse opens its card — the commentary and the recitation for that verse. The toolbar button and the t key toggle the same thing."
 >
   {#snippet control()}
     <Toggle
-      label="Tafsir mode"
+      label="Verse cards"
       checked={tafsirStore.clickOpens}
       onchange={(on) => tafsirStore.setClickOpens(on)}
     />

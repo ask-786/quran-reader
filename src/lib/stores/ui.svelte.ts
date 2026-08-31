@@ -7,6 +7,7 @@ export const SETTINGS_SECTIONS = [
   'appearance',
   'reader',
   'tafsir',
+  'audio',
   'editions',
   'data',
   'shortcuts',
@@ -40,6 +41,15 @@ class UiStore {
    * open tafsir panel.
    */
   settingsOpen = $state(false);
+
+  /**
+   * The listen panel, opened from a Surah banner.
+   *
+   * Deliberately not persisted. Recitation is secondary to reading here, so the
+   * panel is something you open for a sitting and not a piece of chrome the app
+   * comes back wearing.
+   */
+  listenOpen = $state(false);
 
   /**
    * Which section it is showing. Kept across closes for the length of the
@@ -97,6 +107,14 @@ class UiStore {
    * the way: two stacked modal dialogs have no sensible Escape order, and
    * nothing here needs the navigator.
    */
+  openListen() {
+    this.listenOpen = true;
+  }
+
+  closeListen() {
+    this.listenOpen = false;
+  }
+
   openSettings(section?: SettingsSection) {
     if (section) this.settingsSection = section;
     this.paletteOpen = false;

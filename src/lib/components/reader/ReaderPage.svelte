@@ -8,6 +8,7 @@
   import ReaderContextBar from './ReaderContextBar.svelte';
   import ReaderZoomControl from './ReaderZoomControl.svelte';
   import ReaderJumpControl from './ReaderJumpControl.svelte';
+  import ListenPanel from '$lib/components/audio/ListenPanel.svelte';
   import TafsirPanel from '$lib/components/tafsir/TafsirPanel.svelte';
   import TafsirPopover from '$lib/components/tafsir/TafsirPopover.svelte';
   import { uiStore, type ReadingMode } from '$lib/stores/ui.svelte';
@@ -15,6 +16,9 @@
   import { readingStore } from '$lib/stores/reading.svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
+  import { playbackStore } from '$lib/stores/playback.svelte';
+  import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
+  import { scrollToRecitedAyah } from '$lib/utils/follow-scroll';
 
   let {
     ayahs,
@@ -120,6 +124,69 @@
   $effect(() => () => readingStore.flush());
 
   /**
+   * The player's queue is whatever range is open — unless the listen panel is
+   * up, in which case the reader stops driving it.
+   *
+   * That exception is the point of the panel. Someone listening to Al-Kahf
+   * while turning to check a verse in another Surah has not asked for the
+   * recitation to stop, and the queue following the route would do exactly
+   * that. The panel owns the queue while it is open; the reader owns it the
+   * rest of the time, which is what lets a verse played from the tafsir card
+   * know where it sits.
+   */
+  $effect(() => {
+    if (uiStore.listenOpen) return;
+    playbackStore.setQueue(ayahs);
+  });
+
+  /**
+   * Follow the recitation.
+   *
+   * Deliberately not routed through `viewTarget`: that prop tears the mounted
+   * view's observers down and rebuilds them, which is right for a jump and far
+   * too much for the verse-by-verse nudge this is. A direct scroll leaves the
+   * view's own machinery alone.
+   */
+  $effect(() => {
+    const id = playbackStore.currentAyahId;
+    if (id === null || !playbackStore.shouldFollow) return;
+    if (!ayahs.some((a) => a.id === id)) return;
+    scrollToRecitedAyah(id);
+  });
+
+  /**
+   * A verse played from a tafsir card belongs to that card. When the last
+   * commentary surface closes — Escape, the close button, a click away, or a
+   * switch back to popover mode — the recitation and the mark on the verse go
+   * with it. Anything else leaves a highlighted āya reciting itself with
+   * nothing on screen to explain why or to stop it.
+   *
+   * `anyOpen` covers both surfaces, so switching between them inside one update
+   * never reads as a close. A range from the listen panel is untouched: it has
+   * its own surface and its own stop.
+   */
+  $effect(() => {
+    if (!tafsirStore.anyOpen) playbackStore.stopIfSingle();
+  });
+
+  /**
+   * Auto-scroll and follow cannot both own the scroll position — with both on,
+   * the reader is dragged by two things at once and neither lands anywhere.
+   * Playback wins, since it is the one with a fixed pace of its own.
+   *
+   * Only on the transition into playing, so a reader who deliberately starts
+   * auto-scroll mid-recitation keeps it.
+   */
+  let wasPlaying = false;
+  $effect(() => {
+    const playing = playbackStore.playing;
+    if (playing && !wasPlaying && playbackStore.shouldFollow) {
+      autoScrollStore.stop();
+    }
+    wasPlaying = playing;
+  });
+
+  /**
    * What Mushaf view does with the parts of a page outside the Ayahs this route
    * opened. A printed page is shared between Surahs, so opening Al-Mulk hands
    * you the last lines of the Surah before it and, at the far end, the opening
@@ -165,6 +232,9 @@
     <ReaderContextBar {ayahs} />
     <ProgressIndicator />
     <AutoScrollHandle />
+    {#if uiStore.listenOpen}
+      <ListenPanel />
+    {/if}
     <div class="control-slot">
       <ReaderZoomControl />
       <ReaderJumpControl />

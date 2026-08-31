@@ -100,8 +100,9 @@
 </div>
 
 <p class="note">
-  Nothing leaves this machine. The app makes no network request except a download you ask for on the
-  Editions page.
+  Nothing leaves this machine while you read. The app makes no network request except the ones you
+  ask for: an edition downloaded on the Editions page, and recitation fetched a verse at a time
+  while you play it.
 </p>
 
 <style>

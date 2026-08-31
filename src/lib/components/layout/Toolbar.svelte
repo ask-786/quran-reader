@@ -29,17 +29,18 @@
   const heading = $derived($page.data?.title as string | undefined);
   const hasReader = $derived(Array.isArray($page.data?.ayahs));
 
-  // One meaning in both views: tafsir mode, not whatever it has put on screen.
+  // One meaning in both views: whether a click opens a verse card, not
+  // whatever that card has put on screen.
   // The card and the panel come and go under a mode that stays put, so lighting
   // this for the panel being open made it read as a panel switch — and left the
   // mode itself with no control at all in that view.
   const tafsirOn = $derived(tafsirStore.clickOpens);
   const tafsirLabel = $derived(
     tafsirOn
-      ? 'Turn off tafsir mode'
+      ? 'Turn off verse cards'
       : tafsirStore.view === 'panel'
-        ? 'Turn on tafsir mode — click a verse to open its commentary in the panel'
-        : 'Turn on tafsir mode — click a verse for its commentary',
+        ? 'Turn on verse cards — click a verse to open it in the panel'
+        : 'Turn on verse cards — click a verse for its commentary and recitation',
   );
 
   let isMaximized = $state(false);
