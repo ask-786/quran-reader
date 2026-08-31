@@ -2,6 +2,7 @@
   import { X, PanelRight } from 'lucide-svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import TafsirMeta from './TafsirMeta.svelte';
+  import TafsirAudioRow from '$lib/components/audio/TafsirAudioRow.svelte';
   import TafsirBody from './TafsirBody.svelte';
 
   /** Gap between the anchor and the card, and the arrow's own size. */
@@ -15,6 +16,7 @@
 
   let card = $state<HTMLDivElement>();
   let head = $state<HTMLElement>();
+  let audio = $state<HTMLDivElement>();
   let body = $state<HTMLDivElement>();
 
   /**
@@ -66,8 +68,15 @@
     // wants to be is circular — it answers with the answer it was given, and
     // the popover never grows past its first (zero) placement. The body is the
     // scroll container, so its scrollHeight is the full text either way.
-    const natural = (head?.offsetHeight ?? 0) + (body?.scrollHeight ?? 0) + 2;
-    const wanted = Math.min(natural, Math.round(vh * 0.45));
+    //
+    // The cap is on the commentary, not on the card. Header and audio strip are
+    // chrome, and counting them inside the 45% is what made adding the strip
+    // read as the tafsir shrinking: the card kept its height and the text paid
+    // for the row. Adding chrome on top instead leaves the commentary exactly
+    // the room it had before the strip existed.
+    const chrome = (head?.offsetHeight ?? 0) + (audio?.offsetHeight ?? 0) + 2;
+    const text = body?.scrollHeight ?? 0;
+    const wanted = chrome + Math.min(text, Math.round(vh * 0.45));
 
     let below = spaceBelow >= Math.min(wanted, MIN_HEIGHT);
     // Prefer the side that actually has room; only when neither does is the
@@ -124,8 +133,20 @@
     // scroll container and never reaches window in the bubble phase.
     window.addEventListener('scroll', schedule, true);
     window.addEventListener('resize', schedule);
+
+    // The audio strip is the one part of the card that changes height on its
+    // own — a permission line or an error appears under the controls — and the
+    // card's budget is computed from it, so a silent change would take the
+    // difference out of the commentary.
+    let sizes: ResizeObserver | undefined;
+    if (audio) {
+      sizes = new ResizeObserver(schedule);
+      sizes.observe(audio);
+    }
+
     return () => {
       cancelAnimationFrame(frame);
+      sizes?.disconnect();
       window.removeEventListener('scroll', schedule, true);
       window.removeEventListener('resize', schedule);
     };
@@ -168,7 +189,7 @@
     class:placed
     data-tafsir-surface
     role="dialog"
-    aria-label="Tafsir"
+    aria-label="Verse"
     tabindex="-1"
     style:top="{top}px"
     style:left="{left}px"
@@ -187,15 +208,19 @@
         >
           <PanelRight size={15} />
         </button>
-        <button
-          class="icon-btn"
-          onclick={() => tafsirStore.closePopover()}
-          aria-label="Close tafsir"
-        >
+        <button class="icon-btn" onclick={() => tafsirStore.closePopover()} aria-label="Close">
           <X size={15} />
         </button>
       </div>
     </header>
+
+    <!-- Wrapped so `place()` can measure it: the card's height budget has to
+         know this row is here, or it comes out of the commentary. -->
+    <div bind:this={audio}>
+      {#if selection}
+        <TafsirAudioRow ayahId={selection.ayahId} />
+      {/if}
+    </div>
 
     <div class="body" bind:this={body}>
       <TafsirBody />
@@ -262,6 +287,7 @@
   .actions {
     display: flex;
     flex-shrink: 0;
+    align-items: center;
     gap: 2px;
   }
 

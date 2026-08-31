@@ -14,6 +14,7 @@
   import { uiStore } from '$lib/stores/ui.svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
+  import { playbackStore } from '$lib/stores/playback.svelte';
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
   import { isNarrowViewport } from '$lib/utils/viewport';
@@ -64,6 +65,10 @@
     settingsStore.init().then(() => tafsirStore.init());
     surahsStore.init();
     bookmarksStore.init();
+    // The reciter catalogue. A local query that makes no request of its own;
+    // the tafsir card's listen button needs it to know whether a reciter has
+    // been chosen.
+    playbackStore.init();
 
     // On a phone-sized window the sidebar starts as a closed overlay rather
     // than a docked column stealing half the screen.
@@ -188,10 +193,18 @@
         return;
       }
 
-      // Space joins `a` as the auto-scroll toggle, the play/pause key every
-      // media player uses. It has to preventDefault or the browser scrolls the
-      // reader a page down on top of the toggle, and it steps aside for a
-      // focused control, where Space is that control's own activation key.
+      // Space means play/pause while a verse card is open, and the auto-scroll
+      // toggle the rest of the time.
+      //
+      // Which is not two bindings but one: Space is "start or stop the thing
+      // that is moving". With a card open, the thing that moves is the
+      // recitation of that verse; with the reader alone on screen, it is the
+      // page. The card is a deliberate, visible state, so which one the key
+      // means is never a guess.
+      //
+      // It has to preventDefault or the browser scrolls the reader a page down
+      // on top of whichever it did, and it steps aside for a focused control,
+      // where Space is that control's own activation key.
       if (e.key === ' ') {
         if (
           target instanceof Element &&
@@ -200,7 +213,14 @@
           return;
         }
         e.preventDefault();
-        autoScrollStore.toggle();
+        // No reciter, or a panel open on nothing, falls through to auto-scroll
+        // rather than doing nothing at all — the key keeps a meaning either way.
+        const cardAyahId = tafsirStore.anyOpen ? tafsirStore.targetAyahId : null;
+        if (cardAyahId !== null && playbackStore.enabled) {
+          void playbackStore.toggle(cardAyahId);
+        } else {
+          autoScrollStore.toggle();
+        }
         return;
       }
 

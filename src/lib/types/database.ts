@@ -153,6 +153,45 @@ export interface Note {
 }
 
 // =============================================================================
+// RECITATION AUDIO
+// =============================================================================
+
+/** A reciter the app can fetch. The catalogue is compiled into the binary and
+ *  written to the `reciter` table on every launch. */
+export interface Reciter {
+  id: number;
+  /** The id the CDN knows them by, and the cache directory name. */
+  slug: string;
+  name_ar: string;
+  name_en: string;
+  /** Which reading. Almost always Ḥafṣ ʿan ʿĀṣim, which is why the exception
+   *  needs to say so. */
+  riwaya: string;
+  style: 'murattal' | 'mujawwad';
+  source_url: string | null;
+  license: string | null;
+}
+
+/** What one reciter's cached audio costs on disk. */
+export interface ReciterUsage {
+  reciter_id: number;
+  slug: string;
+  name_en: string;
+  files: number;
+  bytes: number;
+}
+
+/** Payload of `audio-download-progress`, emitted while fetching a range. */
+export interface AudioProgress {
+  slug: string;
+  done: number;
+  total: number;
+  ayah_id: number;
+  /** Verses this run could not fetch. It carries on past them. */
+  failed: number;
+}
+
+// =============================================================================
 // SETTINGS
 // =============================================================================
 
@@ -169,6 +208,12 @@ export type ReaderWidth = 'narrow' | 'normal' | 'wide';
  * faint context, `trim` drops them so the range is the only thing on the page.
  */
 export type RangeFocus = 'all' | 'dim' | 'trim';
+
+/** What happens when a verse finishes. `range` repeats the whole queue. */
+export type RepeatMode = 'off' | 'ayah' | 'range';
+
+/** The two rates the CDN serves. 32, 48 and 192 kbps are 403 there. */
+export type AudioBitrate = 64 | 128;
 
 export interface Settings {
   theme: Theme;
@@ -193,6 +238,20 @@ export interface Settings {
   app_zoom: number;
   reader_zoom_normal: number;
   reader_zoom_focus: number;
+  /** Null until a reciter is chosen. No reciter means the app fetches nothing. */
+  reciter_id: number | null;
+  audio_bitrate: AudioBitrate;
+  audio_repeat_mode: RepeatMode;
+  audio_repeat_count: number;
+  /** Silence between repetitions, for saying the verse back. */
+  audio_repeat_pause_ms: number;
+  audio_playback_rate: number;
+  /** Whether the reader scrolls to the verse being recited. */
+  audio_follow: boolean;
+  audio_volume: number;
+  /** The network switch. Off until the reader approves the first fetch; off
+   *  again is "cached only" — downloaded verses still play, nothing goes out. */
+  audio_downloads_allowed: boolean;
 }
 
 // =============================================================================

@@ -3,6 +3,7 @@
   import { tafsirStore, clampTafsirWidth } from '$lib/stores/tafsir.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import TafsirMeta from './TafsirMeta.svelte';
+  import TafsirAudioRow from '$lib/components/audio/TafsirAudioRow.svelte';
   import TafsirBody from './TafsirBody.svelte';
 
   let dragging = $state(false);
@@ -48,7 +49,7 @@
   }
 </script>
 
-<aside class="tafsir-panel" data-tafsir-surface aria-label="Tafsir">
+<aside class="tafsir-panel" data-tafsir-surface aria-label="Verse">
   <!-- A button, not a div with role="separator": the ARIA splitter pattern
        wants a focusable widget, and a real button is the one element that is
        focusable, keyboard-operable and announced as interactive without any
@@ -84,20 +85,22 @@
       <button
         class="icon-btn"
         onclick={() => tafsirStore.setView('popover')}
-        aria-label="Show tafsir as a popover instead"
+        aria-label="Show as a card instead"
         title="Show as popover"
       >
         <PanelBottom size={16} />
       </button>
-      <button
-        class="icon-btn"
-        onclick={() => tafsirStore.setPanelOpen(false)}
-        aria-label="Close tafsir"
-      >
+      <button class="icon-btn" onclick={() => tafsirStore.setPanelOpen(false)} aria-label="Close">
         <X size={16} />
       </button>
     </div>
   </header>
+
+  <!-- The panel follows where the reader is, so this plays whichever verse the
+       commentary is currently about. -->
+  {#if tafsirStore.targetAyahId !== null}
+    <TafsirAudioRow ayahId={tafsirStore.targetAyahId} />
+  {/if}
 
   <div class="panel-body">
     <TafsirBody />
@@ -163,6 +166,7 @@
      popover shares — keeping copies here is how the two surfaces drift. */
   .actions {
     display: flex;
+    align-items: center;
     flex-shrink: 0;
     gap: 2px;
   }

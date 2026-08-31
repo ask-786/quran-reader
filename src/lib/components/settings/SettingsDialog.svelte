@@ -19,6 +19,7 @@
     ScrollText,
     Library,
     Database,
+    AudioLines,
     Keyboard,
     Info,
   } from 'lucide-svelte';
@@ -28,6 +29,7 @@
   import AppearanceSection from './AppearanceSection.svelte';
   import ReaderSection from './ReaderSection.svelte';
   import TafsirSection from './TafsirSection.svelte';
+  import AudioSection from './AudioSection.svelte';
   import EditionsSection from './EditionsSection.svelte';
   import DataSection from './DataSection.svelte';
   import ShortcutsSection from './ShortcutsSection.svelte';
@@ -64,6 +66,12 @@
       blurb: 'Which commentary you read, and how it opens.',
       icon: ScrollText,
       component: TafsirSection,
+    },
+    audio: {
+      label: 'Audio',
+      blurb: 'Who recites, how it repeats, and what it has stored.',
+      icon: AudioLines,
+      component: AudioSection,
     },
     editions: {
       label: 'Editions',

@@ -117,13 +117,18 @@ class TafsirStore {
   }
 
   /**
-   * Whether a click on a verse opens its commentary — "tafsir mode".
+   * Whether a click on a verse opens its card — "verse cards" in the UI.
    *
-   * Off by default, and the reason is the reader: the popover answers a
-   * question, and a reader who is not asking one still clicks, to place a
-   * cursor or dismiss something or for no reason at all. Every one of those
-   * clicks putting a card over the text makes the reader worse. The explicit
-   * routes in — the per-Ayah button, and `t` — are open whatever this says.
+   * The setting is still stored as `tafsir_click`, and deliberately not
+   * renamed: the key predates the card carrying recitation as well as
+   * commentary, and renaming it would throw away the preference of everyone
+   * who already set it for the sake of a name only this file sees.
+   *
+   * Off by default, and the reason is the reader: the card answers a question,
+   * and a reader who is not asking one still clicks, to place a cursor or
+   * dismiss something or for no reason at all. Every one of those clicks
+   * putting a card over the text makes the reader worse. The explicit routes
+   * in — the per-Ayah button, and `t` — are open whatever this says.
    */
   get clickOpens() {
     return settingsStore.current.tafsir_click;
@@ -134,10 +139,10 @@ class TafsirStore {
   }
 
   /**
-   * Whether clicking a verse opens commentary right now.
+   * Whether clicking a verse opens its card right now.
    *
-   * One meaning in both views: tafsir mode is the question "does the next
-   * click ask for commentary", and the surface that answers it — a card or the
+   * One meaning in both views: the mode is the question "does the next click
+   * ask about this verse", and the surface that answers it — a card or the
    * panel — is a separate choice the reader already made.
    */
   get clicksOpenTafsir() {
@@ -266,9 +271,9 @@ class TafsirStore {
   }
 
   /**
-   * Show commentary for one Ayah. In popover mode that anchors a popover to
-   * `anchor`; in panel mode it opens the panel, which then follows the reader
-   * as it always has.
+   * Open the card for one Ayah — its commentary and its recitation. In popover
+   * mode that anchors a popover to `anchor`; in panel mode it opens the panel,
+   * which then follows the reader as it always has.
    */
   openFor(ayahId: number, anchor: HTMLElement | null = null) {
     if (this.view === 'panel') {
@@ -280,7 +285,7 @@ class TafsirStore {
 
   /**
    * The same thing, asked for by clicking the verse itself rather than a
-   * control. Silent unless tafsir mode is on — a click on running text is too
+   * control. Silent unless verse cards are on — a click on running text is too
    * cheap and too accidental to be a request on its own.
    *
    * Also silent when the gesture this click completes has already dismissed a
@@ -325,7 +330,7 @@ class TafsirStore {
 
   /**
    * What the toolbar button and `t` do: in panel view, toggle the panel; in
-   * popover view, turn tafsir mode on or off.
+   * popover view, turn verse cards on or off.
    *
    * One control, one meaning. Turning the mode on also opens on wherever the
    * reader is, so the key still answers "what does this verse say" in one

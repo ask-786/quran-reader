@@ -1,12 +1,14 @@
 # Quran Reader
 
 An offline-first Quran reader for desktop, built with [Tauri 2](https://tauri.app),
-SvelteKit and Rust. No account, no network calls, no telemetry — the Quran
-data ships inside the binary.
+SvelteKit and Rust. No account, no telemetry, and no network request while you
+read — the Quran data ships inside the binary. Recitation and extra tafsir
+editions are fetched only when you ask for them.
 
 > **Status: early.** Reading, navigation, the Mushaf page view and tafsir
-> (Arabic + English) work and are used daily. Search, translations and audio
-> are not built yet. See [PLAN.md](PLAN.md) for what exists and what doesn't.
+> (Arabic + English) work and are used daily. Audio has just landed and has not
+> had a week of use yet. Search and translations are not built. See
+> [PLAN.md](PLAN.md) for what exists and what doesn't.
 
 ---
 
@@ -29,6 +31,23 @@ data ships inside the binary.
   both. A commentary's school decides how it reads the legal verses and its
   creed decides how it reads the attribute verses; neither is visible in the
   text, so the reader is told rather than left to guess
+
+**Recitation**
+
+- **Hear a verse from its verse card** — a bar under the commentary, in the
+  card and the side panel, with a seek track for the long verses. It plays
+  that verse and stops. Reading is what this app is for; recitation is there for
+  the moment a word does not sit right in your mouth, so it is not a player the
+  page is built around
+- **Listen to a whole Surah** from the Listen chip in the Surah banner. It opens
+  a small panel with the verse playing, repeat, and an offline download for the
+  whole Surah — and closing it puts everything away
+- Repeat a verse a set number of times, with an optional pause between for
+  saying it back
+- Five reciters, all Ḥafṣ ʿan ʿĀṣim, each labelled with its riwāya
+- **Nothing ships in the installer and nothing is fetched until you ask.**
+  A verse is downloaded once, cached, and plays offline for good. Settings →
+  Audio shows what it costs on disk and clears it, per reciter or entirely
 
 **Navigation**
 
@@ -57,24 +76,25 @@ data ships inside the binary.
 
 ### Keyboard shortcuts
 
-| Key                                                           | Action                                                                    |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `Ctrl`/`Cmd`+`K` or `Ctrl`/`Cmd`+`G`                          | Open the navigation palette                                               |
-| `/` or `Ctrl`/`Cmd`+`F`                                       | Focus the sidebar's filter (same lists, docked instead of floating)       |
-| `↑` / `↓`, `PgUp` / `PgDn` _(in either)_                      | Move the highlight through the list                                       |
-| `Tab` / `Shift`+`Tab` _(palette)_, `Alt`+`←` / `→` _(either)_ | Switch list: Surah → Juz → Hizb → Recent                                  |
-| `Enter` _(in either)_                                         | Open what's highlighted, or the `2:255` / `p255` you typed                |
-| `f`                                                           | Toggle focus mode                                                         |
-| `m`                                                           | Switch between Mushaf and scrolling view                                  |
-| `n` / `p`                                                     | Next / previous surah, juz, hizb or page                                  |
-| `↓` / `↑` (or `PgDn` / `PgUp`)                                | Next / previous Mushaf page                                               |
-| `Home` / `End`                                                | Jump to the start / end of what's open                                    |
-| `a` or `Space`                                                | Start or stop auto-scroll                                                 |
-| `t`                                                           | Toggle tafsir mode — then click a verse for its commentary                |
-| `Shift`+`↑` / `Shift`+`↓`                                     | Auto-scroll faster / slower                                               |
-| `+` / `-` / `0`                                               | Reader zoom in / out / reset (normal and focus view keep separate levels) |
-| `Ctrl`/`Cmd`+`+` / `-` / `0`                                  | App zoom in / out / reset                                                 |
-| `Esc`                                                         | Clear the filter, then close the palette or leave the box / focus mode    |
+| Key                                                           | Action                                                                     |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `Ctrl`/`Cmd`+`K` or `Ctrl`/`Cmd`+`G`                          | Open the navigation palette                                                |
+| `/` or `Ctrl`/`Cmd`+`F`                                       | Focus the sidebar's filter (same lists, docked instead of floating)        |
+| `↑` / `↓`, `PgUp` / `PgDn` _(in either)_                      | Move the highlight through the list                                        |
+| `Tab` / `Shift`+`Tab` _(palette)_, `Alt`+`←` / `→` _(either)_ | Switch list: Surah → Juz → Hizb → Recent                                   |
+| `Enter` _(in either)_                                         | Open what's highlighted, or the `2:255` / `p255` you typed                 |
+| `f`                                                           | Toggle focus mode                                                          |
+| `m`                                                           | Switch between Mushaf and scrolling view                                   |
+| `n` / `p`                                                     | Next / previous surah, juz, hizb or page                                   |
+| `↓` / `↑` (or `PgDn` / `PgUp`)                                | Next / previous Mushaf page                                                |
+| `Home` / `End`                                                | Jump to the start / end of what's open                                     |
+| `Space`                                                       | Play or pause recitation in the verse card — auto-scroll when none is open |
+| `a`                                                           | Start or stop auto-scroll                                                  |
+| `t`                                                           | Toggle verse cards — then click a verse for its commentary and recitation  |
+| `Shift`+`↑` / `Shift`+`↓`                                     | Auto-scroll faster / slower                                                |
+| `+` / `-` / `0`                                               | Reader zoom in / out / reset (normal and focus view keep separate levels)  |
+| `Ctrl`/`Cmd`+`+` / `-` / `0`                                  | App zoom in / out / reset                                                  |
+| `Esc`                                                         | Clear the filter, then close the palette or leave the box / focus mode     |
 
 ---
 

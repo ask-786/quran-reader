@@ -1000,6 +1000,40 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
             .get("reader_zoom_focus")
             .and_then(|v| v.parse().ok())
             .unwrap_or(1.0),
+        // Audio. Absent in every database that predates migration 009, and the
+        // defaults here are what those installs get — same arrangement as
+        // `tafsir_view`. An empty `reciter_id` parses to None, which is "no
+        // reciter chosen" and therefore "no network".
+        reciter_id: map.get("reciter_id").and_then(|v| v.parse().ok()),
+        audio_bitrate: map
+            .get("audio_bitrate")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(64),
+        audio_repeat_mode: map
+            .get("audio_repeat_mode")
+            .cloned()
+            .unwrap_or_else(|| "off".into()),
+        audio_repeat_count: map
+            .get("audio_repeat_count")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(3),
+        audio_repeat_pause_ms: map
+            .get("audio_repeat_pause_ms")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
+        audio_playback_rate: map
+            .get("audio_playback_rate")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1.0),
+        audio_follow: map.get("audio_follow").map(|v| v == "true").unwrap_or(true),
+        audio_volume: map
+            .get("audio_volume")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1.0),
+        audio_downloads_allowed: map
+            .get("audio_downloads_allowed")
+            .map(|v| v == "true")
+            .unwrap_or(false),
     };
 
     Ok(s)

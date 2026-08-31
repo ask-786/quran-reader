@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { Headphones } from 'lucide-svelte';
   import type { GlyphSpan, Surah } from '$lib/types/database';
   import { BISMILLAH_TEXT, shouldShowBismillahHeader } from '$lib/utils/bismillah';
+  import { playbackStore } from '$lib/stores/playback.svelte';
+  import { uiStore } from '$lib/stores/ui.svelte';
 
   let {
     surah,
@@ -16,6 +19,23 @@
     // fallback note in the style block below.
     glyphsPending?: boolean;
   } = $props();
+
+  /**
+   * Listening to the Surah starts here and nowhere in the text.
+   *
+   * The banner is chrome announcing which Surah this is, so "hear this Surah"
+   * is the same kind of statement about the same thing — and putting it here
+   * keeps every transport control out of the reading column, where the whole
+   * point is that nothing competes with the text.
+   */
+  function listen() {
+    if (!playbackStore.enabled) {
+      uiStore.openSettings('audio');
+      return;
+    }
+    uiStore.openListen();
+    void playbackStore.playSurah(surah.id);
+  }
 </script>
 
 <div class="surah-banner" dir="rtl">
@@ -33,6 +53,13 @@
   <p class="subtitle">
     {surah.transliteration} · {surah.revelation_type} · {surah.verses_count} verses
   </p>
+
+  <div class="listen-slot" dir="ltr">
+    <button class="listen" onclick={listen} title="Listen to this Surah">
+      <Headphones size={13} />
+      Listen
+    </button>
+  </div>
 
   {#if shouldShowBismillahHeader(surah) && (basmalaWords.length || !glyphsPending)}
     <p class="bismillah" style:font-family={basmalaWords.length ? basmalaFontFamily : null}>
@@ -107,6 +134,39 @@
     font-size: 12px;
     letter-spacing: 0.02em;
     color: var(--color-text-muted);
+  }
+
+  /* Faint until wanted. It sits in the banner because the banner is chrome,
+     but it is still the one control in this app that makes a sound, and it
+     should not be the loudest thing under the Surah's name. */
+  .listen-slot {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  .listen {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity var(--transition);
+  }
+
+  .listen:hover,
+  .listen:focus-visible {
+    opacity: 1;
+    color: var(--color-text);
+    border-color: var(--color-accent);
   }
 
   /* Sized here for both the QCF glyph spans and the fallback below, so the
