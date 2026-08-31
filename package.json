@@ -1,6 +1,6 @@
 {
   "name": "quran-reader",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "A beautiful, fast, offline-first Quran reader",
   "packageManager": "pnpm@10.28.2",
   "type": "module",
