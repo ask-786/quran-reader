@@ -13,6 +13,16 @@
   const WIDTH = 420;
   /** Below this there is no point flipping to a side — nothing would fit. */
   const MIN_HEIGHT = 120;
+  /**
+   * What a press on the header must not turn into a drag: its own controls,
+   * and the edition menu, which opens inside the header. Dragging from those
+   * would swallow the click they exist for.
+   */
+  const NOT_A_HANDLE = 'button, a[href], input, select, [role="listbox"], [role="option"]';
+  /** How far the pointer has to travel before a press on the header counts as
+   *  a drag. A hand clicking the header still moves a pixel or two, and that
+   *  should not pull the card off its verse. */
+  const DRAG_SLOP = 4;
 
   let card = $state<HTMLDivElement>();
   let head = $state<HTMLElement>();
@@ -32,6 +42,29 @@
   /** Hidden until the first placement, so it never flashes at 0,0. */
   let placed = $state(false);
 
+  /**
+   * Set once the reader has dragged the card by its header, and from then on
+   * the card stays where they put it instead of beside its verse.
+   *
+   * Dragging is for one situation: the card sits beside the verse it opened
+   * for, and while that verse is being recited the reader wants to follow the
+   * text, which may be the lines the card covers. Once the card has been moved
+   * aside, putting it back on every scroll or entry load would undo the
+   * move. So a moved card only keeps itself inside the viewport, and it loses
+   * its arrow, which would otherwise point at wherever it was dropped.
+   *
+   * Reset when the card is aimed at a different verse. A card opened for a new
+   * verse starts beside that verse, like any card that has just been opened.
+   */
+  let moved = $state(false);
+  let dragging = $state(false);
+  /** The pointer's offset into the card when the drag started, so the card
+   *  moves with the pointer instead of jumping its corner to it. */
+  let grab: { pointerId: number; x: number; y: number; dx: number; dy: number } | null = null;
+  /** The verse the card was last placed for. Not reactive, because it only
+   *  exists to tell a re-aim apart from a re-run of the placement effect. */
+  let placedFor: number | null = null;
+
   const selection = $derived(tafsirStore.selection);
 
   function place() {
@@ -39,6 +72,11 @@
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const width = Math.min(WIDTH, vw - MARGIN * 2);
+
+    if (moved) {
+      settle(width, vw, vh);
+      return;
+    }
 
     const anchor = selection?.anchor ?? null;
     // Freeze rather than chase. Three ways an anchor stops being usable, and
@@ -74,9 +112,7 @@
     // read as the tafsir shrinking: the card kept its height and the text paid
     // for the row. Adding chrome on top instead leaves the commentary exactly
     // the room it had before the strip existed.
-    const chrome = (head?.offsetHeight ?? 0) + (audio?.offsetHeight ?? 0) + 2;
-    const text = body?.scrollHeight ?? 0;
-    const wanted = chrome + Math.min(text, Math.round(vh * 0.45));
+    const wanted = wantedHeight(vh);
 
     let below = spaceBelow >= Math.min(wanted, MIN_HEIGHT);
     // Prefer the side that actually has room; only when neither does is the
@@ -103,6 +139,67 @@
     placed = true;
   }
 
+  function wantedHeight(vh: number) {
+    const chrome = (head?.offsetHeight ?? 0) + (audio?.offsetHeight ?? 0) + 2;
+    const text = body?.scrollHeight ?? 0;
+    return chrome + Math.min(text, Math.round(vh * 0.45));
+  }
+
+  /**
+   * Placement for a card the reader has moved: leave it where it is, and only
+   * pull it back inside the viewport, since a window resize can leave it
+   * partly off screen.
+   *
+   * The card may be dropped low enough that its full height would run off the
+   * bottom. Its height gives way rather than its position, down to
+   * MIN_HEIGHT, because the reader chose that position and the commentary
+   * scrolls anyway. Dragging it back up gives the height back, since this
+   * runs on every move.
+   */
+  function settle(width: number, vw: number, vh: number) {
+    left = Math.min(Math.max(left, MARGIN), Math.max(MARGIN, vw - width - MARGIN));
+    top = Math.min(Math.max(top, MARGIN), Math.max(MARGIN, vh - MIN_HEIGHT - MARGIN));
+    maxHeight = Math.max(MIN_HEIGHT, Math.min(wantedHeight(vh), vh - top - MARGIN));
+  }
+
+  function startDrag(e: PointerEvent) {
+    if (e.button !== 0 || !head) return;
+    if (e.target instanceof Element && e.target.closest(NOT_A_HANDLE)) return;
+    // Otherwise the press also starts a text selection across the header, and
+    // the reader's text under it once the pointer moves off the card.
+    e.preventDefault();
+    head.setPointerCapture(e.pointerId);
+    grab = {
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      dx: e.clientX - left,
+      dy: e.clientY - top,
+    };
+    dragging = true;
+  }
+
+  function moveDrag(e: PointerEvent) {
+    if (!grab || e.pointerId !== grab.pointerId) return;
+    // Set once the pointer has travelled, not on the press. A click on the
+    // header leaves the card attached to its verse.
+    if (!moved) {
+      if (Math.hypot(e.clientX - grab.x, e.clientY - grab.y) < DRAG_SLOP) return;
+      moved = true;
+    }
+    left = e.clientX - grab.dx;
+    top = e.clientY - grab.dy;
+    const vw = window.innerWidth;
+    settle(Math.min(WIDTH, vw - MARGIN * 2), vw, window.innerHeight);
+  }
+
+  function endDrag(e: PointerEvent) {
+    if (!grab || e.pointerId !== grab.pointerId) return;
+    if (head?.hasPointerCapture(e.pointerId)) head.releasePointerCapture(e.pointerId);
+    grab = null;
+    dragging = false;
+  }
+
   function centre(width: number, vh: number) {
     maxHeight = Math.round(vh * 0.45);
     top = Math.round(vh * 0.18);
@@ -119,6 +216,13 @@
     void tafsirStore.entry;
     void tafsirStore.loading;
     if (!card) return;
+    // Compared by verse, not by selection object. Opening the same verse again
+    // makes a new object, and that should not undo a move.
+    const ayahId = selection?.ayahId ?? null;
+    if (ayahId !== placedFor) {
+      placedFor = ayahId;
+      moved = false;
+    }
     place();
   });
 
@@ -195,9 +299,22 @@
     style:left="{left}px"
     style:max-height="{maxHeight}px"
   >
-    <span class="arrow" class:above={!arrowTop} style:left="{arrowLeft}px"></span>
+    {#if !moved}
+      <span class="arrow" class:above={!arrowTop} style:left="{arrowLeft}px"></span>
+    {/if}
 
-    <header class="head" bind:this={head}>
+    <!-- The header is the drag handle. Mouse and touch only: the card is a
+         dialog that keyboard users reach and leave through focus, and its
+         position does not decide what they can read. -->
+    <header
+      class="head"
+      class:dragging
+      bind:this={head}
+      onpointerdown={startDrag}
+      onpointermove={moveDrag}
+      onpointerup={endDrag}
+      onpointercancel={endDrag}
+    >
       <TafsirMeta compact />
       <div class="actions">
         <button
@@ -282,6 +399,18 @@
     gap: 8px;
     padding: 9px 8px 9px 12px;
     border-bottom: 1px solid var(--color-border);
+    /* The drag handle. `grab` shows that the header can be picked up, and
+       `grabbing` shows that it has been. The controls inside keep their own
+       pointer cursor, which also shows that pressing them will not drag. */
+    cursor: grab;
+    /* Without this a touch drag scrolls the page instead of moving the
+       card. */
+    touch-action: none;
+  }
+
+  .head.dragging {
+    cursor: grabbing;
+    user-select: none;
   }
 
   .actions {
