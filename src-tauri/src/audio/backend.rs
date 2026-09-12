@@ -230,7 +230,7 @@ mod linux {
             dir
         }
 
-        fn plugin(dir: &PathBuf, file: &str) {
+        fn plugin(dir: &Path, file: &str) {
             std::fs::write(dir.join(file), b"").unwrap();
         }
 
