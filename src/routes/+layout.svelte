@@ -213,10 +213,11 @@
           return;
         }
         e.preventDefault();
-        // No reciter, or a panel open on nothing, falls through to auto-scroll
-        // rather than doing nothing at all — the key keeps a meaning either way.
+        // No reciter, nothing to play through, or a panel open on nothing falls
+        // through to auto-scroll rather than doing nothing at all — the key
+        // keeps a meaning either way.
         const cardAyahId = tafsirStore.anyOpen ? tafsirStore.targetAyahId : null;
-        if (cardAyahId !== null && playbackStore.enabled) {
+        if (cardAyahId !== null && playbackStore.enabled && playbackStore.playable) {
           void playbackStore.toggle(cardAyahId);
         } else {
           autoScrollStore.toggle();

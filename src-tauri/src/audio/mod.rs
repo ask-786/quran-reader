@@ -36,6 +36,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use thiserror::Error;
 
+mod backend;
+
+pub use backend::{probe as probe_backend, AudioBackend};
+
 /// The only host this build will fetch from. Verse audio is addressed as
 /// `{HOST}/quran/audio/{bitrate}/{reciter}/{ayah_id}.mp3`, where `ayah_id` is
 /// the global 1–6236 Mushaf numbering — which is exactly `ayah.id` in this
