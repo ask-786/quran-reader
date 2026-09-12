@@ -137,8 +137,8 @@ mod linux {
     fn plugin_dirs() -> Vec<PathBuf> {
         let mut dirs = Vec::new();
 
-        let system = env_paths("GST_PLUGIN_SYSTEM_PATH_1_0")
-            .or_else(|| env_paths("GST_PLUGIN_SYSTEM_PATH"));
+        let system =
+            env_paths("GST_PLUGIN_SYSTEM_PATH_1_0").or_else(|| env_paths("GST_PLUGIN_SYSTEM_PATH"));
         match system {
             Some(paths) => dirs.extend(paths),
             None => {
