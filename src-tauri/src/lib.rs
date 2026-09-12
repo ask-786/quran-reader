@@ -128,6 +128,7 @@ pub fn run() {
             commands::list_tafsir_packs,
             commands::install_tafsir_pack,
             commands::remove_tafsir_pack,
+            commands::audio_backend,
             commands::list_reciters,
             commands::ensure_ayah_audio,
             commands::read_ayah_audio,

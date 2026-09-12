@@ -9,6 +9,7 @@
 <script lang="ts">
   import { Volume2 } from 'lucide-svelte';
   import AudioScrubber from './AudioScrubber.svelte';
+  import AudioUnavailable from './AudioUnavailable.svelte';
   import { playbackStore } from '$lib/stores/playback.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
 
@@ -16,7 +17,11 @@
 </script>
 
 <div class="audio-row">
-  {#if playbackStore.enabled}
+  <!-- Ahead of the reciter prompt: pointing someone at Settings to choose a
+       voice they then cannot hear is worse than saying so first. -->
+  {#if !playbackStore.playable}
+    <AudioUnavailable compact />
+  {:else if playbackStore.enabled}
     <AudioScrubber {ayahId} />
   {:else}
     <!-- Present before a reciter is chosen, or the feature is invisible until

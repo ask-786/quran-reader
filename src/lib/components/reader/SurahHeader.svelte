@@ -29,7 +29,9 @@
    * point is that nothing competes with the text.
    */
   function listen() {
-    if (!playbackStore.enabled) {
+    // Settings is where both answers live — the reciter list, and the notice
+    // saying this machine has nothing to play through.
+    if (!playbackStore.enabled || !playbackStore.playable) {
       uiStore.openSettings('audio');
       return;
     }
