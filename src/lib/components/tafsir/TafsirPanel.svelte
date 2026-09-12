@@ -96,8 +96,8 @@
     </div>
   </header>
 
-  <!-- The panel follows where the reader is, so this plays whichever verse the
-       commentary is currently about. -->
+  <!-- Plays whichever verse the commentary is about: the one that was clicked,
+       or where the reader is when nothing was. -->
   {#if tafsirStore.targetAyahId !== null}
     <TafsirAudioRow ayahId={tafsirStore.targetAyahId} />
   {/if}
