@@ -59,14 +59,29 @@ class TafsirStore {
    * The Ayah the popover was opened for, and the element it is anchored to.
    *
    * This is an explicit choice by the reader and nothing clears it but a
-   * dismissal — no scroll, no view switch. That is the whole difference from
-   * the panel, which follows `readerPosition` and therefore decides for
-   * itself what you are reading.
+   * dismissal — no scroll, no view switch.
    *
    * Null when the popover is closed. Popover state is session-only: a
    * transient answer to a click is not worth restoring on launch.
    */
   selection = $state<TafsirSelection | null>(null);
+
+  /**
+   * The Ayah the side panel was opened for, when something chose one — a click
+   * on the verse, its tafsir button, or expanding a card into the panel.
+   *
+   * The panel used to show `readerPosition` whatever was clicked. That is the
+   * Ayah under the middle of the viewport, and it only moves when the scroll
+   * does, so clicking verse after verse without scrolling opened the panel on
+   * the same one every time: the verse you clicked before, not the one you
+   * just clicked. A choice is held the way the popover holds `selection`, and
+   * cleared by the same thing, a dismissal.
+   *
+   * Null when nothing was chosen. A panel restored open on launch has no click
+   * to answer, so it falls back to the reader's position. Session-only, like
+   * `selection`.
+   */
+  panelAyahId = $state<number | null>(null);
 
   /**
    * Editions that can be downloaded, whether or not they already have been.
@@ -180,12 +195,13 @@ class TafsirStore {
   }
 
   /**
-   * Which Ayah is on show. The popover's is chosen; the panel's is wherever the
-   * reader is, which is the character of each surface rather than an accident.
+   * Which Ayah is on show. Both surfaces show the one that was chosen; the
+   * panel, which can be open without a choice, shows wherever the reader is
+   * until one is made.
    */
   get targetAyahId(): number | null {
     if (this.view === 'popover') return this.selection?.ayahId ?? null;
-    return readerPosition.ayahId;
+    return this.panelAyahId ?? readerPosition.ayahId;
   }
 
   async init() {
@@ -272,11 +288,12 @@ class TafsirStore {
 
   /**
    * Open the card for one Ayah — its commentary and its recitation. In popover
-   * mode that anchors a popover to `anchor`; in panel mode it opens the panel,
-   * which then follows the reader as it always has.
+   * mode that anchors a popover to `anchor`; in panel mode it opens the panel
+   * on that Ayah. The anchor is not needed there, since the panel is docked.
    */
   openFor(ayahId: number, anchor: HTMLElement | null = null) {
     if (this.view === 'panel') {
+      this.panelAyahId = ayahId;
       void this.setPanelOpen(true);
       return;
     }
@@ -379,6 +396,10 @@ class TafsirStore {
   }
 
   async setPanelOpen(open: boolean) {
+    // Closing is the dismissal that ends a choice. Clearing it here rather than
+    // at each caller covers all of them: the close button, a press outside,
+    // and turning the mode off.
+    if (!open) this.panelAyahId = null;
     settingsStore.current.show_tafsir = open;
     await setSetting('show_tafsir', String(open));
   }
@@ -392,6 +413,10 @@ class TafsirStore {
     const carried = this.selection;
     settingsStore.current.tafsir_view = view;
     this.selection = null;
+    // Set on both branches. Going to the popover drops the panel's choice too;
+    // otherwise it would still be there when the reader switched back to the
+    // panel later, and the panel would open on a verse read long before.
+    this.panelAyahId = view === 'panel' ? (carried?.ayahId ?? null) : null;
     if (view === 'panel') await this.setPanelOpen(true);
     else if (carried) this.selection = carried;
     await setSetting('tafsir_view', view);
