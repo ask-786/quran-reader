@@ -181,6 +181,19 @@ export interface ReciterUsage {
   bytes: number;
 }
 
+/**
+ * Whether recitation can be played on this machine, answered by Rust before the
+ * webview is asked to play anything. On Linux a missing GStreamer sink does not
+ * fail — it hangs the whole webview — so this is checked rather than caught.
+ */
+export interface AudioBackend {
+  playable: boolean;
+  /** What is absent, in the reader's words. Non-empty is not the same as
+   *  unplayable: a missing decoder is reported but survivable. */
+  missing: string[];
+  install_command: string | null;
+}
+
 /** Payload of `audio-download-progress`, emitted while fetching a range. */
 export interface AudioProgress {
   slug: string;

@@ -17,10 +17,21 @@
  *
  * Two elements, ping-ponged, so a range plays without a gap at each verse: while
  * one sounds, the other is loaded with the next.
+ *
+ * # Why playing is asked for permission rather than attempted
+ *
+ * WebKitGTK plays through GStreamer, whose elements are system packages it does
+ * not itself depend on. Where the sink is missing, `play()` does not reject and
+ * does not raise `error` — it wedges the WebKitWebProcess, and the reader, not
+ * just the player, stops responding. There is no catching that from in here: a
+ * `try` never reaches its `catch` and a timeout never fires, because this is the
+ * code that stops running. So `backend` is asked first, in Rust, and a verse is
+ * never loaded when the answer is no. See `src-tauri/src/audio/backend.rs`.
  */
 
 import { SvelteMap } from 'svelte/reactivity';
 import {
+  audioBackend,
   ensureAyahAudio,
   getAyahsForSurah,
   listReciters,
@@ -29,7 +40,7 @@ import {
 } from '$lib/api/db';
 import { settingsStore } from './settings.svelte';
 import { surahsStore } from './surahs.svelte';
-import type { Ayah, Reciter } from '$lib/types/database';
+import type { AudioBackend, Ayah, Reciter } from '$lib/types/database';
 
 /**
  * How far ahead of the playhead to pull verses into the cache, in range mode.
@@ -55,6 +66,15 @@ export type PlaybackMode = 'single' | 'range';
 class PlaybackStore {
   /** The catalogue, loaded once. Empty until `init`. */
   reciters = $state<Reciter[]>([]);
+
+  /**
+   * What the machine can actually play, or null while unasked.
+   *
+   * Null is treated as playable throughout: a probe that failed to run is not
+   * evidence of a missing sink, and silently disabling recitation over it would
+   * turn one broken call into a feature nobody can switch back on.
+   */
+  backend = $state<AudioBackend | null>(null);
 
   /** Ayah ids of whatever range is queued, in reading order. Only `range` mode
    *  reads it. */
@@ -112,6 +132,13 @@ class PlaybackStore {
   #prefetchRun = 0;
 
   async init() {
+    if (this.backend === null) {
+      try {
+        this.backend = await audioBackend();
+      } catch (err) {
+        console.error('Failed to probe the audio backend', err);
+      }
+    }
     if (this.reciters.length) return;
     try {
       this.reciters = await listReciters();
@@ -129,6 +156,29 @@ class PlaybackStore {
   /** Recitation exists in the UI only once a reciter has been chosen. */
   get enabled(): boolean {
     return this.reciter !== null;
+  }
+
+  /** Whether pressing play is safe. See the note at the top of this file. */
+  get playable(): boolean {
+    return this.backend?.playable !== false;
+  }
+
+  /**
+   * Why recitation cannot play, written for the reader, or null when it can.
+   *
+   * Names what is missing and how to install it, because the reader is the only
+   * one who can fix this and "audio unavailable" would send them looking for a
+   * bug that is not in this app.
+   */
+  get unavailable(): { reason: string; install: string | null } | null {
+    if (this.playable) return null;
+    const missing = this.backend?.missing ?? [];
+    return {
+      reason: missing.length
+        ? `This system is missing ${list(missing)}.`
+        : 'This system has no working audio backend.',
+      install: this.backend?.install_command ?? null,
+    };
   }
 
   isPlaying(ayahId: number): boolean {
@@ -251,6 +301,7 @@ class PlaybackStore {
 
   async resume() {
     if (this.currentAyahId === null) return;
+    if (!this.#guard()) return;
     const el = this.#active;
     // No source yet means the last attempt never got a file — a fetch that
     // failed, or downloads turned off. Go through `#load` again rather than
@@ -404,6 +455,9 @@ class PlaybackStore {
   async #load(ayahId: number, autoplay: boolean) {
     const reciter = this.reciter;
     if (!reciter) return;
+    // Before `#ensureElements`, so an unplayable machine never gets as far as
+    // constructing an `Audio` at all.
+    if (!this.#guard()) return;
 
     this.#ensureElements();
     this.currentAyahId = ayahId;
@@ -590,12 +644,31 @@ class PlaybackStore {
     return this.queue[index + step] ?? null;
   }
 
+  /**
+   * Refuse to touch an audio element when the machine cannot play one, leaving
+   * the reason where the UI already looks for it.
+   */
+  #guard(): boolean {
+    const blocked = this.unavailable;
+    if (!blocked) return true;
+    this.playing = false;
+    this.loading = false;
+    this.error = blocked.reason;
+    return false;
+  }
+
   #fail(err: unknown) {
     this.playing = false;
     this.loading = false;
     this.error = err instanceof Error ? err.message : String(err);
     console.error('Playback failed', err);
   }
+}
+
+/** "a and b", "a, b and c" — the missing pieces read as a sentence. */
+function list(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 export const playbackStore = new PlaybackStore();

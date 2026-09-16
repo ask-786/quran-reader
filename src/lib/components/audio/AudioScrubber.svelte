@@ -12,6 +12,7 @@
 <script lang="ts">
   import { Loader, Pause, Play } from 'lucide-svelte';
   import { playbackStore } from '$lib/stores/playback.svelte';
+  import AudioUnavailable from './AudioUnavailable.svelte';
 
   let {
     ayahId,
@@ -24,6 +25,8 @@
   const playing = $derived(playbackStore.isPlaying(ayahId));
   const loading = $derived(playbackStore.loading && isCurrent);
   const blocked = $derived(playbackStore.needsPermission && isCurrent);
+  /** Not merely disabled for tidiness: pressing play here hangs the webview. */
+  const unplayable = $derived(!playbackStore.playable);
 
   /** The track is dead until this verse is the loaded one with a known length —
    *  a slider that cannot move is worse than one that is visibly not ready. */
@@ -56,6 +59,7 @@
     class="icon-btn play"
     class:on={playing}
     onclick={toggle}
+    disabled={unplayable}
     aria-label={playing ? 'Pause' : 'Play this verse'}
   >
     {#if loading}
@@ -74,7 +78,7 @@
     max={length || 1}
     step="1"
     value={position}
-    disabled={!seekable}
+    disabled={!seekable || unplayable}
     aria-label="Position in this verse"
     oninput={(e) => playbackStore.seek(Number(e.currentTarget.value))}
   />
@@ -82,7 +86,9 @@
   <span class="time">{clock(position)} / {clock(length)}</span>
 </div>
 
-{#if blocked}
+{#if unplayable}
+  <AudioUnavailable compact />
+{:else if blocked}
   <p class="note">Not downloaded, and downloads are off in Settings → Audio.</p>
 {:else if isCurrent && playbackStore.error}
   <p class="note error">{playbackStore.error}</p>

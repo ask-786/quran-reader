@@ -376,6 +376,16 @@ fn reciter_id_for(state: &State<AppDb>, slug: &str) -> Result<u32, String> {
     .map_err(|_| format!("No such reciter: {slug}"))
 }
 
+/// Whether recitation can be played on this machine at all.
+///
+/// Asked before the frontend creates its first `<audio>` element, because on a
+/// Linux box with no GStreamer sink the answer arrives too late otherwise — see
+/// `audio::backend`.
+#[tauri::command]
+pub fn audio_backend() -> audio::AudioBackend {
+    audio::probe_backend()
+}
+
 #[tauri::command]
 pub fn list_reciters(state: State<AppDb>) -> Result<Vec<audio::Reciter>, String> {
     let conn = db!(state);

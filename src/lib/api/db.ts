@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  AudioBackend,
   Reciter,
   ReciterUsage,
   Surah,
@@ -232,6 +233,16 @@ export function removeTafsirPack(slug: string): Promise<void> {
 /** Every reciter this build can fetch. */
 export function listReciters(): Promise<Reciter[]> {
   return invoke('list_reciters');
+}
+
+/**
+ * Whether this machine can play recitation at all.
+ *
+ * Asked before the first `<audio>` element exists. See `audio::backend` on the
+ * Rust side for why this cannot be discovered by trying and failing.
+ */
+export function audioBackend(): Promise<AudioBackend> {
+  return invoke('audio_backend');
 }
 
 /**

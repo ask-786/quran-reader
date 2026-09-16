@@ -20,6 +20,7 @@
     AUDIO_REPEAT_PAUSE_MAX,
   } from '$lib/stores/settings.svelte';
   import type { AudioBitrate, ReciterUsage, RepeatMode } from '$lib/types/database';
+  import AudioUnavailable from '$lib/components/audio/AudioUnavailable.svelte';
   import SettingRow from './SettingRow.svelte';
   import Segmented from './Segmented.svelte';
   import Slider from './Slider.svelte';
@@ -76,6 +77,10 @@
     return `${(bytes / 1_048_576).toFixed(bytes < 104_857_600 ? 1 : 0)} MB`;
   }
 </script>
+
+<!-- First, above the reciter list: the rest of this section is settings for
+     something that cannot make a sound until this is dealt with. -->
+<AudioUnavailable />
 
 <SettingRow
   label="Reciter"
