@@ -187,6 +187,9 @@ pub struct Settings {
     /// persisted at all — see docs/tafsir-popover-plan.md.
     pub show_tafsir: bool,
     pub tafsir_panel_width: u32,
+    /// The floating card's size from its resize grip. 0 = automatic.
+    pub tafsir_card_width: u32,
+    pub tafsir_card_height: u32,
     /// "popover" | "panel" — which surface a tafsir trigger opens.
     pub tafsir_view: String,
     /// Whether clicking a verse opens its commentary. Off by default: with the
@@ -240,6 +243,8 @@ impl Default for Settings {
             tafsir_id: None,
             show_tafsir: false,
             tafsir_panel_width: 420,
+            tafsir_card_width: 0,
+            tafsir_card_height: 0,
             tafsir_view: "popover".to_string(),
             tafsir_click: false,
             show_transliteration: false,

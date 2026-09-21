@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { X, PanelRight } from 'lucide-svelte';
+  import { untrack } from 'svelte';
+  import { X, PanelRight, ChevronLeft, ChevronRight } from 'lucide-svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import TafsirMeta from './TafsirMeta.svelte';
   import TafsirAudioRow from '$lib/components/audio/TafsirAudioRow.svelte';
@@ -10,9 +11,16 @@
   const ARROW = 7;
   /** Keep the card this far from the viewport edges. */
   const MARGIN = 8;
+  /** Width when the reader has not chosen one with the grip. */
   const WIDTH = 420;
-  /** Below this there is no point flipping to a side — nothing would fit. */
+  /** Narrowest the grip will make the card — the side panel's own minimum. */
+  const MIN_WIDTH = 280;
+  /** Below this there is no point flipping to a side — nothing would fit. Also
+   *  the shortest the grip will make the card. */
   const MIN_HEIGHT = 120;
+  /** Grip keyboard steps, as on the side panel's resize handle. */
+  const STEP = 10;
+  const BIG_STEP = 40;
   /**
    * What a press on the header must not turn into a drag: its own controls,
    * and the edition menu, which opens inside the header. Dragging from those
@@ -36,6 +44,7 @@
    */
   let top = $state(0);
   let left = $state(0);
+  let width = $state(WIDTH);
   let maxHeight = $state(0);
   let arrowTop = $state(false);
   let arrowLeft = $state(0);
@@ -55,6 +64,8 @@
    *
    * Reset when the card is aimed at a different verse. A card opened for a new
    * verse starts beside that verse, like any card that has just been opened.
+   * The exception is a step from the card's own previous/next buttons: the
+   * card stays put, as if moved, so those buttons stay under the pointer.
    */
   let moved = $state(false);
   let dragging = $state(false);
@@ -65,13 +76,43 @@
    *  exists to tell a re-aim apart from a re-run of the placement effect. */
   let placedFor: number | null = null;
 
+  /**
+   * The size being dragged with the grip, before it is saved. Null otherwise,
+   * when the saved size (or the automatic one) is in force.
+   */
+  let liveWidth = $state<number | null>(null);
+  let liveHeight = $state<number | null>(null);
+  let sizing: { pointerId: number; x: number; y: number; w: number; h: number } | null = null;
+  let resizing = $state(false);
+
   const selection = $derived(tafsirStore.selection);
+
+  /** The height the reader chose, or null where it follows the commentary. */
+  function chosenHeight(): number | null {
+    return liveHeight ?? (tafsirStore.cardHeight || null);
+  }
+
+  /**
+   * The width to use in a window this wide. Never wider than the window allows,
+   * whatever was saved — a size chosen on a large screen must not push the card
+   * off a smaller one.
+   */
+  function fitWidth(vw: number) {
+    const room = vw - MARGIN * 2;
+    const wanted = liveWidth ?? (tafsirStore.cardWidth || WIDTH);
+    return Math.min(room, Math.max(MIN_WIDTH, wanted));
+  }
+
+  /** Same for height: the tallest a card can be and still be whole on screen. */
+  function fitHeight(h: number, vh: number) {
+    return Math.min(h, vh - MARGIN * 2);
+  }
 
   function place() {
     if (!card) return;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const width = Math.min(WIDTH, vw - MARGIN * 2);
+    width = fitWidth(vw);
 
     if (moved) {
       settle(width, vw, vh);
@@ -121,7 +162,7 @@
     if (below && spaceBelow < wanted && spaceAbove > spaceBelow) below = false;
 
     const available = below ? spaceBelow : spaceAbove;
-    const height = Math.max(MIN_HEIGHT, Math.min(wanted, available));
+    const height = fitHeight(Math.max(MIN_HEIGHT, Math.min(wanted, available)), vh);
 
     maxHeight = height;
     // Clamped into the viewport as well as chosen by side: with the anchor
@@ -140,6 +181,8 @@
   }
 
   function wantedHeight(vh: number) {
+    const chosen = chosenHeight();
+    if (chosen !== null) return chosen;
     const chrome = (head?.offsetHeight ?? 0) + (audio?.offsetHeight ?? 0) + 2;
     const text = body?.scrollHeight ?? 0;
     return chrome + Math.min(text, Math.round(vh * 0.45));
@@ -159,7 +202,12 @@
   function settle(width: number, vw: number, vh: number) {
     left = Math.min(Math.max(left, MARGIN), Math.max(MARGIN, vw - width - MARGIN));
     top = Math.min(Math.max(top, MARGIN), Math.max(MARGIN, vh - MIN_HEIGHT - MARGIN));
-    maxHeight = Math.max(MIN_HEIGHT, Math.min(wantedHeight(vh), vh - top - MARGIN));
+    // The MIN_HEIGHT floor loses to the window: in one shorter than that the
+    // card shrinks rather than hanging off the bottom.
+    maxHeight = Math.min(
+      Math.max(MIN_HEIGHT, Math.min(wantedHeight(vh), vh - top - MARGIN)),
+      vh - top - MARGIN,
+    );
   }
 
   function startDrag(e: PointerEvent) {
@@ -190,7 +238,7 @@
     left = e.clientX - grab.dx;
     top = e.clientY - grab.dy;
     const vw = window.innerWidth;
-    settle(Math.min(WIDTH, vw - MARGIN * 2), vw, window.innerHeight);
+    settle(fitWidth(vw), vw, window.innerHeight);
   }
 
   function endDrag(e: PointerEvent) {
@@ -200,10 +248,88 @@
     dragging = false;
   }
 
+  /**
+   * The corner grip. It pins the card's top-left corner and moves the
+   * bottom-right one, so the card counts as moved from here on — otherwise a
+   * card placed above its verse would re-place itself on every frame and grow
+   * upwards, away from the pointer. Growth stops at the window's edge, not at
+   * the pointer, so no part of the card can be dragged off screen.
+   */
+  function startResize(e: PointerEvent) {
+    if (e.button !== 0 || !card) return;
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const rect = card.getBoundingClientRect();
+    sizing = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, w: rect.width, h: rect.height };
+    resizing = true;
+  }
+
+  function moveResize(e: PointerEvent) {
+    if (!sizing || e.pointerId !== sizing.pointerId) return;
+    // Here rather than on the press, so a click or double-click on the grip
+    // leaves the card beside its verse.
+    moved = true;
+    resizeTo(sizing.w + e.clientX - sizing.x, sizing.h + e.clientY - sizing.y);
+  }
+
+  function endResize(e: PointerEvent) {
+    if (!sizing || e.pointerId !== sizing.pointerId) return;
+    const grip = e.currentTarget as HTMLElement;
+    if (grip.hasPointerCapture(e.pointerId)) grip.releasePointerCapture(e.pointerId);
+    sizing = null;
+    resizing = false;
+    commitSize();
+  }
+
+  /** Arrow keys on the focused grip: left/right for width, up/down for height. */
+  function nudgeSize(e: KeyboardEvent) {
+    if (!card) return;
+    const step = e.shiftKey ? BIG_STEP : STEP;
+    const w = card.offsetWidth;
+    const h = card.offsetHeight;
+    const next: Record<string, [number, number]> = {
+      ArrowLeft: [w - step, h],
+      ArrowRight: [w + step, h],
+      ArrowUp: [w, h - step],
+      ArrowDown: [w, h + step],
+    };
+    const size = next[e.key];
+    if (!size) return;
+    e.preventDefault();
+    moved = true;
+    resizeTo(...size);
+    commitSize();
+  }
+
+  function resizeTo(w: number, h: number) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // The window's edge wins over the minimum, for the same reason as in
+    // fitWidth: a card that can't fit whole shrinks instead of overflowing.
+    liveWidth = Math.min(vw - left - MARGIN, Math.max(MIN_WIDTH, w));
+    liveHeight = Math.min(vh - top - MARGIN, Math.max(MIN_HEIGHT, h));
+    place();
+  }
+
+  function commitSize() {
+    if (liveWidth === null || liveHeight === null) return;
+    // Saved first and cleared after, in one synchronous run: the store takes
+    // the new size before the live one goes, so the card never snaps back to
+    // the old size for a frame.
+    void tafsirStore.setCardSize(liveWidth, liveHeight);
+    liveWidth = null;
+    liveHeight = null;
+  }
+
+  /** Double-click the grip to go back to the automatic size. */
+  function resetSize() {
+    void tafsirStore.setCardSize(0, 0);
+  }
+
   function centre(width: number, vh: number) {
-    maxHeight = Math.round(vh * 0.45);
-    top = Math.round(vh * 0.18);
-    left = Math.round((window.innerWidth - width) / 2);
+    maxHeight = fitHeight(chosenHeight() ?? Math.round(vh * 0.45), vh);
+    top = Math.max(MARGIN, Math.min(Math.round(vh * 0.18), vh - maxHeight - MARGIN));
+    left = Math.max(MARGIN, Math.round((window.innerWidth - width) / 2));
     arrowTop = true;
     arrowLeft = -100; // off-card: there is nothing to point at
     placed = true;
@@ -221,7 +347,7 @@
     const ayahId = selection?.ayahId ?? null;
     if (ayahId !== placedFor) {
       placedFor = ayahId;
-      moved = false;
+      moved = selection?.stepped === true;
     }
     place();
   });
@@ -257,10 +383,12 @@
   });
 
   // Focus moves in on open and back to whatever opened it on close, so the
-  // keyboard path is a round trip rather than a one-way door.
+  // keyboard path is a round trip rather than a one-way door. The trigger is
+  // read untracked so that stepping to another verse, which replaces the
+  // selection, does not pull focus off the step button onto the card.
   $effect(() => {
     if (!card) return;
-    const trigger = selection?.anchor ?? null;
+    const trigger = untrack(() => selection?.anchor ?? null);
     card.focus({ preventScroll: true });
     return () => {
       if (trigger?.isConnected && typeof trigger.focus === 'function') {
@@ -297,7 +425,9 @@
     tabindex="-1"
     style:top="{top}px"
     style:left="{left}px"
+    style:width="{width}px"
     style:max-height="{maxHeight}px"
+    style:height={chosenHeight() !== null ? `${maxHeight}px` : null}
   >
     {#if !moved}
       <span class="arrow" class:above={!arrowTop} style:left="{arrowLeft}px"></span>
@@ -317,6 +447,24 @@
     >
       <TafsirMeta compact />
       <div class="actions">
+        <button
+          class="icon-btn"
+          onclick={() => tafsirStore.step(-1)}
+          disabled={!tafsirStore.canStepBack}
+          aria-label="Previous verse"
+          title="Previous verse"
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <button
+          class="icon-btn"
+          onclick={() => tafsirStore.step(1)}
+          disabled={!tafsirStore.canStepForward}
+          aria-label="Next verse"
+          title="Next verse"
+        >
+          <ChevronRight size={15} />
+        </button>
         <button
           class="icon-btn"
           onclick={() => tafsirStore.setView('panel')}
@@ -342,6 +490,24 @@
     <div class="body" bind:this={body}>
       <TafsirBody />
     </div>
+
+    <!-- Mouse, touch and keyboard, like the side panel's handle: arrows resize
+         while it is focused, and a double-click goes back to automatic. -->
+    <button
+      type="button"
+      class="resize-grip"
+      class:resizing
+      aria-label="Resize card, currently {width} by {Math.round(
+        maxHeight,
+      )} pixels. Double-click to reset."
+      title="Drag to resize · double-click to reset"
+      onpointerdown={startResize}
+      onpointermove={moveResize}
+      onpointerup={endResize}
+      onpointercancel={endResize}
+      onkeydown={nudgeSize}
+      ondblclick={resetSize}
+    ></button>
   </div>
 </div>
 
@@ -357,7 +523,8 @@
     z-index: 60;
     display: flex;
     flex-direction: column;
-    width: min(420px, calc(100vw - 16px));
+    /* Width and height are set inline from place(), which fits both to the
+       window every time it runs — including on window resize. */
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     background: var(--color-bg-elevated);
@@ -433,14 +600,57 @@
     cursor: pointer;
   }
 
-  .icon-btn:hover {
+  .icon-btn:hover:not(:disabled) {
     background: var(--color-bg-hover);
     color: var(--color-text);
   }
 
+  .icon-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  /* Fills whatever height the grip gave the card; the header and audio row
+     keep their own. */
   .body {
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     padding: 12px;
+  }
+
+  .head,
+  .popover > div:not(.body) {
+    flex-shrink: 0;
+  }
+
+  /* Two diagonal strokes in the corner, the usual sign for a resize grip. */
+  .resize-grip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-bottom-right-radius: var(--radius);
+    background: linear-gradient(
+      135deg,
+      transparent 45%,
+      var(--color-text-muted) 45% 52%,
+      transparent 52% 68%,
+      var(--color-text-muted) 68% 75%,
+      transparent 75%
+    );
+    opacity: 0.45;
+    cursor: nwse-resize;
+    touch-action: none;
+  }
+
+  .resize-grip:hover,
+  .resize-grip:focus-visible,
+  .resize-grip.resizing {
+    opacity: 0.9;
+    outline: none;
   }
 </style>

@@ -13,11 +13,38 @@
  *   on, or the one it started on when it spans several.
  */
 export function scrollToRecitedAyah(ayahId: number) {
-  const direct = document.querySelector<HTMLElement>(`[data-ayah-id="${ayahId}"]`);
-  if (direct) {
-    direct.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    return;
+  findAyahElement(ayahId)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+/**
+ * The same, but only when the verse is outside the reader's visible area — for
+ * stepping the tafsir card from verse to verse, where a reader who can already
+ * see the verse should not have the page move under them on every press.
+ */
+export function revealAyah(ayahId: number) {
+  const el = findAyahElement(ayahId);
+  if (!el) return;
+  const box = el.getBoundingClientRect();
+  const view = scrollParent(el)?.getBoundingClientRect() ?? {
+    top: 0,
+    bottom: window.innerHeight,
+  };
+  if (box.top >= view.top && box.bottom <= view.bottom) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === 'auto' || overflowY === 'scroll') return node;
   }
+  return null;
+}
+
+/** See the note on `scrollToRecitedAyah` for why there are two lookups. */
+function findAyahElement(ayahId: number): HTMLElement | null {
+  const direct = document.querySelector<HTMLElement>(`[data-ayah-id="${ayahId}"]`);
+  if (direct) return direct;
 
   const lines = document.querySelectorAll<HTMLElement>('[data-line-ayah-id]');
   let best: HTMLElement | null = null;
@@ -28,5 +55,5 @@ export function scrollToRecitedAyah(ayahId: number) {
     // the closest one before it.
     best = line;
   }
-  best?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  return best;
 }

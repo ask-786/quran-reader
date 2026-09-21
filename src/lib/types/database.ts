@@ -241,6 +241,10 @@ export interface Settings {
   /** The side panel's state. Popover openness is transient and not persisted. */
   show_tafsir: boolean;
   tafsir_panel_width: number;
+  /** The floating card's size, set with its corner grip. 0 = automatic: the
+   *  default width, and a height that follows the commentary. */
+  tafsir_card_width: number;
+  tafsir_card_height: number;
   tafsir_view: TafsirView;
   /** Whether clicking a verse opens its commentary. Off by default — a stray
    *  click in the reader should not become an interruption. */
