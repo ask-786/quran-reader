@@ -81,6 +81,8 @@ function defaultSettings(): Settings {
     tafsir_id: null,
     show_tafsir: false,
     tafsir_panel_width: 420,
+    tafsir_card_width: 0,
+    tafsir_card_height: 0,
     tafsir_view: 'popover',
     tafsir_click: false,
     show_transliteration: false,

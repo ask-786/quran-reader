@@ -16,6 +16,8 @@ import type {
 } from '$lib/types/database';
 import { settingsStore } from './settings.svelte';
 import { readerPosition } from './reader-position.svelte';
+import { surahsStore } from './surahs.svelte';
+import { revealAyah } from '$lib/utils/follow-scroll';
 
 /** Drawer width bounds, in CSS px before app zoom. */
 export const TAFSIR_MIN_WIDTH = 280;
@@ -46,6 +48,13 @@ export interface TafsirSelection {
    * connected. See the freeze behaviour in TafsirPopover.
    */
   anchor: HTMLElement | null;
+  /**
+   * Set when the card got here from its own previous/next buttons rather than
+   * from the verse. The card then stays where it is instead of jumping beside
+   * the new verse, so the button just pressed is still under the pointer for
+   * the next press.
+   */
+  stepped?: boolean;
 }
 
 class TafsirStore {
@@ -346,6 +355,49 @@ class TafsirStore {
   }
 
   /**
+   * Move whichever surface is open to the neighbouring Ayah of the same Surah,
+   * and bring that verse into view if it is off screen.
+   *
+   * One verse at a time even where the edition comments on a run of verses at
+   * once: the commentary then stays the same across the run, but the card also
+   * carries the recitation, and skipping the run would skip hearing it. The
+   * body's verse label says where in the run the card is.
+   *
+   * Never past either end of the Surah. The card is a question about the verse
+   * in front of the reader, and the next Surah is somewhere else entirely.
+   */
+  step(direction: 1 | -1) {
+    const target = this.#neighbour(direction);
+    if (target === null) return;
+
+    if (this.view === 'panel') {
+      this.panelAyahId = target;
+    } else {
+      if (!this.selection) return;
+      const anchor = document.querySelector<HTMLElement>(`[data-ayah-id="${target}"]`);
+      this.selection = { ayahId: target, anchor, stepped: true };
+    }
+    revealAyah(target);
+  }
+
+  get canStepBack() {
+    return this.#neighbour(-1) !== null;
+  }
+
+  get canStepForward() {
+    return this.#neighbour(1) !== null;
+  }
+
+  #neighbour(direction: 1 | -1): number | null {
+    const current = this.targetAyahId;
+    if (current === null) return null;
+    const surah = surahsStore.rangeOf(current);
+    if (!surah) return null;
+    const target = current + direction;
+    return target >= surah.first && target <= surah.last ? target : null;
+  }
+
+  /**
    * What the toolbar button and `t` do: in panel view, toggle the panel; in
    * popover view, turn verse cards on or off.
    *
@@ -428,6 +480,32 @@ class TafsirStore {
     // screen has to be replaced.
     this.entry = null;
     await setSetting('tafsir_id', String(id));
+  }
+
+  /** The floating card's chosen size, 0 where it is automatic. */
+  get cardWidth() {
+    return settingsStore.current.tafsir_card_width;
+  }
+
+  get cardHeight() {
+    return settingsStore.current.tafsir_card_height;
+  }
+
+  /**
+   * Save the floating card's size, for every card after this one too. The
+   * popover fits it to the window each time it places itself, so a size set on
+   * a large window is never what pushes a card off a smaller one. (0, 0) goes
+   * back to automatic.
+   */
+  async setCardSize(width: number, height: number) {
+    const w = Math.max(0, Math.round(width));
+    const h = Math.max(0, Math.round(height));
+    settingsStore.current.tafsir_card_width = w;
+    settingsStore.current.tafsir_card_height = h;
+    await Promise.all([
+      setSetting('tafsir_card_width', String(w)),
+      setSetting('tafsir_card_height', String(h)),
+    ]);
   }
 
   async setWidth(px: number) {

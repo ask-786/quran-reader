@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, PanelBottom, Library } from 'lucide-svelte';
+  import { X, PanelBottom, Library, ChevronLeft, ChevronRight } from 'lucide-svelte';
   import { tafsirStore, clampTafsirWidth } from '$lib/stores/tafsir.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import TafsirMeta from './TafsirMeta.svelte';
@@ -71,6 +71,24 @@
   <header class="panel-header">
     <TafsirMeta />
     <div class="actions">
+      <button
+        class="icon-btn"
+        onclick={() => tafsirStore.step(-1)}
+        disabled={!tafsirStore.canStepBack}
+        aria-label="Previous verse"
+        title="Previous verse"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <button
+        class="icon-btn"
+        onclick={() => tafsirStore.step(1)}
+        disabled={!tafsirStore.canStepForward}
+        aria-label="Next verse"
+        title="Next verse"
+      >
+        <ChevronRight size={16} />
+      </button>
       <!-- The shelf lives in Settings now. It used to open in place here,
            which meant that in card view — the default — there was no route to
            it at all. -->
@@ -185,9 +203,14 @@
     cursor: pointer;
   }
 
-  .icon-btn:hover {
+  .icon-btn:hover:not(:disabled) {
     background: var(--color-bg-hover);
     color: var(--color-text);
+  }
+
+  .icon-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
 
   .panel-body {

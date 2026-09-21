@@ -390,6 +390,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     -- transient and deliberately not persisted — see docs/tafsir-popover-plan.md.
     ('show_tafsir',             'false'),
     ('tafsir_panel_width',      '420'),
+    -- The floating card's size from its resize grip; 0 = automatic.
+    ('tafsir_card_width',       '0'),
+    ('tafsir_card_height',      '0'),
     ('tafsir_view',             'popover'),   -- 'popover' | 'panel'
     ('show_transliteration',    'false'),
     ('show_ayah_numbers',       'true'),

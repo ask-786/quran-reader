@@ -24,15 +24,20 @@
     return surahsStore.get(entry.surah_id)?.transliteration ?? null;
   });
 
-  /** "2:255", or "2:1–5" where the edition comments on a run of verses. */
-  const verseLabel = $derived.by(() => {
+  /** "2:255" — always the verse on show, which the card's audio also plays. */
+  const verseLabel = $derived(entry ? `${entry.surah_id}:${entry.ayah_number}` : null);
+
+  /**
+   * "on 2:1–5" where the edition comments on a run of verses at once. Stepping
+   * verse by verse through a run keeps the same text, and this is what says
+   * the step still happened.
+   */
+  const groupLabel = $derived.by(() => {
     if (!entry) return null;
     const { group_start_key: start, group_end_key: end } = entry;
-    if (start && end && start !== end) {
-      const endAyah = end.split(':')[1] ?? end;
-      return `${start}–${endAyah}`;
-    }
-    return `${entry.surah_id}:${entry.ayah_number}`;
+    if (!start || !end || start === end) return null;
+    const endAyah = end.split(':')[1] ?? end;
+    return `on ${start}–${endAyah}`;
   });
 
   // Paragraphs rather than one block: the importer keeps blank-line breaks and
@@ -55,6 +60,7 @@
   <p class="verse-ref">
     {#if surahName}<span class="surah">{surahName}</span>{/if}
     <span class="key">{verseLabel}</span>
+    {#if groupLabel}<span class="group">{groupLabel}</span>{/if}
   </p>
   <div class="text" dir={edition.direction} class:rtl={edition.direction === 'rtl'}>
     {#each paragraphs as para, i (i)}
