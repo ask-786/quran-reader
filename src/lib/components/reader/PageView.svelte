@@ -20,6 +20,7 @@
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
   import { playbackStore } from '$lib/stores/playback.svelte';
   import SurahHeader from './SurahHeader.svelte';
+  import KhatmDua from './KhatmDua.svelte';
 
   let {
     ayahs,
@@ -60,6 +61,8 @@
   const KEEP_RADIUS = 8;
 
   let pages = $state<MushafPage[]>([]);
+  /** The range reaches the last Ayah of the Quran (An-Nas 114:6). */
+  const endsQuran = $derived(ayahs.at(-1)?.surah_id === 114 && ayahs.at(-1)?.ayah_number === 6);
   let basmalaFontFamily = $state<string | null>(null);
   /**
    * Whether the page content is fit to be painted — which means the layout is
@@ -621,6 +624,9 @@
             </div>
           </div>
         {/each}
+        {#if endsQuran}
+          <div class="khatm-slot"><KhatmDua /></div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -667,6 +673,11 @@
     /* Query container for .text-line's fit cap below — the lines have to be
        sized against this column, not the viewport. */
     container-type: inline-size;
+  }
+
+  /* Same column as the pages above it, so the card lines up with the text. */
+  .khatm-slot {
+    width: calc(min(100%, var(--reader-max-width) * var(--reader-zoom)));
   }
 
   /* Was carried by the old between-pages divider's margin; now that the page
