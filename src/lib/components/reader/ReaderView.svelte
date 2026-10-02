@@ -12,6 +12,7 @@
   } from '$lib/utils/mushaf-fonts';
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
+  import KhatmDua from './KhatmDua.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
@@ -104,6 +105,8 @@
   let loadedRangeKey: string | null = null;
 
   const firstPage = $derived(ayahs[0]?.page ?? 1);
+  /** The range reaches the last Ayah of the Quran (An-Nas 114:6). */
+  const endsQuran = $derived(ayahs.at(-1)?.surah_id === 114 && ayahs.at(-1)?.ayah_number === 6);
   const lastPage = $derived(ayahs[ayahs.length - 1]?.page ?? firstPage);
 
   function wordCount(ayahId: number) {
@@ -640,6 +643,9 @@
           <span class="juz-no">Juz {juzCompletedOnPage.get(lastPageOfRange)} complete</span>
         {/if}
       </div>
+    {/if}
+    {#if endsQuran}
+      <KhatmDua />
     {/if}
   </div>
 </div>
