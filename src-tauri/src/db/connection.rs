@@ -726,7 +726,11 @@ mod tests {
                  DELETE FROM schema_version WHERE version >= 10;",
             )
             .unwrap();
-            assert_eq!(get_schema_version(&conn).unwrap(), 9, "fixture starts at v9");
+            assert_eq!(
+                get_schema_version(&conn).unwrap(),
+                9,
+                "fixture starts at v9"
+            );
         }
 
         let conn = open(&path).unwrap();
