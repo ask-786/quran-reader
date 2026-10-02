@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 9;
+const CURRENT_VERSION: u32 = 10;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -157,6 +157,13 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         conn.execute_batch(include_str!("../../../database/migrations/009_audio.sql"))?;
     }
 
+    if from_version < 10 {
+        log::info!("  → Applying migration 010: ayah pages from the Mushaf layout");
+        conn.execute_batch(include_str!(
+            "../../../database/migrations/010_ayah_page_from_layout.sql"
+        ))?;
+    }
+
     // page_line/page_line_word carry no user data (bookmarks and notes key off
     // ayah_id, not page/line/glyph), so layout content is delivered by
     // rebuilding both tables wholesale from the bundled seed rather than by
@@ -199,6 +206,10 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
 /// matches the target's, which already holds for every existing install:
 /// Tanzil/Surah-metadata import is deterministic, and no migration before
 /// this one has ever touched `ayah`.
+///
+/// `ayah.page` comes along with the layout because it is derived from it (see
+/// 010). This runs after every migration, so 010's in-place derivation would
+/// otherwise have read the layout this rebuild just threw away.
 fn rebuild_mushaf_layout_from_seed(conn: &Connection) -> DbResult<()> {
     with_seed_attached(conn, |conn| {
         conn.execute_batch(
@@ -207,6 +218,7 @@ fn rebuild_mushaf_layout_from_seed(conn: &Connection) -> DbResult<()> {
              DELETE FROM page_line;
              INSERT INTO page_line SELECT * FROM seed.page_line;
              INSERT INTO page_line_word SELECT * FROM seed.page_line_word;
+             UPDATE ayah SET page = (SELECT s.page FROM seed.ayah s WHERE s.id = ayah.id);
              COMMIT;",
         )?;
         Ok(())
@@ -688,6 +700,57 @@ mod tests {
             .unwrap();
         assert_eq!(rows, 77_545);
         assert_eq!(null_v4, 0);
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A v9 install still carries Tanzil's page numbers, which put Ash-Sharh
+    /// 94:3–8 on 596 while the layout draws them on 597 — so the Surah view
+    /// never loaded 597 and stopped after Ayah 2. 010 has to re-derive every
+    /// Ayah's page from the layout.
+    #[test]
+    fn upgrade_from_v9_takes_ayah_pages_from_the_layout() {
+        let dir = std::env::temp_dir().join(format!("quranreader-v9-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quran.db");
+        let _ = std::fs::remove_file(&path);
+
+        std::fs::write(&path, SEED_DB).unwrap();
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(include_str!("../../../database/migrations/009_audio.sql"))
+                .unwrap();
+            conn.execute_batch(
+                "UPDATE ayah SET page = 596 WHERE surah_id = 94;
+                 DELETE FROM schema_version WHERE version >= 10;",
+            )
+            .unwrap();
+            assert_eq!(get_schema_version(&conn).unwrap(), 9, "fixture starts at v9");
+        }
+
+        let conn = open(&path).unwrap();
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_VERSION);
+        let pages: Vec<u32> = conn
+            .prepare("SELECT page FROM ayah WHERE surah_id = 94 ORDER BY ayah_number")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(pages, [596, 596, 597, 597, 597, 597, 597, 597]);
+
+        let disagree: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM ayah a WHERE a.page <> (
+                   SELECT MIN(pl.page) FROM page_line_word w
+                   JOIN page_line pl ON pl.id = w.page_line_id
+                   WHERE w.ayah_id = a.id)",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(disagree, 0);
 
         drop(conn);
         let _ = std::fs::remove_dir_all(&dir);

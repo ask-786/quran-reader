@@ -279,6 +279,27 @@ pub fn write_mushaf_layout(db_path: &Path, pages: &[PageV4Json]) -> Result<()> {
         }
     }
 
+    // Tanzil's page numbers disagree with the v4 layout for 56 Ayahs, and the
+    // reader decides which pages to load from `ayah.page` — so the layout, which
+    // is what actually gets drawn, overrides them. See migration 010.
+    let resynced = tx.execute(
+        "UPDATE ayah SET page = (
+             SELECT MIN(pl.page) FROM page_line_word w
+             JOIN page_line pl ON pl.id = w.page_line_id
+             WHERE w.ayah_id = ayah.id
+         )
+         WHERE page IS NOT (
+             SELECT MIN(pl.page) FROM page_line_word w
+             JOIN page_line pl ON pl.id = w.page_line_id
+             WHERE w.ayah_id = ayah.id
+         )
+         AND EXISTS (SELECT 1 FROM page_line_word w WHERE w.ayah_id = ayah.id)",
+        [],
+    )?;
+    if resynced > 0 {
+        log::info!("      Moved {resynced} Ayah(s) to the page the layout sets them on");
+    }
+
     validate_layout(&tx)?;
 
     tx.commit()
