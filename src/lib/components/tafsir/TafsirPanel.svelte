@@ -5,6 +5,7 @@
   import TafsirMeta from './TafsirMeta.svelte';
   import TafsirAudioRow from '$lib/components/audio/TafsirAudioRow.svelte';
   import TafsirBody from './TafsirBody.svelte';
+  import TafsirZoomControl from './TafsirZoomControl.svelte';
 
   let dragging = $state(false);
 
@@ -71,6 +72,7 @@
   <header class="panel-header">
     <TafsirMeta />
     <div class="actions">
+      <TafsirZoomControl />
       <button
         class="icon-btn"
         onclick={() => tafsirStore.step(-1)}

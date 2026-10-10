@@ -968,6 +968,10 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
             .get("tafsir_card_height")
             .and_then(|v| v.parse().ok())
             .unwrap_or(0),
+        tafsir_zoom: map
+            .get("tafsir_zoom")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1.0),
         // Absent in databases predating the popover, which is why the default
         // lives here as well as in schema.sql — no migration is needed for a
         // settings key.

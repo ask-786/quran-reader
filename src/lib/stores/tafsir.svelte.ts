@@ -23,6 +23,12 @@ import { revealAyah } from '$lib/utils/follow-scroll';
 export const TAFSIR_MIN_WIDTH = 280;
 export const TAFSIR_MAX_WIDTH = 720;
 
+/** Commentary text zoom. The same range as reader zoom, so the two controls
+ *  feel like the same control. */
+export const TAFSIR_ZOOM_MIN = 0.7;
+export const TAFSIR_ZOOM_MAX = 2.0;
+const TAFSIR_ZOOM_STEP = 0.1;
+
 /** Shared with the drag handle, so a drag can't take the panel somewhere the
  *  stored width would then be clamped away from. */
 export function clampTafsirWidth(px: number): number {
@@ -506,6 +512,35 @@ class TafsirStore {
       setSetting('tafsir_card_width', String(w)),
       setSetting('tafsir_card_height', String(h)),
     ]);
+  }
+
+  /**
+   * The commentary's text size, as a multiple of the size it is designed at.
+   * One value for both surfaces: they show the same text, and a reader who
+   * needed it larger in the card needs it larger in the panel too.
+   */
+  get zoom() {
+    return settingsStore.current.tafsir_zoom;
+  }
+
+  /** One decimal place, so ten steps up and ten down land back on 100%. */
+  async setZoom(value: number) {
+    const clamped =
+      Math.round(Math.min(TAFSIR_ZOOM_MAX, Math.max(TAFSIR_ZOOM_MIN, value)) * 10) / 10;
+    settingsStore.current.tafsir_zoom = clamped;
+    await setSetting('tafsir_zoom', String(clamped));
+  }
+
+  zoomIn() {
+    return this.setZoom(this.zoom + TAFSIR_ZOOM_STEP);
+  }
+
+  zoomOut() {
+    return this.setZoom(this.zoom - TAFSIR_ZOOM_STEP);
+  }
+
+  resetZoom() {
+    return this.setZoom(1);
   }
 
   async setWidth(px: number) {

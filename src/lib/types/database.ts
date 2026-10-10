@@ -245,6 +245,8 @@ export interface Settings {
    *  default width, and a height that follows the commentary. */
   tafsir_card_width: number;
   tafsir_card_height: number;
+  /** Multiplier on the commentary's text size; 1 = as designed. */
+  tafsir_zoom: number;
   tafsir_view: TafsirView;
   /** Whether clicking a verse opens its commentary. Off by default — a stray
    *  click in the reader should not become an interruption. */
