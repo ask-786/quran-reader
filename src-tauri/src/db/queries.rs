@@ -891,6 +891,206 @@ pub fn clear_reading_history(conn: &Connection) -> DbResult<()> {
 }
 
 // =============================================================================
+// ROUTINE QUERIES
+// =============================================================================
+
+/// The Surahs of each routine, in step order, keyed by routine id.
+fn routine_items(conn: &Connection) -> DbResult<std::collections::HashMap<u32, Vec<u32>>> {
+    let mut stmt = conn
+        .prepare("SELECT routine_id, surah_id FROM routine_item ORDER BY routine_id, position")?;
+    let mut items = std::collections::HashMap::<u32, Vec<u32>>::new();
+    let rows = stmt.query_map([], |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)))?;
+    for row in rows {
+        let (routine_id, surah_id) = row?;
+        items.entry(routine_id).or_default().push(surah_id);
+    }
+    Ok(items)
+}
+
+/// Every routine, in the order the reader arranged them.
+pub fn get_routines(conn: &Connection) -> DbResult<Vec<Routine>> {
+    let mut items = routine_items(conn)?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, run_step, run_started_at FROM routine ORDER BY sort_order, id",
+    )?;
+    let routines = stmt
+        .query_map([], |row| {
+            Ok(Routine {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                surah_ids: Vec::new(),
+                run_step: row.get(2)?,
+                run_started_at: row.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(routines
+        .into_iter()
+        .map(|mut r| {
+            r.surah_ids = items.remove(&r.id).unwrap_or_default();
+            r
+        })
+        .collect())
+}
+
+/// One routine by id. Returns `DbError::NotFound` if it has been deleted.
+pub fn get_routine(conn: &Connection, routine_id: u32) -> DbResult<Routine> {
+    get_routines(conn)?
+        .into_iter()
+        .find(|r| r.id == routine_id)
+        .ok_or_else(|| DbError::NotFound(format!("routine {}", routine_id)))
+}
+
+/// Create a routine (`routine_id` of `None`) or replace an existing one's name
+/// and Surahs, returning it as stored.
+///
+/// The Surahs are replaced wholesale rather than moved row by row: a routine is
+/// a handful of items, and one delete-and-insert is far simpler than reconciling
+/// positions under a primary key that includes them. A changed list also drops
+/// the run in progress, because its step index would now point at a different
+/// Surah; a rename alone leaves it be.
+pub fn save_routine(
+    conn: &Connection,
+    routine_id: Option<u32>,
+    name: &str,
+    surah_ids: &[u32],
+) -> DbResult<Routine> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(DbError::InvalidData("a routine needs a name".into()));
+    }
+    if surah_ids.is_empty() {
+        return Err(DbError::InvalidData(
+            "a routine needs at least one Surah".into(),
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for &id in surah_ids {
+        if !(1..=114).contains(&id) {
+            return Err(DbError::InvalidData(format!("Surah {} doesn't exist", id)));
+        }
+        if !seen.insert(id) {
+            return Err(DbError::InvalidData(format!(
+                "Surah {} is in the routine twice",
+                id
+            )));
+        }
+    }
+
+    let tx = conn.unchecked_transaction()?;
+
+    let id = match routine_id {
+        Some(id) => {
+            let changed = tx.execute(
+                &format!("UPDATE routine SET name = ?2, updated_at = {NOW} WHERE id = ?1"),
+                params![id, name],
+            )?;
+            if changed == 0 {
+                return Err(DbError::NotFound(format!("routine {}", id)));
+            }
+            id
+        }
+        None => {
+            tx.execute(
+                "INSERT INTO routine (name, sort_order)
+                 VALUES (?1, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM routine))",
+                params![name],
+            )?;
+            tx.last_insert_rowid() as u32
+        }
+    };
+
+    let existing: Vec<u32> = tx
+        .prepare("SELECT surah_id FROM routine_item WHERE routine_id = ?1 ORDER BY position")?
+        .query_map(params![id], |row| row.get(0))?
+        .collect::<Result<_, _>>()?;
+
+    if existing != surah_ids {
+        tx.execute(
+            "DELETE FROM routine_item WHERE routine_id = ?1",
+            params![id],
+        )?;
+        {
+            let mut insert = tx.prepare(
+                "INSERT INTO routine_item (routine_id, position, surah_id) VALUES (?1, ?2, ?3)",
+            )?;
+            for (position, surah_id) in surah_ids.iter().enumerate() {
+                insert.execute(params![id, position as u32, surah_id])?;
+            }
+        }
+        tx.execute(
+            "UPDATE routine SET run_step = NULL, run_started_at = NULL WHERE id = ?1",
+            params![id],
+        )?;
+    }
+
+    tx.commit()?;
+    get_routine(conn, id)
+}
+
+/// Delete a routine; its items go with it through the foreign key's cascade.
+pub fn delete_routine(conn: &Connection, routine_id: u32) -> DbResult<()> {
+    conn.execute("DELETE FROM routine WHERE id = ?1", params![routine_id])?;
+    Ok(())
+}
+
+/// Put the routines in the given order. Ids not in the list keep their old
+/// `sort_order` and so sort after the ones that are listed.
+pub fn reorder_routines(conn: &Connection, routine_ids: &[u32]) -> DbResult<()> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut update = tx.prepare("UPDATE routine SET sort_order = ?2 WHERE id = ?1")?;
+        for (order, id) in routine_ids.iter().enumerate() {
+            update.execute(params![id, order as i64])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// Move a routine's run to `step`, returning the routine as stored.
+///
+/// `new_run` stamps the run as starting now — the caller decides when that is,
+/// since it is the one that knows when the reader's day turned over. `step` may
+/// equal the number of Surahs, which is how a finished run is recorded.
+pub fn set_routine_step(
+    conn: &Connection,
+    routine_id: u32,
+    step: u32,
+    new_run: bool,
+) -> DbResult<Routine> {
+    let count: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM routine_item WHERE routine_id = ?1",
+        params![routine_id],
+        |row| row.get(0),
+    )?;
+    if step > count {
+        return Err(DbError::InvalidData(format!(
+            "step {} is past the end of a {}-Surah routine",
+            step, count
+        )));
+    }
+
+    let changed = if new_run {
+        conn.execute(
+            &format!("UPDATE routine SET run_step = ?2, run_started_at = {NOW} WHERE id = ?1"),
+            params![routine_id, step],
+        )?
+    } else {
+        conn.execute(
+            "UPDATE routine SET run_step = ?2 WHERE id = ?1",
+            params![routine_id, step],
+        )?
+    };
+    if changed == 0 {
+        return Err(DbError::NotFound(format!("routine {}", routine_id)));
+    }
+
+    get_routine(conn, routine_id)
+}
+
+// =============================================================================
 // SETTINGS QUERIES
 // =============================================================================
 
@@ -1281,6 +1481,105 @@ mod tests {
             get_last_reading_position(&conn).unwrap().unwrap().ayah.id,
             ayah
         );
+
+        cleanup(path, conn);
+    }
+
+    /// Several routines, each keeping its Surahs in the order they were given
+    /// and the routines themselves in the order they were made.
+    #[test]
+    fn routines_keep_their_order() {
+        let (path, conn) = test_db("routines");
+
+        let morning = save_routine(&conn, None, " Morning ", &[36, 56, 67]).unwrap();
+        let night = save_routine(&conn, None, "Before sleep", &[67, 32]).unwrap();
+        assert_eq!(morning.name, "Morning", "names are trimmed");
+        assert_eq!(morning.surah_ids, vec![36, 56, 67]);
+        assert_eq!(morning.run_step, None);
+
+        let all = get_routines(&conn).unwrap();
+        let names: Vec<_> = all.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["Morning", "Before sleep"]);
+        // The same Surah may sit in two routines.
+        assert_eq!(all[1].surah_ids, vec![67, 32]);
+
+        reorder_routines(&conn, &[night.id, morning.id]).unwrap();
+        let names: Vec<_> = get_routines(&conn)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.name)
+            .collect();
+        assert_eq!(names, ["Before sleep", "Morning"]);
+
+        cleanup(path, conn);
+    }
+
+    /// Each routine's run is its own, a rename leaves it alone, and changing the
+    /// Surahs drops it — its step would otherwise point at a different Surah.
+    #[test]
+    fn a_routine_run_survives_a_rename_but_not_a_new_list() {
+        let (path, conn) = test_db("routine-run");
+
+        let morning = save_routine(&conn, None, "Morning", &[36, 56, 67]).unwrap();
+        let night = save_routine(&conn, None, "Night", &[67, 32]).unwrap();
+
+        let started = set_routine_step(&conn, morning.id, 0, true).unwrap();
+        assert_eq!(started.run_step, Some(0));
+        assert!(started.run_started_at.is_some());
+        let stepped = set_routine_step(&conn, morning.id, 2, false).unwrap();
+        assert_eq!(stepped.run_step, Some(2));
+        assert_eq!(stepped.run_started_at, started.run_started_at);
+
+        // Starting another routine doesn't touch this one's progress.
+        set_routine_step(&conn, night.id, 1, true).unwrap();
+        assert_eq!(get_routine(&conn, morning.id).unwrap().run_step, Some(2));
+
+        let renamed = save_routine(&conn, Some(morning.id), "Fajr", &[36, 56, 67]).unwrap();
+        assert_eq!(renamed.run_step, Some(2));
+
+        let reordered = save_routine(&conn, Some(morning.id), "Fajr", &[67, 36, 56]).unwrap();
+        assert_eq!(reordered.surah_ids, vec![67, 36, 56]);
+        assert_eq!(reordered.run_step, None);
+        assert_eq!(reordered.run_started_at, None);
+
+        // Done is one past the last step; anything further is an error.
+        assert_eq!(
+            set_routine_step(&conn, morning.id, 3, false)
+                .unwrap()
+                .run_step,
+            Some(3)
+        );
+        assert!(set_routine_step(&conn, morning.id, 4, false).is_err());
+
+        cleanup(path, conn);
+    }
+
+    #[test]
+    fn a_routine_rejects_bad_lists() {
+        let (path, conn) = test_db("routine-invalid");
+
+        assert!(save_routine(&conn, None, "  ", &[1]).is_err());
+        assert!(save_routine(&conn, None, "Empty", &[]).is_err());
+        assert!(save_routine(&conn, None, "Twice", &[18, 18]).is_err());
+        assert!(save_routine(&conn, None, "Nowhere", &[115]).is_err());
+        assert!(save_routine(&conn, Some(999), "Gone", &[1]).is_err());
+        assert!(get_routines(&conn).unwrap().is_empty());
+
+        cleanup(path, conn);
+    }
+
+    #[test]
+    fn deleting_a_routine_takes_its_items() {
+        let (path, conn) = test_db("routine-delete");
+
+        let r = save_routine(&conn, None, "Friday", &[18]).unwrap();
+        delete_routine(&conn, r.id).unwrap();
+
+        assert!(get_routines(&conn).unwrap().is_empty());
+        let items: u32 = conn
+            .query_row("SELECT COUNT(*) FROM routine_item", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(items, 0);
 
         cleanup(path, conn);
     }

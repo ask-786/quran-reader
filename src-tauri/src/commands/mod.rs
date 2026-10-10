@@ -200,6 +200,50 @@ pub fn clear_reading_history(state: State<AppDb>) -> Result<(), String> {
 }
 
 // =============================================================================
+// ROUTINE COMMANDS
+// =============================================================================
+
+#[tauri::command]
+pub fn get_routines(state: State<AppDb>) -> Result<Vec<Routine>, String> {
+    let conn = db!(state);
+    queries::get_routines(&conn).map_err(e)
+}
+
+#[tauri::command]
+pub fn save_routine(
+    state: State<AppDb>,
+    routine_id: Option<u32>,
+    name: String,
+    surah_ids: Vec<u32>,
+) -> Result<Routine, String> {
+    let conn = db!(state);
+    queries::save_routine(&conn, routine_id, &name, &surah_ids).map_err(e)
+}
+
+#[tauri::command]
+pub fn delete_routine(state: State<AppDb>, routine_id: u32) -> Result<(), String> {
+    let conn = db!(state);
+    queries::delete_routine(&conn, routine_id).map_err(e)
+}
+
+#[tauri::command]
+pub fn reorder_routines(state: State<AppDb>, routine_ids: Vec<u32>) -> Result<(), String> {
+    let conn = db!(state);
+    queries::reorder_routines(&conn, &routine_ids).map_err(e)
+}
+
+#[tauri::command]
+pub fn set_routine_step(
+    state: State<AppDb>,
+    routine_id: u32,
+    step: u32,
+    new_run: bool,
+) -> Result<Routine, String> {
+    let conn = db!(state);
+    queries::set_routine_step(&conn, routine_id, step, new_run).map_err(e)
+}
+
+// =============================================================================
 // SETTINGS COMMANDS
 // =============================================================================
 

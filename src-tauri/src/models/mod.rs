@@ -335,6 +335,25 @@ pub struct ReadingSession {
 }
 
 // =============================================================================
+// ROUTINE
+// =============================================================================
+
+/// A named, ordered list of Surahs read as a set, with the run in progress.
+///
+/// `run_step` is the index of the step the current run is on, or the number of
+/// Surahs once the last one is done. Whether that run is *today's* is the
+/// caller's call: it turns on the reader's local date, which only the frontend
+/// knows, so `run_started_at` is handed over as the UTC instant it is.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Routine {
+    pub id: u32,
+    pub name: String,
+    pub surah_ids: Vec<u32>,
+    pub run_step: Option<u32>,
+    pub run_started_at: Option<String>,
+}
+
+// =============================================================================
 // SEARCH
 // =============================================================================
 

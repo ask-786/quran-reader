@@ -8,6 +8,7 @@
   import Toolbar from '$lib/components/layout/Toolbar.svelte';
   import NavPalette from '$lib/components/navigation/NavPalette.svelte';
   import SettingsDialog from '$lib/components/settings/SettingsDialog.svelte';
+  import RoutineEditor from '$lib/components/routines/RoutineEditor.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
@@ -17,16 +18,36 @@
   import { playbackStore } from '$lib/stores/playback.svelte';
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
+  import { routinesStore } from '$lib/stores/routines.svelte';
   import { isNarrowViewport } from '$lib/utils/viewport';
 
   const MAX_PAGE = 604;
 
   let { children } = $props();
 
-  // n/p step through the adjacent Surah/Juz/Hizb/page, bounds keyed by the current route.
-  function navigateAdjacent(direction: 1 | -1) {
+  /**
+   * n/p step through the adjacent Surah/Juz/Hizb/page, bounds keyed by the
+   * current route — or, on the Surah a routine is up to, through the routine.
+   *
+   * `plain` is Shift+N/P: the Mushaf's own neighbour even inside a routine, the
+   * deliberate way out of it. The routine isn't ended by that, only left; the
+   * toolbar chip is the way back.
+   */
+  function navigateAdjacent(direction: 1 | -1, plain = false) {
     const currentId = Number($page.params.id);
     if (!Number.isInteger(currentId)) return;
+
+    if (!plain && routinesStore.isOnStep($page.route.id, currentId)) {
+      const href = routinesStore.stepHref(direction);
+      // Past either end of a routine is nowhere — falling through to the
+      // Mushaf's next Surah would quietly carry the reader out of it. Forward
+      // off the last step is finishing it.
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- built by routineStepHref, which resolves it
+      if (href) goto(href);
+      else if (direction === 1) void routinesStore.complete();
+      return;
+    }
+
     const next = currentId + direction;
 
     switch ($page.route.id) {
@@ -65,6 +86,7 @@
     settingsStore.init().then(() => tafsirStore.init());
     surahsStore.init();
     bookmarksStore.init();
+    routinesStore.init();
     // The reciter catalogue. A local query that makes no request of its own;
     // the tafsir card's listen button needs it to know whether a reciter has
     // been chosen.
@@ -97,7 +119,7 @@
      * the panel down too.
      */
     function onPointerDown(e: PointerEvent) {
-      if (uiStore.settingsOpen || uiStore.paletteOpen) return;
+      if (uiStore.modalOpen) return;
       const target = e.target;
       tafsirStore.notePointerDown(target instanceof Element ? target : null);
     }
@@ -112,7 +134,11 @@
         // left to clear, so it goes before the popover beneath it — and the
         // popover before focus mode, or dismissing a card in focus mode would
         // tear down the whole chrome instead.
-        if (uiStore.settingsOpen) {
+        if (uiStore.routineEditor) {
+          uiStore.closeRoutineEditor();
+        } else if (uiStore.routinesMenuOpen) {
+          uiStore.closeRoutinesMenu();
+        } else if (uiStore.settingsOpen) {
           uiStore.closeSettings();
         } else if (uiStore.paletteOpen) {
           uiStore.closePalette();
@@ -177,7 +203,7 @@
         }
       }
 
-      if (uiStore.paletteOpen || uiStore.settingsOpen || e.ctrlKey || e.metaKey || e.altKey) {
+      if (uiStore.modalOpen || e.ctrlKey || e.metaKey || e.altKey) {
         return;
       }
       const target = e.target as HTMLElement;
@@ -291,10 +317,13 @@
           uiStore.toggleReadingMode();
           break;
         case 'n':
-          navigateAdjacent(1);
+          navigateAdjacent(1, e.shiftKey);
           break;
         case 'p':
-          navigateAdjacent(-1);
+          navigateAdjacent(-1, e.shiftKey);
+          break;
+        case 'r':
+          uiStore.toggleRoutinesMenu();
           break;
         case 'a':
           autoScrollStore.toggle();
@@ -337,6 +366,7 @@
 
 <NavPalette />
 <SettingsDialog />
+<RoutineEditor />
 
 <style>
   .app-shell {

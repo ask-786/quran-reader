@@ -13,6 +13,7 @@
   import AyahRow from './AyahRow.svelte';
   import SurahHeader from './SurahHeader.svelte';
   import KhatmDua from './KhatmDua.svelte';
+  import RoutineNextCard from './RoutineNextCard.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
@@ -647,6 +648,7 @@
     {#if endsQuran}
       <KhatmDua />
     {/if}
+    <RoutineNextCard />
   </div>
 </div>
 

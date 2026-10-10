@@ -80,6 +80,26 @@ export type NavEntry =
 type Parsed =
   { type: 'ayah'; surahId: number; ayahNumber: number } | { type: 'page'; page: number } | null;
 
+/**
+ * The Surahs matching a filter box, by Arabic name, transliteration, English
+ * name or number. Shared with the routine editor's picker, so a Surah is found
+ * by the same words wherever you look for it.
+ */
+export function filterSurahs(list: Surah[], query: string): Surah[] {
+  const trimmed = query.trim();
+  const q = trimmed.toLowerCase();
+  if (!q) return list;
+  // Both sides unvocalised: nobody types the Mushaf's harakat into a filter box.
+  const qArabic = stripTashkeel(trimmed);
+  return list.filter(
+    (s) =>
+      stripTashkeel(s.name_ar).includes(qArabic) ||
+      s.transliteration.toLowerCase().includes(q) ||
+      s.name_en.toLowerCase().includes(q) ||
+      String(s.id) === q,
+  );
+}
+
 /** Unique per instance, so two panels on screen don't share option element ids. */
 let nextPanelId = 1;
 
@@ -128,19 +148,7 @@ export class Navigator {
 
   #trimmed = $derived(this.query.trim());
 
-  #surahs = $derived.by(() => {
-    const q = this.#trimmed.toLowerCase();
-    if (!q) return surahsStore.list;
-    // Both sides unvocalised: nobody types the Mushaf's harakat into a filter box.
-    const qArabic = stripTashkeel(this.#trimmed);
-    return surahsStore.list.filter(
-      (s) =>
-        stripTashkeel(s.name_ar).includes(qArabic) ||
-        s.transliteration.toLowerCase().includes(q) ||
-        s.name_en.toLowerCase().includes(q) ||
-        String(s.id) === q,
-    );
-  });
+  #surahs = $derived(filterSurahs(surahsStore.list, this.#trimmed));
 
   #units = $derived.by(() => {
     const list = this.mode === 'hizb' ? HIZB_LIST : JUZ_LIST;

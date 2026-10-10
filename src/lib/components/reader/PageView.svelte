@@ -21,6 +21,7 @@
   import { playbackStore } from '$lib/stores/playback.svelte';
   import SurahHeader from './SurahHeader.svelte';
   import KhatmDua from './KhatmDua.svelte';
+  import RoutineNextCard from './RoutineNextCard.svelte';
 
   let {
     ayahs,
@@ -627,6 +628,7 @@
         {#if endsQuran}
           <div class="khatm-slot"><KhatmDua /></div>
         {/if}
+        <RoutineNextCard />
       </div>
     {/if}
   </div>
