@@ -190,6 +190,11 @@ pub struct Settings {
     /// The floating card's size from its resize grip. 0 = automatic.
     pub tafsir_card_width: u32,
     pub tafsir_card_height: u32,
+    /// Multiplier on the commentary's text size, from the zoom buttons in the
+    /// card and panel headers. Separate from reader zoom: the two texts are
+    /// read at different sizes, and leaning in on one is not a reason to
+    /// re-flow the other.
+    pub tafsir_zoom: f32,
     /// "popover" | "panel" — which surface a tafsir trigger opens.
     pub tafsir_view: String,
     /// Whether clicking a verse opens its commentary. Off by default: with the
@@ -245,6 +250,7 @@ impl Default for Settings {
             tafsir_panel_width: 420,
             tafsir_card_width: 0,
             tafsir_card_height: 0,
+            tafsir_zoom: 1.0,
             tafsir_view: "popover".to_string(),
             tafsir_click: false,
             show_transliteration: false,

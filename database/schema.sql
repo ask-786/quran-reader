@@ -393,6 +393,7 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     -- The floating card's size from its resize grip; 0 = automatic.
     ('tafsir_card_width',       '0'),
     ('tafsir_card_height',      '0'),
+    ('tafsir_zoom',             '1'),
     ('tafsir_view',             'popover'),   -- 'popover' | 'panel'
     ('show_transliteration',    'false'),
     ('show_ayah_numbers',       'true'),

@@ -45,38 +45,44 @@
   const paragraphs = $derived(entry ? entry.text.split(/\n{2,}/).filter(Boolean) : []);
 </script>
 
-{#if !edition}
-  <!-- The app can ship with no commentary at all, so this is what a new reader
-       may see first. The shelf lives in Settings now, which is reachable from
-       both surfaces — the popover used to have to send readers to the panel
-       first, because the list only existed inside it. -->
-  <p class="state">No commentary is installed yet. Recitation above still works.</p>
-  <button class="cta" onclick={() => uiStore.openSettings('editions')}>Browse editions</button>
-{:else if tafsirStore.error}
-  <p class="state">{tafsirStore.error}</p>
-{:else if tafsirStore.targetAyahId === null}
-  <p class="state">Open a Surah to read its commentary.</p>
-{:else if entry}
-  <p class="verse-ref">
-    {#if surahName}<span class="surah">{surahName}</span>{/if}
-    <span class="key">{verseLabel}</span>
-    {#if groupLabel}<span class="group">{groupLabel}</span>{/if}
-  </p>
-  <div class="text" dir={edition.direction} class:rtl={edition.direction === 'rtl'}>
-    {#each paragraphs as para, i (i)}
-      <p>{para}</p>
-    {/each}
-  </div>
-{:else if tafsirStore.loading}
-  <p class="state">Loading…</p>
-{:else}
-  <!-- A gap is normal, not a failure: al-Jalalayn passes over verses that need
-       no gloss (226 of them in the Arabic edition), and saying so is more
-       useful than an empty panel. -->
-  <p class="state">
-    No separate commentary on this verse — this edition comments on the surrounding verses instead.
-  </p>
-{/if}
+<!-- The zoom is set here rather than on the document root: the card measures
+     itself after each change to fit the commentary, and a value applied in the
+     same update as everything else is already in the DOM when it does. -->
+<div style:--tafsir-zoom={tafsirStore.zoom}>
+  {#if !edition}
+    <!-- The app can ship with no commentary at all, so this is what a new reader
+         may see first. The shelf lives in Settings now, which is reachable from
+         both surfaces — the popover used to have to send readers to the panel
+         first, because the list only existed inside it. -->
+    <p class="state">No commentary is installed yet. Recitation above still works.</p>
+    <button class="cta" onclick={() => uiStore.openSettings('editions')}>Browse editions</button>
+  {:else if tafsirStore.error}
+    <p class="state">{tafsirStore.error}</p>
+  {:else if tafsirStore.targetAyahId === null}
+    <p class="state">Open a Surah to read its commentary.</p>
+  {:else if entry}
+    <p class="verse-ref">
+      {#if surahName}<span class="surah">{surahName}</span>{/if}
+      <span class="key">{verseLabel}</span>
+      {#if groupLabel}<span class="group">{groupLabel}</span>{/if}
+    </p>
+    <div class="text" dir={edition.direction} class:rtl={edition.direction === 'rtl'}>
+      {#each paragraphs as para, i (i)}
+        <p>{para}</p>
+      {/each}
+    </div>
+  {:else if tafsirStore.loading}
+    <p class="state">Loading…</p>
+  {:else}
+    <!-- A gap is normal, not a failure: al-Jalalayn passes over verses that need
+         no gloss (226 of them in the Arabic edition), and saying so is more
+         useful than an empty panel. -->
+    <p class="state">
+      No separate commentary on this verse — this edition comments on the surrounding verses
+      instead.
+    </p>
+  {/if}
+</div>
 
 <style>
   .cta {
@@ -102,7 +108,7 @@
     align-items: baseline;
     gap: 8px;
     margin: 0 0 10px;
-    font-size: 12px;
+    font-size: calc(12px * var(--tafsir-zoom));
     color: var(--color-text-muted);
   }
 
@@ -113,7 +119,7 @@
 
   .text p {
     margin: 0 0 12px;
-    font-size: 14.5px;
+    font-size: calc(14.5px * var(--tafsir-zoom));
     line-height: 1.75;
     color: var(--color-text);
   }
@@ -132,13 +138,13 @@
      same apparent size and colour. */
   .text.rtl p {
     font-family: var(--font-arabic-prose);
-    font-size: 17px;
+    font-size: calc(17px * var(--tafsir-zoom));
     line-height: 2.05;
   }
 
   .state {
     margin: 0;
-    font-size: 13.5px;
+    font-size: calc(13.5px * var(--tafsir-zoom));
     line-height: 1.7;
     color: var(--color-text-muted);
   }

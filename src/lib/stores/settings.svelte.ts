@@ -83,6 +83,7 @@ function defaultSettings(): Settings {
     tafsir_panel_width: 420,
     tafsir_card_width: 0,
     tafsir_card_height: 0,
+    tafsir_zoom: 1,
     tafsir_view: 'popover',
     tafsir_click: false,
     show_transliteration: false,

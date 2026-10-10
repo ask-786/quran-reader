@@ -5,6 +5,7 @@
   import TafsirMeta from './TafsirMeta.svelte';
   import TafsirAudioRow from '$lib/components/audio/TafsirAudioRow.svelte';
   import TafsirBody from './TafsirBody.svelte';
+  import TafsirZoomControl from './TafsirZoomControl.svelte';
 
   /** Gap between the anchor and the card, and the arrow's own size. */
   const GAP = 10;
@@ -341,6 +342,9 @@
     void selection;
     void tafsirStore.entry;
     void tafsirStore.loading;
+    // Text size changes the commentary's height, which an automatic-height
+    // card has to follow.
+    void tafsirStore.zoom;
     if (!card) return;
     // Compared by verse, not by selection object. Opening the same verse again
     // makes a new object, and that should not undo a move.
@@ -447,6 +451,7 @@
     >
       <TafsirMeta compact />
       <div class="actions">
+        <TafsirZoomControl size={15} />
         <button
           class="icon-btn"
           onclick={() => tafsirStore.step(-1)}
