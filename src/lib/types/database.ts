@@ -304,6 +304,24 @@ export interface ReadingSession {
 }
 
 // =============================================================================
+// ROUTINE
+// =============================================================================
+
+/**
+ * A named, ordered list of Surahs read as a set. `run_step` is the step the
+ * current run is on — or `surah_ids.length` once it is done — and
+ * `run_started_at` is when that run began, which is what decides whether it is
+ * today's. Both null for a routine never started.
+ */
+export interface Routine {
+  id: number;
+  name: string;
+  surah_ids: number[];
+  run_step: number | null;
+  run_started_at: string | null; // ISO 8601 UTC
+}
+
+// =============================================================================
 // SEARCH
 // =============================================================================
 

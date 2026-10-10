@@ -21,6 +21,7 @@
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
+  import RoutinesMenu from '$lib/components/routines/RoutinesMenu.svelte';
   import type { Theme } from '$lib/types/database';
 
   const THEMES: Theme[] = ['dark', 'light', 'sepia'];
@@ -74,6 +75,8 @@
   >
     <Search size={18} />
   </button>
+
+  <RoutinesMenu />
 
   <h1 class="title" data-tauri-drag-region>{heading ?? 'Quran Reader'}</h1>
 

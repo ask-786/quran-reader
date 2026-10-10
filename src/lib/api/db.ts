@@ -23,6 +23,7 @@ import type {
   ReadingPosition,
   ReadingScope,
   ReadingSession,
+  Routine,
 } from '$lib/types/database';
 
 // =============================================================================
@@ -157,6 +158,40 @@ export function getReadingHistory(limit?: number): Promise<ReadingSession[]> {
 /** Forget every sitting. Reading positions are deliberately left alone. */
 export function clearReadingHistory(): Promise<void> {
   return invoke('clear_reading_history');
+}
+
+// =============================================================================
+// ROUTINES
+// =============================================================================
+
+/** Every routine, in the order the reader arranged them. */
+export function getRoutines(): Promise<Routine[]> {
+  return invoke('get_routines');
+}
+
+/**
+ * Create a routine (no `routineId`) or replace one's name and Surahs. A changed
+ * list of Surahs drops the run in progress; a rename keeps it.
+ */
+export function saveRoutine(
+  routineId: number | null,
+  name: string,
+  surahIds: number[],
+): Promise<Routine> {
+  return invoke('save_routine', { routineId, name, surahIds });
+}
+
+export function deleteRoutine(routineId: number): Promise<void> {
+  return invoke('delete_routine', { routineId });
+}
+
+export function reorderRoutines(routineIds: number[]): Promise<void> {
+  return invoke('reorder_routines', { routineIds });
+}
+
+/** Move a routine's run to `step`; `newRun` stamps the run as starting now. */
+export function setRoutineStep(routineId: number, step: number, newRun: boolean): Promise<Routine> {
+  return invoke('set_routine_step', { routineId, step, newRun });
 }
 
 // =============================================================================

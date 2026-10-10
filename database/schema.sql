@@ -316,6 +316,32 @@ CREATE TABLE IF NOT EXISTS reading_session (
 CREATE INDEX IF NOT EXISTS idx_reading_session_updated ON reading_session(updated_at DESC);
 
 -- =============================================================================
+-- ROUTINES
+-- Named, ordered lists of Surahs read as a set, each with its own run of the
+-- day. See migrations/011_routines.sql and docs/routines-plan.md.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS routine (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT    NOT NULL CHECK (length(trim(name)) > 0),
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    run_step        INTEGER CHECK (run_step >= 0),
+    run_started_at  TEXT,
+    created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS routine_item (
+    routine_id  INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL CHECK (position >= 0),
+    surah_id    INTEGER NOT NULL REFERENCES surah(id),
+    start_ayah  INTEGER,
+    end_ayah    INTEGER,
+    PRIMARY KEY (routine_id, position),
+    UNIQUE (routine_id, surah_id)
+);
+
+-- =============================================================================
 -- RECITATION AUDIO
 -- Reciters, and bookkeeping over the on-disk audio cache. No audio is stored
 -- here or shipped with the app: files are fetched per Ayah from a public CDN
@@ -513,3 +539,4 @@ INSERT OR IGNORE INTO schema_version (version) VALUES (7);
 INSERT OR IGNORE INTO schema_version (version) VALUES (8);
 INSERT OR IGNORE INTO schema_version (version) VALUES (9);
 INSERT OR IGNORE INTO schema_version (version) VALUES (10);
+INSERT OR IGNORE INTO schema_version (version) VALUES (11);

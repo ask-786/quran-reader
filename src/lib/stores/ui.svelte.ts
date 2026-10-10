@@ -29,6 +29,21 @@ class UiStore {
   paletteOpen = $state(false);
 
   /**
+   * The routines menu, dropped from the toolbar: every routine, with today's
+   * progress, and the way to start, edit or make one. Not modal in look, but
+   * treated as one for the keys — it is a list you are choosing from, and the
+   * reader's bare-letter shortcuts have no business firing underneath it.
+   */
+  routinesMenuOpen = $state(false);
+
+  /**
+   * The routine editor: `{ id: null }` for a new routine, an id to edit one,
+   * null while it is shut. A dialog like settings, for the same reason — it
+   * must not unmount the reader.
+   */
+  routineEditor = $state<{ id: number | null } | null>(null);
+
+  /**
    * Set by the search shortcut, cleared by the sidebar once it has focused its
    * filter box. A flag rather than a counter so a later sidebar remount — a
    * focus-mode toggle, say — doesn't replay a focus the user never asked for.
@@ -90,6 +105,8 @@ class UiStore {
 
   openPalette() {
     this.settingsOpen = false;
+    this.routineEditor = null;
+    this.routinesMenuOpen = false;
     this.paletteOpen = true;
   }
 
@@ -118,7 +135,43 @@ class UiStore {
   openSettings(section?: SettingsSection) {
     if (section) this.settingsSection = section;
     this.paletteOpen = false;
+    this.routineEditor = null;
+    this.routinesMenuOpen = false;
     this.settingsOpen = true;
+  }
+
+  /** Open the routine editor on a routine, or on a new one with no id. */
+  openRoutineEditor(id: number | null = null) {
+    this.paletteOpen = false;
+    this.settingsOpen = false;
+    this.routinesMenuOpen = false;
+    this.routineEditor = { id };
+  }
+
+  closeRoutineEditor() {
+    this.routineEditor = null;
+  }
+
+  /** Whether a modal dialog is covering the reader. */
+  get modalOpen() {
+    return (
+      this.paletteOpen || this.settingsOpen || this.routinesMenuOpen || this.routineEditor !== null
+    );
+  }
+
+  toggleRoutinesMenu() {
+    if (this.routinesMenuOpen) {
+      this.routinesMenuOpen = false;
+      return;
+    }
+    this.paletteOpen = false;
+    this.settingsOpen = false;
+    this.routineEditor = null;
+    this.routinesMenuOpen = true;
+  }
+
+  closeRoutinesMenu() {
+    this.routinesMenuOpen = false;
   }
 
   closeSettings() {
@@ -136,6 +189,8 @@ class UiStore {
    */
   focusSearch() {
     this.settingsOpen = false;
+    this.routineEditor = null;
+    this.routinesMenuOpen = false;
     if (this.focusMode) this.exitFocusMode();
     this.sidebarOpen = true;
     this.searchFocusPending = true;
