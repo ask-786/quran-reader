@@ -57,8 +57,11 @@ that is a problem for your use case, remove `static/fonts/mushaf-v4/` and
 fetch the fonts at runtime instead. Selling a build that bundles them is the
 case most likely to be a problem.
 
-The Basmala glyph comes from `QCF4_Hafs_01`, under the same terms; this
-project no longer ships a separate Basmala font.
+The Basmala artwork comes from `QCF4_Hafs_01`, under the same terms; this
+project no longer ships a separate Basmala font. Its outlines are also
+extracted into `src/lib/utils/basmala-paths.ts` (by
+`scripts/generate-basmala-paths.py`) so it can be drawn as SVG, and that file
+is the same KFGQPC artwork under the same terms.
 
 The `pages/*.json` layout data this project's importer reads from the same
 repository is MIT licensed (its README says so explicitly); only the font

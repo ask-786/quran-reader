@@ -2,23 +2,37 @@
   import { Headphones } from 'lucide-svelte';
   import type { GlyphSpan, Surah } from '$lib/types/database';
   import { BISMILLAH_TEXT, shouldShowBismillahHeader } from '$lib/utils/bismillah';
+  import {
+    BASMALA_ASCENT,
+    BASMALA_DESCENT,
+    BASMALA_PATHS,
+    BASMALA_UNITS_PER_EM,
+  } from '$lib/utils/basmala-paths';
   import { playbackStore } from '$lib/stores/playback.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
 
   let {
     surah,
     basmalaWords = [],
-    basmalaFontFamily = null,
     glyphsPending = false,
   }: {
     surah: Surah;
     basmalaWords?: GlyphSpan[];
-    basmalaFontFamily?: string | null;
     // Set while the caller's glyph fetch is still in flight, so an empty
     // basmalaWords means "not here yet" rather than "not available" — see the
     // fallback note in the style block below.
     glyphsPending?: boolean;
   } = $props();
+
+  // The QCF glyph's outline, drawn as SVG rather than set in the font — see
+  // scripts/generate-basmala-paths.py for the Windows rasterizer bug that
+  // forces this. Null when the layout data names a glyph we have no outline
+  // for, which falls through to the live-shaped text below.
+  const basmala = $derived.by(() => {
+    const word = basmalaWords[0];
+    const path = word?.glyph_v4 ? BASMALA_PATHS[word.glyph_v4] : undefined;
+    return path ? { ...path, label: word.uthmani_text } : null;
+  });
 
   /**
    * Listening to the Surah starts here and nowhere in the text.
@@ -64,12 +78,20 @@
   </div>
 
   {#if shouldShowBismillahHeader(surah) && (basmalaWords.length || !glyphsPending)}
-    <p class="bismillah" style:font-family={basmalaWords.length ? basmalaFontFamily : null}>
-      {#if basmalaWords.length}
-        {#each basmalaWords as w, i (i)}<span class="glyph" aria-label={w.uthmani_text}
-            >{w.glyph_v4}</span
-          >
-        {/each}
+    <p class="bismillah">
+      {#if basmala}
+        <!-- The box is the glyph's own em box: its advance wide and the font's
+             ascent + descent tall, so the line sits where the font glyph did. -->
+        <svg
+          class="basmala-art"
+          role="img"
+          aria-label={basmala.label}
+          viewBox="0 {-BASMALA_ASCENT} {basmala.advance} {BASMALA_ASCENT + BASMALA_DESCENT}"
+          style:width="{basmala.advance / BASMALA_UNITS_PER_EM}em"
+          style:height="{(BASMALA_ASCENT + BASMALA_DESCENT) / BASMALA_UNITS_PER_EM}em"
+        >
+          <path d={basmala.d} transform="scale(1,-1)" />
+        </svg>
       {:else}
         <span class="bismillah-fallback">{BISMILLAH_TEXT}</span>
       {/if}
@@ -171,7 +193,7 @@
     border-color: var(--color-accent);
   }
 
-  /* Sized here for both the QCF glyph spans and the fallback below, so the
+  /* Sized here for both the QCF artwork and the fallback below, so the
      basmala scales with the banner rather than with the Ayah text. */
   .bismillah {
     margin: 22px 0 0;
@@ -179,16 +201,19 @@
     color: var(--color-accent);
   }
 
-  /* QCF v4 renders the Basmala as one Private Use Area glyph, bidi class L.
-     A single glyph can't be mis-ordered on its own, but the override keeps
-     this consistent with the word spans elsewhere and stays correct if a
-     future font version splits the phrase across several glyphs (QCF v2
-     already used three). See AyahRow's .ayah-text for the full reasoning. */
-  .glyph {
-    unicode-bidi: bidi-override;
+  /* em-sized off .bismillah's font-size, so it tracks reader zoom exactly as
+     the font glyph did. Block + auto margins rather than inline: an inline
+     SVG would sit on the paragraph's baseline and add the UI font's descent
+     under it. Never wider than the column — at large zoom on a narrow window
+     the art scales down rather than overflowing. */
+  .basmala-art {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    fill: currentColor;
   }
 
-  /* Only reached when the Surah's own page (and so its QCF basmala glyphs) is
+  /* Only reached when the Surah's own page (and so its QCF basmala glyph) is
      outside the fetched range — e.g. a Juz view opening mid-Surah. Live-shaped,
      and BISMILLAH_TEXT contains U+0670 in ٱلرَّحْمَٰنِ, so it needs the same
      font as the Surah name.

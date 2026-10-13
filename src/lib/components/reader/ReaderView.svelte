@@ -6,7 +6,6 @@
   import {
     ensurePageFont,
     familyForPage,
-    loadBasmalaFont,
     loadFontMap,
     trimPageFonts,
   } from '$lib/utils/mushaf-fonts';
@@ -68,7 +67,6 @@
   // basmala line always immediately follows its surah_header line on the
   // page that opens it, so it's within the same page range as its Ayahs.
   const basmalaWords = new SvelteMap<number, GlyphSpan[]>();
-  let basmalaFontFamily = $state<string | null>(null);
   // Rows render empty until the glyph words below have been fetched, so they
   // collapse to a fraction of their real height. Scrolling to an Ayah before
   // then measures those stub rows and lands nowhere near it — positioning waits
@@ -337,13 +335,8 @@
       // One call for the whole range, served from the process-wide cache on a
       // view toggle or a revisit — this is what makes flipping between the
       // Mushaf and the list instant instead of refetching every page.
-      const [pageData, basmalaFamily] = await Promise.all([
-        loadPages(start, end),
-        loadBasmalaFont(),
-        loadFontMap(),
-      ]);
+      const [pageData] = await Promise.all([loadPages(start, end), loadFontMap()]);
       if (cancelled) return;
-      basmalaFontFamily = basmalaFamily;
 
       // Only a genuinely different page range invalidates the glyph maps and
       // the measured heights. This effect also re-runs when just the scroll
@@ -620,7 +613,6 @@
           <SurahHeader
             surah={seg.surah}
             basmalaWords={basmalaWords.get(seg.surah.id) ?? []}
-            {basmalaFontFamily}
             glyphsPending={!wordsReady}
           />
         {/if}
