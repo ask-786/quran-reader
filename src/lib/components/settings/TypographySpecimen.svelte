@@ -8,9 +8,9 @@
   glyphs have their own advances and their own mark heights, and choosing a
   text size against Amiri would tell you nothing about how a page will land.
 
-  Page 1 rather than any page: its font group, QCF4_Hafs_01, is the one the
-  loader pins for the Basmala and never evicts, so previewing costs at most one
-  fetch that the reader was going to make anyway.
+  Page 1 rather than any page: it is Al-Fatihah, the passage a reader is most
+  likely to recognise at a glance, which is what makes size and leading
+  judgements quick.
 
   Reader zoom is deliberately not applied. This shows the base size the slider
   sets; zoom multiplies it per view, and folding it in here would put a number

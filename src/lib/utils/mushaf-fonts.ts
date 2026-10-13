@@ -1,7 +1,7 @@
 /**
  * Lazily loads the QCF v4 Mushaf fonts (47 font groups covering all 604
- * pages, ~13 pages per group, plus one surah-header/basmala font) via the
- * CSS Font Loading API instead of declaring every @font-face rule up front.
+ * pages, ~13 pages per group) via the CSS Font Loading API instead of
+ * declaring every @font-face rule up front.
  *
  * Fonts are loaded one group at a time and kept in an LRU, rather than as an
  * all-or-nothing active set. See docs/qcf-v4-font-migration-plan.md for the
@@ -19,36 +19,10 @@
  */
 
 /**
- * The Basmala glyph lives in `QCF4_Hafs_01` — *not* in `QCF4_QBSML`, despite
- * what that font's name suggests. QBSML holds the Surah-title banner glyphs,
- * which this app never renders (SurahHeader draws the name live from
- * `surah.name_ar` in Amiri); QBSML's copies of the Basmala
- * codepoints are zero-contour blanks, so rendering the Basmala with it
- * silently produces an empty line.
- *
- * Every v4 page's `bismillah` entry names `QCF4_Hafs_01` regardless of which
- * font group the page itself belongs to, so this is a fixed family rather
- * than a per-page lookup. It is also pages 1–13's own group font, which is
- * why it shares the family registry below instead of holding its own
- * FontFace — two FontFaces for one family would double-fetch the same file.
- */
-const BASMALA_FAMILY = 'QCF4_Hafs_01';
-
-/**
- * Basmala lines use a single whole-phrase glyph. Loaded once and kept for the
- * app's lifetime (never trimmed — see `trimPageFonts`), since it is reused on
- * every Surah-opening page.
- */
-export function loadBasmalaFont(): Promise<string> {
-  return ensureFamily(BASMALA_FAMILY);
-}
-
-/**
  * page -> font-group family, e.g. "1" -> "QCF4_Hafs_01". Populated once by
  * `loadFontMap`; every export below that resolves a page to a family assumes
  * it has already been awaited (every caller in PageView/ReaderView loads it
- * alongside `loadPages`/`loadBasmalaFont`, before rendering anything that
- * needs a family name).
+ * alongside `loadPages`, before rendering anything that needs a family name).
  */
 let fontMap: Record<string, string> = {};
 let fontMapPromise: Promise<void> | null = null;
@@ -104,8 +78,7 @@ export function ensurePageFont(page: number): Promise<string> {
 
 /**
  * Load and register one font group by family name. Concurrent callers for the
- * same family — including a page load and the Basmala load racing each other
- * over `QCF4_Hafs_01` — share a single fetch.
+ * same family (co-grouped pages) share a single fetch.
  */
 function ensureFamily(family: string): Promise<string> {
   const hit = loaded.get(family);
@@ -139,11 +112,9 @@ function ensureFamily(family: string): Promise<string> {
 export function trimPageFonts(retainedPages: Iterable<number>): void {
   if (loaded.size <= MAX_FONTS) return;
 
-  // The Basmala family is pinned, never trimmed. It is also pages 1–13's own
-  // group font, so without this it would be evicted as soon as the reader
-  // scrolled far enough from the start of the Mushaf — and every Surah banner
-  // from then on would render a blank Basmala, anywhere in the Mushaf.
-  const keepFamilies = new Set<string>([BASMALA_FAMILY]);
+  // The Basmala is not a font concern — SurahHeader draws it as SVG (see
+  // scripts/generate-basmala-paths.py) — so no family needs pinning here.
+  const keepFamilies = new Set<string>();
   for (const page of retainedPages) {
     const family = familyForPage(page);
     if (family) keepFamilies.add(family);

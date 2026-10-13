@@ -6,7 +6,6 @@
   import {
     ensurePageFont,
     familyForPage,
-    loadBasmalaFont,
     loadFontMap,
     trimPageFonts,
   } from '$lib/utils/mushaf-fonts';
@@ -64,7 +63,6 @@
   let pages = $state<MushafPage[]>([]);
   /** The range reaches the last Ayah of the Quran (An-Nas 114:6). */
   const endsQuran = $derived(ayahs.at(-1)?.surah_id === 114 && ayahs.at(-1)?.ayah_number === 6);
-  let basmalaFontFamily = $state<string | null>(null);
   /**
    * Whether the page content is fit to be painted — which means the layout is
    * loaded *and* the glyphs around the landing spot are registered, not just
@@ -368,13 +366,8 @@
         // of Al-Baqara is ~6k word rows) and cached across view toggles, so
         // this is what makes the line boxes, and every scroll offset derived
         // from them, correct before any glyph has been fetched.
-        const [loaded, basmalaFamily] = await Promise.all([
-          loadPages(start, end),
-          loadBasmalaFont(),
-          loadFontMap(),
-        ]);
+        const [loaded] = await Promise.all([loadPages(start, end), loadFontMap()]);
         if (cancelled) return;
-        basmalaFontFamily = basmalaFamily;
         pages = loaded;
 
         // Only the pages around the landing spot are fetched before the first
@@ -554,7 +547,6 @@
                     <SurahHeader
                       surah={headerSurah}
                       basmalaWords={nextLine?.line_type === 'basmala' ? nextLine.words : []}
-                      {basmalaFontFamily}
                     />
                   </div>
                 {/if}
