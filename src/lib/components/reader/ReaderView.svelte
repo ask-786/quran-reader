@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import type { Ayah, AyahGlyphWord, GlyphSpan, Surah } from '$lib/types/database';
   import { loadPages } from '$lib/api/page-cache';
@@ -7,6 +7,8 @@
     ensurePageFont,
     familyForPage,
     loadFontMap,
+    pageSpan,
+    preloadPageFonts,
     trimPageFonts,
   } from '$lib/utils/mushaf-fonts';
   import AyahRow from './AyahRow.svelte';
@@ -15,7 +17,7 @@
   import RoutineNextCard from './RoutineNextCard.svelte';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
-  import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
+  import { autoScrollStore, driveAutoScroll } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
@@ -321,8 +323,18 @@
       for (const p of toAdd) renderedPages.add(p);
       for (const p of toDrop) renderedPages.delete(p);
     });
-    trimPageFonts(renderedPages);
+    trimFonts();
   }
+
+  // Keeps the whole range's groups, and waits out an auto-scroll run — see the
+  // same pair in PageView.
+  function trimFonts() {
+    if (!autoScrollStore.running) trimPageFonts(pageSpan(firstPage, lastPage));
+  }
+
+  $effect(() => {
+    if (!autoScrollStore.running) untrack(trimFonts);
+  });
 
   $effect(() => {
     const start = firstPage;
@@ -407,6 +419,11 @@
       for (const p of seeds) renderedPages.add(p);
 
       wordsReady = true;
+
+      // The rest of the range's fonts while little is rendered — see PageView.
+      await preloadPageFonts(pageSpan(start, end));
+      if (cancelled) return;
+      trimFonts();
     })();
 
     return () => {
@@ -563,33 +580,16 @@
   });
 
   $effect(() => {
-    if (!autoScrollStore.active || !container) return;
-    let raf: number;
-    let last = performance.now();
-
-    function step(now: number) {
-      const dt = (now - last) / 1000;
-      last = now;
-      if (container) {
-        const { whole, fraction } = autoScrollStore.tick(dt);
-        if (whole !== 0) container.scrollTop += whole;
-        if (content) content.style.transform = fraction > 0 ? `translateY(${-fraction}px)` : '';
-        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
-          autoScrollStore.stop();
-          return;
-        }
-      }
-      raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(raf);
-      if (content) content.style.transform = '';
-    };
+    if (!autoScrollStore.running || !container || !content) return;
+    return driveAutoScroll(container, content);
   });
 </script>
 
-<div bind:this={container} class="reader-scroll scrollbar-none">
+<div
+  bind:this={container}
+  class="reader-scroll scrollbar-none"
+  class:auto-scrolling={autoScrollStore.running}
+>
   <div bind:this={content} class="reader-content">
     {#each ayahs as ayah, i (ayah.id)}
       <!-- The page number labels the page *above* it, matching the footer under
@@ -617,10 +617,13 @@
           />
         {/if}
       {/if}
+      <!-- Read once per row: a page not in the set subscribes to the whole
+           set, so each test re-runs whenever any page enters or leaves. -->
+      {@const glyphs = renderedPages.has(ayah.page)}
       <AyahRow
         {ayah}
-        words={renderedPages.has(ayah.page) ? (ayahWords.get(ayah.id) ?? []) : []}
-        reservedHeight={renderedPages.has(ayah.page) ? null : reservedHeight(ayah.id)}
+        words={glyphs ? (ayahWords.get(ayah.id) ?? []) : []}
+        reservedHeight={glyphs ? null : reservedHeight(ayah.id)}
         translation={showTranslation ? (translations[ayah.id] ?? null) : null}
       />
     {/each}
@@ -672,13 +675,6 @@
      cyclic custom-property reference and gets silently dropped as invalid). */
   .reader-scroll :global(.quran-text) {
     font-size: calc(var(--font-size-quran) * var(--reader-zoom));
-  }
-
-  .reader-content {
-    /* Auto-scroll drives a sub-pixel translateY on this wrapper each
-       frame to smooth out low-speed scrolling (see auto-scroll.svelte.ts);
-       it stays a no-op transform otherwise. */
-    will-change: transform;
   }
 
   /* Matches the footer under each page box in Mushaf view: the number labels

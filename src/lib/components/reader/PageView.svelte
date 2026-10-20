@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { loadPages } from '$lib/api/page-cache';
   import type { Ayah, MushafPage, RangeFocus } from '$lib/types/database';
@@ -7,11 +7,13 @@
     ensurePageFont,
     familyForPage,
     loadFontMap,
+    pageSpan,
+    preloadPageFonts,
     trimPageFonts,
   } from '$lib/utils/mushaf-fonts';
   import { surahsStore } from '$lib/stores/surahs.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
-  import { autoScrollStore } from '$lib/stores/auto-scroll.svelte';
+  import { autoScrollStore, driveAutoScroll } from '$lib/stores/auto-scroll.svelte';
   import { progressStore } from '$lib/stores/progress.svelte';
   import { readerPosition } from '$lib/stores/reader-position.svelte';
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
@@ -330,8 +332,25 @@
       if (p < lo - KEEP_RADIUS || p > hi + KEEP_RADIUS) renderedPages.delete(p);
     }
 
-    trimPageFonts(renderedPages);
+    trimFonts();
   }
+
+  /**
+   * Keeps every group the open range needs — they're all registered up front
+   * (see preloadPageFonts) — and drops others past the cap.
+   *
+   * Unregistering a font group restyles the whole document, and on a long
+   * range that is a visible hitch. Auto-scroll is the one time the reader is
+   * watching the page move without moving it themselves, so trims wait out a
+   * run and catch up once it stops (the effect below).
+   */
+  function trimFonts() {
+    if (!autoScrollStore.running) trimPageFonts(pageSpan(firstPage, lastPage));
+  }
+
+  $effect(() => {
+    if (!autoScrollStore.running) untrack(trimFonts);
+  });
 
   /** Which pages the target Ayah needs on screen before it can be scrolled to. */
   function pageOfAyah(ayahId: number | undefined) {
@@ -426,6 +445,13 @@
 
         container.addEventListener('scroll', updateProgress, { passive: true });
         updateProgress();
+
+        // The rest of the range's fonts, now, while only the landing pages
+        // are rendered and registering them is cheap — not one by one as
+        // reading reaches them. See preloadPageFonts.
+        await preloadPageFonts(pageSpan(start, end));
+        if (cancelled) return;
+        trimFonts();
       } catch (err) {
         if (!cancelled) error = err instanceof Error ? err.message : String(err);
       }
@@ -490,29 +516,8 @@
   });
 
   $effect(() => {
-    if (!autoScrollStore.active || !container) return;
-    let raf: number;
-    let last = performance.now();
-
-    function step(now: number) {
-      const dt = (now - last) / 1000;
-      last = now;
-      if (container) {
-        const { whole, fraction } = autoScrollStore.tick(dt);
-        if (whole !== 0) container.scrollTop += whole;
-        if (content) content.style.transform = fraction > 0 ? `translateY(${-fraction}px)` : '';
-        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
-          autoScrollStore.stop();
-          return;
-        }
-      }
-      raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(raf);
-      if (content) content.style.transform = '';
-    };
+    if (!autoScrollStore.running || !container || !content) return;
+    return driveAutoScroll(container, content);
   });
 </script>
 
@@ -520,6 +525,7 @@
   <div
     bind:this={container}
     class="page-surface scrollbar-none"
+    class:auto-scrolling={autoScrollStore.running}
     class:tafsir-clickable={tafsirStore.clicksOpenTafsir}
     use:tafsirOnWordClick
   >
@@ -530,6 +536,11 @@
     {:else}
       <div bind:this={content} class="page-content" class:dim={rangeFocus === 'dim'}>
         {#each pages as p (p.page)}
+          <!-- Read once per page rather than in each line below: a page not
+               in the set subscribes to the whole set, so every page entering
+               or leaving the window re-ran the test on every line of every
+               other page — hundreds of them on a long Surah. -->
+          {@const glyphs = renderedPages.has(p.page)}
           <div class="mushaf-page" data-page={p.page} dir="rtl">
             {#each p.lines as line, li (line.line_number)}
               {#if line.line_type === 'surah_header'}
@@ -573,7 +584,7 @@
                   data-line-ayah-id={lineAyahId(line.words)}
                   style:font-family={familyForPage(p.page)}
                 >
-                  {#if renderedPages.has(p.page)}
+                  {#if glyphs}
                     {#each line.words as w (w.position)}
                       <!-- `data-word-index` is written but not yet read. Word
                            level actions (root, morphology) are a known future
@@ -649,10 +660,6 @@
     flex-direction: column;
     align-items: center;
     width: 100%;
-    /* Auto-scroll drives a sub-pixel translateY on this wrapper each
-       frame to smooth out low-speed scrolling (see auto-scroll.svelte.ts);
-       it stays a no-op transform otherwise. */
-    will-change: transform;
   }
 
   /* Reader-only zoom: scale the page width and glyph font-sizes together
@@ -852,6 +859,12 @@
 
   .word:hover {
     color: var(--color-accent);
+  }
+
+  /* Words sliding under a resting pointer would otherwise light up one after
+     another, a restyle and repaint each, for a hover nobody made. */
+  .auto-scrolling .word:hover {
+    color: inherit;
   }
 
   .state-message {

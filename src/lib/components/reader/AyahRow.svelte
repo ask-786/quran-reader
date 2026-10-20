@@ -172,6 +172,18 @@
     opacity: 1;
   }
 
+  /* While auto-scroll carries the list under a resting pointer, rows would
+     light up and fade out one after another — a repaint each, for a hover
+     nobody made. ReaderView sets the class for the length of a run; focus and
+     recitation still show, since neither comes from the pointer. */
+  :global(.auto-scrolling) .ayah-row:hover:not(:focus-within, .reciting) {
+    background: none;
+  }
+
+  :global(.auto-scrolling) .ayah-row:hover:not(:focus-within, .reciting) .ayah-actions {
+    opacity: 0;
+  }
+
   /* Touch devices have no hover state, so the actions must stay visible —
      otherwise they'd only ever appear via keyboard focus. */
   @media (hover: none) {
@@ -239,6 +251,10 @@
 
   .word:hover {
     color: var(--color-accent);
+  }
+
+  :global(.auto-scrolling) .word:hover {
+    color: inherit;
   }
 
   .ayah-translation {

@@ -103,11 +103,70 @@ function ensureFamily(family: string): Promise<string> {
   return pending;
 }
 
+/** Every page from `start` to `end`, inclusive. */
+export function pageSpan(start: number, end: number): number[] {
+  return Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i);
+}
+
+/**
+ * Load every font group `pages` need that isn't registered yet, and register
+ * them together.
+ *
+ * Registering a group restyles the whole document, and how much that costs
+ * depends on how much text is rendered. Left to `ensurePageFont` as reading
+ * reaches each group, it lands mid-range with a dozen pages of glyphs in the
+ * DOM: a quarter-second freeze in the middle of auto-scroll on Al-Baqara. Run
+ * once a range has first painted instead, only the few pages around the
+ * landing spot are rendered, and the groups are fetched in parallel and added
+ * in a single task, so the document is restyled once for all of them.
+ *
+ * A whole range is at most four groups (Al-Baqara, the longest Surah, and any
+ * Juz), comfortably under MAX_FONTS. Callers retain the whole range when
+ * trimming so none of them are evicted again before they're used.
+ */
+export function preloadPageFonts(pages: Iterable<number>): Promise<void> {
+  const families = [
+    ...new Set(
+      [...pages]
+        .map(familyForPage)
+        .filter((f): f is string => f !== undefined && !loaded.has(f) && !inFlight.has(f)),
+    ),
+  ];
+  if (families.length === 0) return Promise.resolve();
+
+  const loads = families.map((family) =>
+    new FontFace(family, `url(${urlForFamily(family)})`).load(),
+  );
+  const registered = Promise.allSettled(loads).then((results) => {
+    results.forEach((result, i) => {
+      if (result.status !== 'fulfilled') return;
+      document.fonts.add(result.value);
+      loaded.set(families[i], result.value);
+    });
+  });
+
+  // A page reaching the render window mid-batch waits on the batch rather
+  // than fetching its group a second time.
+  families.forEach((family, i) => {
+    const pending = registered
+      .then(() => loads[i])
+      .then(() => family)
+      .finally(() => inFlight.delete(family));
+    // Unwatched unless a page asks for it; a failure here is reported to
+    // whoever does.
+    pending.catch(() => {});
+    inFlight.set(family, pending);
+  });
+
+  return registered;
+}
+
 /**
  * Drop registered font groups down to the LRU cap, never touching a group
- * needed by any page in `retainedPages`. Callers pass the set of pages whose
- * glyphs are currently rendered; any group none of them need is fair game
- * once the cap is exceeded.
+ * needed by any page in `retainedPages`. Callers pass the pages of the open
+ * range — every group `preloadPageFonts` registered for it has to survive
+ * until it's read — and any group none of them need is fair game once the
+ * cap is exceeded.
  */
 export function trimPageFonts(retainedPages: Iterable<number>): void {
   if (loaded.size <= MAX_FONTS) return;
