@@ -157,7 +157,14 @@ pub fn delete_note(state: State<AppDb>, note_id: u32) -> Result<(), String> {
 // READING POSITION / HISTORY COMMANDS
 // =============================================================================
 
-#[tauri::command]
+// On the thread pool, not the main thread: a plain `fn` command runs on the
+// GTK main thread, which also presents WebKit's frames, so this write — fired
+// every few seconds while auto-scroll moves through a Surah — held frames
+// back and showed as a stutter. Safe off the main thread because the reader
+// debounces these writes (see reading.svelte.ts), so they don't arrive in
+// bursts that could land out of order. Commands that can, like `set_setting`
+// under a dragged slider, stay on the main thread, which keeps call order.
+#[tauri::command(async)]
 pub fn record_reading_position(
     state: State<AppDb>,
     scope: ReadingScope,
