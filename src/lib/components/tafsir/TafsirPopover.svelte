@@ -603,7 +603,6 @@
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   .icon-btn:hover:not(:disabled) {

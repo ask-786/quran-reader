@@ -35,7 +35,6 @@
     border: 1px solid var(--color-border);
     border-radius: 11px;
     background: var(--color-bg);
-    cursor: pointer;
     transition:
       background var(--transition),
       border-color var(--transition);

@@ -95,7 +95,6 @@
     font-family: inherit;
     font-size: 13px;
     font-weight: 500;
-    cursor: pointer;
   }
 
   .cta:hover {

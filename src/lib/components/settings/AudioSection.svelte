@@ -317,7 +317,6 @@
     color: var(--color-text);
     font-family: inherit;
     text-align: left;
-    cursor: pointer;
   }
 
   .reciter:hover {
@@ -426,7 +425,6 @@
     color: var(--color-text-muted);
     font-family: inherit;
     font-size: 12px;
-    cursor: pointer;
   }
 
   .btn:hover {

@@ -352,7 +352,6 @@
     color: var(--color-text-muted);
     font-family: inherit;
     font-size: 11px;
-    cursor: pointer;
   }
 
   .span button:hover {
@@ -417,7 +416,6 @@
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   .icon-btn:hover {
@@ -440,7 +438,6 @@
     color: var(--color-text-muted);
     font-family: inherit;
     font-size: 11px;
-    cursor: pointer;
   }
 
   .text-btn:hover {

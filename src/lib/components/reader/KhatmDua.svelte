@@ -72,7 +72,6 @@
     color: var(--color-accent);
     font-family: var(--font-ui);
     font-size: 12px;
-    cursor: pointer;
   }
 
   .khatm-toggle button:hover {

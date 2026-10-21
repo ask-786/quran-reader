@@ -55,7 +55,6 @@
     border-radius: var(--radius);
     background: transparent;
     border: none;
-    cursor: pointer;
     color: var(--color-text-muted);
     transition: background var(--transition);
   }
@@ -70,7 +69,6 @@
     padding: 2px 0;
     background: transparent;
     border: none;
-    cursor: pointer;
     font-size: 9px;
     letter-spacing: -0.2px;
     white-space: nowrap;

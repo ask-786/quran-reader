@@ -68,7 +68,6 @@
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   /* Wide enough for "200%", so the group does not shift as the level
@@ -85,7 +84,6 @@
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    cursor: pointer;
   }
 
   .icon-btn:hover:not(:disabled),

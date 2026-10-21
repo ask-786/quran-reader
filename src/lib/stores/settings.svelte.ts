@@ -145,6 +145,8 @@ class SettingsStore {
 
   applyAppZoom() {
     if (typeof window === 'undefined') return;
+    // Read by the macOS title-bar sizing in app.css, which has to undo it.
+    document.documentElement.style.setProperty('--app-zoom', `${this.current.app_zoom}`);
     getCurrentWebview()
       .setZoom(this.current.app_zoom)
       .catch((err) => console.error('Failed to set webview zoom', err));

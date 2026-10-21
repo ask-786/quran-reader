@@ -182,7 +182,6 @@
     color: var(--color-text-muted);
     font-family: inherit;
     font-size: 12px;
-    cursor: pointer;
   }
 
   .btn:hover:not(:disabled) {

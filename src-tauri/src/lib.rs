@@ -7,6 +7,8 @@ use tauri::Manager;
 mod audio;
 mod commands;
 mod db;
+#[cfg(target_os = "macos")]
+mod menu;
 mod models;
 mod packs;
 
@@ -68,8 +70,12 @@ fn resolve_db_path(app: &tauri::AppHandle) -> PathBuf {
 pub fn run() {
     env_logger::init();
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(menu::build).on_menu_event(menu::forward);
+
+    builder
         .setup(|app| {
             let db_path = resolve_db_path(app.handle());
 

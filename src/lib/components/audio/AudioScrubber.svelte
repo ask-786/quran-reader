@@ -170,7 +170,6 @@
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   .icon-btn:hover:not(:disabled) {
@@ -199,7 +198,6 @@
     width: 100%;
     margin: 0;
     accent-color: var(--color-accent);
-    cursor: pointer;
   }
 
   .track:disabled {

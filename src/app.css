@@ -201,6 +201,18 @@
   }
 }
 
+/* macOS: the traffic lights are placed once, in screen points, when the
+   window opens (trafficLightPosition in tauri.macos.conf.json), and app zoom
+   can't move them. So the bar they sit in, and the room left beside them, stay
+   the same size on screen at every app zoom, as a native title bar does — only
+   what is inside the bar scales. The attribute outranks the narrow-window
+   heights above, which would put the buttons off-centre too.
+   84px: 18px in, three 14px buttons 20px apart, then the usual gap. */
+:root[data-platform='mac'] {
+  --toolbar-height: calc(56px / var(--app-zoom, 1));
+  --traffic-lights-inset: calc(84px / var(--app-zoom, 1));
+}
+
 :root[data-theme='dark'] {
   --color-bg: #16181d;
   --color-bg-elevated: #1c1f26;

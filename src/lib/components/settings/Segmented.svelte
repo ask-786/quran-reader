@@ -81,7 +81,6 @@
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
-    cursor: pointer;
     transition:
       background var(--transition),
       color var(--transition);

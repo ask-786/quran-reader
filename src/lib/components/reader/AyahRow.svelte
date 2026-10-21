@@ -202,7 +202,6 @@
     border: none;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   .action-btn:hover {
