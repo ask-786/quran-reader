@@ -32,8 +32,9 @@ class WindowChromeStore {
    */
   #fullscreenForFocus = false;
 
-  /** Track full screen. Returns the cleanup. */
+  /** Mark a Mac for app.css, and track full screen. Returns the cleanup. */
   init(): () => void {
+    if (isMac) document.documentElement.dataset.platform = 'mac';
     const appWindow = getCurrentWindow();
     const sync = async () => {
       const was = this.fullscreen;

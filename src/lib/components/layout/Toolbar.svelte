@@ -198,10 +198,9 @@
 
   /* Clear of the traffic lights whenever the sidebar isn't under them: shut,
      or a drawer (below 900px) that is only sometimes open — and when it is
-     open it covers this anyway. 18px in, three 14px buttons 20px apart (see
-     trafficLightPosition in tauri.macos.conf.json), then the usual gap. */
+     open it covers this anyway. */
   .toolbar.traffic-lights.sidebar-shut {
-    padding-left: 84px;
+    padding-left: var(--traffic-lights-inset);
   }
 
   /* With the sidebar docked open, its toggle is in the sidebar's own head,
@@ -212,7 +211,7 @@
 
   @media (max-width: 900px) {
     .toolbar.traffic-lights {
-      padding-left: 84px;
+      padding-left: var(--traffic-lights-inset);
     }
 
     .toolbar.traffic-lights:not(.sidebar-shut) .sidebar-toggle {

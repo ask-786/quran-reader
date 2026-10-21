@@ -44,13 +44,12 @@
     flex-direction: column;
   }
 
-  /* 84px clears the traffic lights, matching the toolbar's inset. */
   .titlebar {
     flex-shrink: 0;
     display: flex;
     align-items: center;
     height: var(--toolbar-height);
-    padding-left: 84px;
+    padding-left: var(--traffic-lights-inset);
     border-bottom: 1px solid var(--color-border);
   }
 
