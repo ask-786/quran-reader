@@ -6,6 +6,8 @@
   binding to that handler, add it here.
 -->
 <script lang="ts">
+  import { isMac } from '$lib/utils/platform';
+
   type Shortcut = { keys: string[]; label: string };
 
   const GROUPS: { title: string; shortcuts: Shortcut[] }[] = [
@@ -53,6 +55,13 @@
       ],
     },
     {
+      title: 'Window',
+      shortcuts: [
+        // macOS's own binding, from the View menu; F11 belongs to the system there.
+        { keys: isMac ? ['⌃', '⌘', 'F'] : ['F11'], label: 'Full screen' },
+      ],
+    },
+    {
       title: 'This dialog',
       shortcuts: [
         { keys: ['Ctrl', ','], label: 'Open settings' },
@@ -60,6 +69,11 @@
       ],
     },
   ];
+
+  /* The list is written in PC keys; a Mac reads them as its own symbols, run
+     together with no plus between, as its menus print them. */
+  const MAC_KEYS: Record<string, string> = { Ctrl: '⌘', Shift: '⇧' };
+  const keyLabel = (key: string) => (isMac ? (MAC_KEYS[key] ?? key) : key);
 </script>
 
 {#each GROUPS as group (group.title)}
@@ -70,7 +84,7 @@
         <div class="shortcut">
           <dt>
             {#each shortcut.keys as key, i (i)}
-              {#if i > 0}<span class="plus">+</span>{/if}<kbd>{key}</kbd>
+              {#if i > 0 && !isMac}<span class="plus">+</span>{/if}<kbd>{keyLabel(key)}</kbd>
             {/each}
           </dt>
           <dd>{shortcut.label}</dd>

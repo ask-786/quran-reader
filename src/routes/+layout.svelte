@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -19,7 +20,9 @@
   import { readerScroll } from '$lib/stores/reader-scroll.svelte';
   import { readingStore } from '$lib/stores/reading.svelte';
   import { routinesStore } from '$lib/stores/routines.svelte';
+  import { windowChrome } from '$lib/stores/window-chrome.svelte';
   import { isNarrowViewport } from '$lib/utils/viewport';
+  import { isMac } from '$lib/utils/platform';
 
   const MAX_PAGE = 604;
 
@@ -79,6 +82,53 @@
     readerScroll.jumpPage(direction);
   }
 
+  /**
+   * The macOS menu bar's items (src-tauri/src/menu.rs), by id. Each does what
+   * its key binding below does, except that the menu's Settings… and Go To…
+   * only ever open: a menu item names a place, not a switch.
+   */
+  const MENU_ITEMS: Record<string, () => void> = {
+    settings: () => uiStore.openSettings(),
+    find: () => {
+      uiStore.closePalette();
+      uiStore.focusSearch();
+    },
+    'toggle-sidebar': () => uiStore.toggleSidebar(),
+    'reading-mode': () => uiStore.toggleReadingMode(),
+    'verse-cards': () => tafsirStore.toggle(),
+    'focus-mode': () => uiStore.toggleFocusMode(),
+    'zoom-in': () => void settingsStore.zoomAppIn(),
+    'zoom-out': () => void settingsStore.zoomAppOut(),
+    'zoom-reset': () => void settingsStore.resetAppZoom(),
+    'go-to': () => uiStore.openPalette(),
+    next: () => navigateAdjacent(1),
+    previous: () => navigateAdjacent(-1),
+    routines: () => uiStore.toggleRoutinesMenu(),
+  };
+
+  /**
+   * The items whose shortcut the keydown handler takes too. WebKit gives the
+   * page the first look at a key and passes it to the menu only when the page
+   * leaves it alone — which these all preventDefault — so the menu shouldn't
+   * see them. If it ever does, running both would toggle the palette open and
+   * shut again in one keystroke; a menu event for one of these hard on the
+   * heels of a modifier keydown is that same keystroke, and is dropped.
+   */
+  const KEYED_MENU_ITEMS = new Set([
+    'settings',
+    'find',
+    'zoom-in',
+    'zoom-out',
+    'zoom-reset',
+    'go-to',
+  ]);
+  let modifierKeydownAt = -Infinity;
+
+  function runMenuItem(id: string) {
+    if (KEYED_MENU_ITEMS.has(id) && performance.now() - modifierKeydownAt < 500) return;
+    MENU_ITEMS[id]?.();
+  }
+
   onMount(() => {
     // Tafsir state (chosen edition, panel width, whether it is open) lives in
     // the settings row, so its store can only read it once settings have
@@ -91,6 +141,8 @@
     // the tafsir card's listen button needs it to know whether a reciter has
     // been chosen.
     playbackStore.init();
+    const stopWindowChrome = windowChrome.init();
+    const unlistenMenu = isMac ? listen<string>('menu', (e) => runMenuItem(e.payload)) : null;
 
     // On a phone-sized window the sidebar starts as a closed overlay rather
     // than a docked column stealing half the screen.
@@ -126,6 +178,7 @@
     window.addEventListener('pointerdown', onPointerDown, true);
 
     function onKeydown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey) modifierKeydownAt = performance.now();
       if (e.key === 'Escape') {
         // Outermost first. Settings and the palette never coexist (each closes
         // the other), so their order between themselves is academic — but both
@@ -147,6 +200,12 @@
         } else if (uiStore.focusMode) {
           uiStore.exitFocusMode();
         }
+        return;
+      }
+      // Full screen, from anywhere — a text field included, as in a browser.
+      if (e.key === 'F11') {
+        e.preventDefault();
+        void windowChrome.toggleFullscreen();
         return;
       }
       // The palette's own keys. Ctrl/Cmd+K is the one everything else uses,
@@ -335,6 +394,8 @@
     }
     window.addEventListener('keydown', onKeydown);
     return () => {
+      stopWindowChrome();
+      unlistenMenu?.then((fn) => fn());
       window.removeEventListener('keydown', onKeydown);
       window.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('visibilitychange', flushReadingPosition);

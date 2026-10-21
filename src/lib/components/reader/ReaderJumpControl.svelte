@@ -47,7 +47,6 @@
     border-radius: var(--radius);
     background: transparent;
     border: none;
-    cursor: pointer;
     color: var(--color-text-muted);
     transition: background var(--transition);
   }

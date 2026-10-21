@@ -21,6 +21,8 @@
   import { uiStore } from '$lib/stores/ui.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { tafsirStore } from '$lib/stores/tafsir.svelte';
+  import { windowChrome } from '$lib/stores/window-chrome.svelte';
+  import { isMac, modShortcut } from '$lib/utils/platform';
   import RoutinesMenu from '$lib/components/routines/RoutinesMenu.svelte';
   import type { Theme } from '$lib/types/database';
 
@@ -47,6 +49,7 @@
   let isMaximized = $state(false);
 
   onMount(() => {
+    if (isMac) return;
     appWindow.isMaximized().then((v) => (isMaximized = v));
     const unlisten = appWindow.onResized(async () => {
       isMaximized = await appWindow.isMaximized();
@@ -62,8 +65,17 @@
   }
 </script>
 
-<header class="toolbar scrollbar-none" data-tauri-drag-region>
-  <button class="icon-btn" onclick={() => uiStore.toggleSidebar()} aria-label="Toggle sidebar">
+<header
+  class="toolbar scrollbar-none"
+  class:traffic-lights={windowChrome.trafficLights}
+  class:sidebar-shut={!uiStore.sidebarOpen}
+  data-tauri-drag-region
+>
+  <button
+    class="icon-btn sidebar-toggle"
+    onclick={() => uiStore.toggleSidebar()}
+    aria-label="Toggle sidebar"
+  >
     <PanelLeft size={18} />
   </button>
 
@@ -71,7 +83,7 @@
     class="icon-btn"
     onclick={() => uiStore.openPalette()}
     aria-label="Search and go to"
-    title="Search and go to (Ctrl+K)"
+    title="Search and go to ({modShortcut('K')})"
   >
     <Search size={18} />
   </button>
@@ -137,30 +149,37 @@
     onclick={() => uiStore.toggleSettings()}
     aria-pressed={uiStore.settingsOpen}
     aria-label="Settings"
-    title="Settings (Ctrl+,)"
+    title="Settings ({modShortcut(',')})"
   >
     <Settings size={18} />
   </button>
 
-  <div class="window-controls">
-    <button class="icon-btn" onclick={() => appWindow.minimize()} aria-label="Minimize window">
-      <Minus size={16} />
-    </button>
-    <button
-      class="icon-btn"
-      onclick={() => appWindow.toggleMaximize()}
-      aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
-    >
-      {#if isMaximized}
-        <Copy size={14} />
-      {:else}
-        <Square size={14} />
-      {/if}
-    </button>
-    <button class="icon-btn close-btn" onclick={() => appWindow.close()} aria-label="Close window">
-      <X size={16} />
-    </button>
-  </div>
+  <!-- macOS draws its own, in the corner. -->
+  {#if !isMac}
+    <div class="window-controls">
+      <button class="icon-btn" onclick={() => appWindow.minimize()} aria-label="Minimize window">
+        <Minus size={16} />
+      </button>
+      <button
+        class="icon-btn"
+        onclick={() => appWindow.toggleMaximize()}
+        aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+      >
+        {#if isMaximized}
+          <Copy size={14} />
+        {:else}
+          <Square size={14} />
+        {/if}
+      </button>
+      <button
+        class="icon-btn close-btn"
+        onclick={() => appWindow.close()}
+        aria-label="Close window"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  {/if}
 </header>
 
 <style>
@@ -174,6 +193,31 @@
     background: var(--color-bg-elevated);
     border-bottom: 1px solid var(--color-border);
     overflow-x: auto;
+    transition: padding-left var(--transition);
+  }
+
+  /* Clear of the traffic lights whenever the sidebar isn't under them: shut,
+     or a drawer (below 900px) that is only sometimes open — and when it is
+     open it covers this anyway. 18px in, three 14px buttons 20px apart (see
+     trafficLightPosition in tauri.macos.conf.json), then the usual gap. */
+  .toolbar.traffic-lights.sidebar-shut {
+    padding-left: 84px;
+  }
+
+  /* With the sidebar docked open, its toggle is in the sidebar's own head,
+     beside the traffic lights, as in Notes or Mail. */
+  .toolbar.traffic-lights:not(.sidebar-shut) .sidebar-toggle {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .toolbar.traffic-lights {
+      padding-left: 84px;
+    }
+
+    .toolbar.traffic-lights:not(.sidebar-shut) .sidebar-toggle {
+      display: flex;
+    }
   }
 
   .title {
@@ -202,7 +246,6 @@
     border-radius: var(--radius);
     background: transparent;
     border: none;
-    cursor: pointer;
     color: var(--color-text-muted);
     transition: background var(--transition);
   }

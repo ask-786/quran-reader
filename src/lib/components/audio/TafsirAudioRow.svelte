@@ -55,7 +55,6 @@
     font-family: inherit;
     font-size: 12px;
     text-align: left;
-    cursor: pointer;
   }
 
   .choose:hover {

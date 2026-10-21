@@ -260,7 +260,6 @@
     font-family: inherit;
     font-size: 13px;
     text-align: start;
-    cursor: pointer;
     transition:
       background var(--transition),
       color var(--transition);
@@ -324,7 +323,6 @@
     border-radius: 7px;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   .close:hover {

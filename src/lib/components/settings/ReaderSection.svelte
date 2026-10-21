@@ -146,7 +146,6 @@
     color: var(--color-text-muted);
     font-family: inherit;
     font-size: 12px;
-    cursor: pointer;
   }
 
   .reset button:hover:not(:disabled) {

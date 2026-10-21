@@ -1,6 +1,7 @@
 <script lang="ts">
   import { settingsStore } from '$lib/stores/settings.svelte';
   import type { Theme } from '$lib/types/database';
+  import { isMac } from '$lib/utils/platform';
   import SettingRow from './SettingRow.svelte';
   import Segmented from './Segmented.svelte';
 
@@ -11,6 +12,7 @@
   ];
 
   const ZOOM_STEPS = [0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+  const ZOOM_KEYS = isMac ? '⌘+ and ⌘−' : 'Ctrl + and Ctrl −';
   const appZoom = $derived(settingsStore.current.app_zoom);
 </script>
 
@@ -27,7 +29,7 @@
 
 <SettingRow
   label="App zoom"
-  description="Scales every part of the interface — chrome, lists and text alike. Ctrl + and Ctrl − do the same thing from anywhere."
+  description="Scales every part of the interface — chrome, lists and text alike. {ZOOM_KEYS} do the same thing from anywhere."
   stacked
 >
   {#snippet control()}
@@ -65,7 +67,6 @@
     font-family: inherit;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
-    cursor: pointer;
     transition:
       background var(--transition),
       color var(--transition);

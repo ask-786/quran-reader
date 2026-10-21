@@ -181,7 +181,6 @@
     font-family: inherit;
     font-size: 11px;
     letter-spacing: 0.02em;
-    cursor: pointer;
     opacity: 0.7;
     transition: opacity var(--transition);
   }

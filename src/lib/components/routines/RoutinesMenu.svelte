@@ -329,7 +329,6 @@
     color: var(--color-text-muted);
     font: inherit;
     font-size: 12px;
-    cursor: pointer;
     transition:
       background var(--transition),
       color var(--transition);
@@ -531,7 +530,6 @@
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   .row-tools button:hover:not(:disabled) {
@@ -573,7 +571,6 @@
     font: inherit;
     font-size: 13px;
     text-align: start;
-    cursor: pointer;
   }
 
   .foot-item:hover,

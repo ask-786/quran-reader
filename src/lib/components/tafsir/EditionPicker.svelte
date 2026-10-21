@@ -235,7 +235,6 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    cursor: pointer;
   }
 
   .trigger:hover {
@@ -303,7 +302,6 @@
     font-size: 13px;
     font-weight: 500;
     text-align: start;
-    cursor: pointer;
   }
 
   /* One highlight for both routes in: the pointer writes `activeIndex` on

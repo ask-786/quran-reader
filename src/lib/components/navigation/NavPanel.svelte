@@ -582,7 +582,6 @@
     color: var(--color-text-muted);
     font-size: 12px;
     font-weight: 500;
-    cursor: pointer;
     transition: background var(--transition);
   }
 
@@ -776,7 +775,6 @@
     background: transparent;
     color: var(--color-text-muted);
     font-size: 12px;
-    cursor: pointer;
     transition: background var(--transition);
   }
 

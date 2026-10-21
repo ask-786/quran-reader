@@ -412,10 +412,6 @@
     outline-offset: -2px;
   }
 
-  .choice {
-    cursor: pointer;
-  }
-
   .step,
   .choice-mark {
     flex-shrink: 0;
@@ -481,7 +477,6 @@
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-muted);
-    cursor: pointer;
   }
 
   .icon:hover:not(:disabled) {
@@ -526,7 +521,6 @@
     color: var(--color-text);
     font: inherit;
     font-size: 13px;
-    cursor: pointer;
   }
 
   .btn:hover:not(:disabled) {

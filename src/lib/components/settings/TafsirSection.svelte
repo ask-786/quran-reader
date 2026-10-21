@@ -85,7 +85,6 @@
     background: none;
     color: var(--color-accent);
     font: inherit;
-    cursor: pointer;
     text-decoration: underline;
     text-underline-offset: 2px;
   }
