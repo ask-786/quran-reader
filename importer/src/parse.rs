@@ -400,25 +400,25 @@ fn parse_quran_xml(xml: &str) -> Result<HashMap<(u32, u32), String>> {
     loop {
         match reader.read_event() {
             Ok(Event::Start(e)) | Ok(Event::Empty(e)) => match e.name().as_ref() {
-                b"sura" => {
+                "sura" => {
                     for attr in e.attributes().flatten() {
-                        if attr.key.as_ref() == b"index" {
+                        if attr.key.as_ref() == "index" {
                             // Tanzil serves XML 1.0; only 1.1 normalizes differently.
                             let val = attr.normalized_value(XmlVersion::Explicit1_0)?;
                             current_surah = val.parse()?;
                         }
                     }
                 }
-                b"aya" => {
+                "aya" => {
                     let mut ayah_num = 0u32;
                     let mut text = String::new();
                     for attr in e.attributes().flatten() {
                         match attr.key.as_ref() {
-                            b"index" => {
+                            "index" => {
                                 let val = attr.normalized_value(XmlVersion::Explicit1_0)?;
                                 ayah_num = val.parse()?;
                             }
-                            b"text" => {
+                            "text" => {
                                 text = attr.normalized_value(XmlVersion::Explicit1_0)?.into_owned();
                             }
                             _ => {}
@@ -540,4 +540,28 @@ fn assemble(
     }
 
     Ok(QuranData { surahs, ayahs })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_each_aya_under_its_sura() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<quran>
+  <sura index="1" name="الفاتحة">
+    <aya index="1" text="بِسْمِ اللَّهِ" bismillah="x"/>
+    <aya index="2" text="الْحَمْدُ &amp; لِلَّهِ"/>
+  </sura>
+  <sura index="114" name="الناس">
+    <aya index="6" text="مِنَ الْجِنَّةِ وَالنَّاسِ"/>
+  </sura>
+</quran>"#;
+        let map = parse_quran_xml(xml).unwrap();
+        assert_eq!(map.len(), 3);
+        assert_eq!(map[&(1, 1)], "بِسْمِ اللَّهِ");
+        assert_eq!(map[&(1, 2)], "الْحَمْدُ & لِلَّهِ");
+        assert_eq!(map[&(114, 6)], "مِنَ الْجِنَّةِ وَالنَّاسِ");
+    }
 }
