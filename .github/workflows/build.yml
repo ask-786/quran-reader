@@ -1,0 +1,190 @@
+name: Build
+
+# Installers for any branch, tag or commit, on demand, kept on the run as
+# artifacts. For trying a change on a platform nobody here develops on before
+# it is merged or tagged — window chrome on macOS, say, is only ever seen on a
+# Mac. Nothing is published: release.yml owns that, and CI only compiles.
+#
+# Manual only. A full set of installers is too slow to build on every push,
+# and most pushes don't need one.
+#
+# GitHub only offers "Run workflow" for a file that exists on the default
+# branch. The branch picker then runs that branch's copy of this file, so a
+# branch cut before this file landed would not have one. `ref` covers that:
+# set it, and the run uses this copy on master to build whatever it names.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'What to build'
+        type: choice
+        default: macos-arm64
+        options:
+          - macos-arm64
+          - macos-intel
+          - macos-universal
+          - windows
+          - linux
+          - all
+      ref:
+        description: 'Branch, tag or SHA to build (empty: the branch picked above)'
+        required: false
+        default: ''
+
+run-name: Build ${{ inputs.target }} from ${{ inputs.ref || github.ref_name }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      # One entry per target. `all` is every one of them, except that the two
+      # single-architecture Mac builds are left out: the universal one holds
+      # both.
+      - id: plan
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          entries='[
+            {"name": "macos-arm64", "platform": "macos-latest",
+             "rust_targets": "aarch64-apple-darwin",
+             "args": "--target aarch64-apple-darwin --bundles dmg"},
+            {"name": "macos-intel", "platform": "macos-latest",
+             "rust_targets": "x86_64-apple-darwin",
+             "args": "--target x86_64-apple-darwin --bundles dmg"},
+            {"name": "macos-universal", "platform": "macos-latest",
+             "rust_targets": "aarch64-apple-darwin,x86_64-apple-darwin",
+             "args": "--target universal-apple-darwin --bundles dmg"},
+            {"name": "windows", "platform": "windows-latest",
+             "rust_targets": "", "args": ""},
+            {"name": "linux", "platform": "ubuntu-22.04",
+             "rust_targets": "", "args": "--bundles deb,rpm,appimage"}
+          ]'
+          matrix=$(jq -c --arg target "$TARGET" '{include: map(select(
+            if $target == "all"
+            then .name != "macos-arm64" and .name != "macos-intel"
+            else .name == $target end))}' <<< "$entries")
+          if [ "$matrix" = '{"include":[]}' ]; then
+            echo "::error::Unknown target '$TARGET'"
+            exit 1
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      # Same packages, and the same 22.04 image for the same glibc reason, as
+      # release.yml.
+      - name: Install Tauri system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.name }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installers
+        run: pnpm tauri build ${{ matrix.args }}
+
+      # The AppImage needs the same surgery release.yml gives it, or it aborts
+      # before a window appears on any distro with a newer wayland than the
+      # build machine's — see the step of the same name there. Repacked in
+      # place here, since there is no release to upload to.
+      - name: Repack AppImage without bundled wayland libraries
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          set -euo pipefail
+          cd src-tauri/target/release/bundle/appimage
+
+          original=$(find . -maxdepth 1 -name '*_amd64.AppImage' -printf '%f\n' | head -1)
+          if [ -z "$original" ]; then
+            echo "::error::no AppImage found to repack"
+            exit 1
+          fi
+
+          "./$original" --appimage-extract > /dev/null
+          rm -f squashfs-root/usr/lib/libwayland-*
+
+          curl -sSfL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+
+          rm "$original"
+          ARCH=x86_64 ./appimagetool squashfs-root "$original"
+          rm -rf squashfs-root appimagetool
+
+      # `**` because a build with --target puts its bundle under
+      # target/<triple>/release rather than target/release. The AppImage
+      # pattern is narrow on purpose: Tauri caches linuxdeploy's own AppImages
+      # in the same directory.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: quran-reader-${{ matrix.name }}
+          path: |
+            src-tauri/target/**/release/bundle/dmg/*.dmg
+            src-tauri/target/**/release/bundle/nsis/*.exe
+            src-tauri/target/**/release/bundle/msi/*.msi
+            src-tauri/target/**/release/bundle/deb/*.deb
+            src-tauri/target/**/release/bundle/rpm/*.rpm
+            src-tauri/target/**/release/bundle/appimage/*_amd64.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### ${{ matrix.name }}"
+            echo "Built \`$(git rev-parse --short HEAD)\` ($(git log -1 --format=%s))."
+            if [[ "${{ matrix.name }}" == macos-* ]]; then
+              echo
+              echo "Unsigned. After copying the app to Applications, clear the download quarantine or macOS will call it damaged:"
+              echo '```'
+              echo 'xattr -dr com.apple.quarantine "/Applications/Quran Reader.app"'
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
