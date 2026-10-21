@@ -717,6 +717,14 @@ Features
   Juz, Hizb and page are one code path) but it has **no surface yet**. It
   is not going in the reader; the sidebar, a Listen panel, or a toolbar
   control are the candidates
+- [x] Seamless Surah — the listen panel streams one whole-Surah recording from
+      mp3quran.net instead of stitching per-verse files, with verse timings
+      from its API fetched on first play and kept in `surah_recitation`
+      (migration 012). Falls back to per-verse files for "cached only",
+      offline, or a stream that fails. The verse card is unchanged. The panel
+      can be dragged, and its bar can span the verse or the whole Surah. A long
+      forward jump into unplayed audio is still slow (WebKitGTK reads up to
+      it). See "Whole-Surah streaming" in docs/audio-plan.md
 - [x] Repeat Ayah — n times, or loop the whole range, with a pause between
 - [x] Auto-scroll — a playing range scrolls the reader and stops auto-scroll
       rather than fighting it. A single verse from the card is already on

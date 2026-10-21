@@ -370,6 +370,100 @@ nothing is playing.
 Follow-scroll applies to a range only (`playbackStore.shouldFollow`). A verse
 played from the card is already on screen, so the reader is left where it is.
 
+# Whole-Surah streaming
+
+> **Added 2026-10-21.** Part 1 rejected the whole-Surah files because they
+> carry no verse boundaries and al-Baqara's is over 100 MB to fetch before
+> pressing play. Both objections turned out to have answers, and the listen
+> panel now uses them. The verse card does not: one verse is still the per-Ayah
+> file, cached on disk, exactly as above.
+
+**Why at all.** Gapless is not seamless. Each per-Ayah file is cut out of a
+longer recording, and the breath or pause the reciter took between two verses
+is what the cut removes. Ping-ponging two elements removes the decoder's gap but
+cannot put the reciter's back. One recording per Surah plays it as recited.
+
+**Where it comes from: mp3quran.net.** Its Surah files are continuous
+recordings, and its API gives each Ayah's start and end in milliseconds:
+`www.mp3quran.net/api/v3/ayat_timing?surah={n}&read={id}`. The file itself is
+`cdn.mp3quran.net/audio/{folder}/{nnn}.mp3`, named by the catalogue because the
+timings response does not name it. All five catalogue reciters are there —
+`ReciterSpec::stream`: Alafasy 123, Husary 118, Abdul Basit murattal 53, Shatri
+4, Sudais 54.
+
+Quran.com's audio API (`api.qurancdn.com`, files on `download.quranicaudio.com`)
+was tried first and works the same way, but in listening its Alafasy files
+seemed to step between verses, as if assembled from per-verse cuts — the thing
+this exists to avoid; mp3quran's did not. It also had two Surahs with conflicting timings (Alafasy
+60:11/12 by 5.5 s, Abdul Basit 2:25/26 by 38 s) that mp3quran does not.
+
+**Timings are fetched, not bundled.** They describe one encode of one file, and
+bundling them in `quran.db` would not reach existing installs either: the seed
+is only copied on first run. They are kept in `surah_recitation` /
+`surah_recitation_verse` after the first fetch, keyed by the recording's `read`
+id; a row whose file is on another host is ignored, so changing source discards
+the old source's timings rather than playing them against the new file.
+
+**What is checked.** One timing per Ayah of the Surah, numbered 1..n in order,
+with starts that never go backwards. `ayah: 0` is the isti'adha and basmala the
+file opens with, outside any verse, and is set aside. A verse timed to end after
+the next one starts would make "repeat this verse" skip it, since the player
+moves on at the next start: up to a second of overlap is clipped as rounding,
+and more is refused. Anything refused leaves that Surah on per-verse files.
+
+**The sweep, 2026-10-21.** All five reciters, all 114 Surahs: every file present
+as `audio/mpeg` with byte ranges, every timing list clean — except Husary's
+al-Fatiha, whose verses are numbered from 0, which therefore plays verse by
+verse. Files open with 2–12 s of isti'adha and basmala. The largest timings
+response was 72 KB; the largest file 182 MB.
+
+**What the player does with them.** Playing from the first verse starts at
+0:00, so the opening is heard; a verse repeated starts at the verse. The panel's
+bar spans either the verse or the whole Surah, the reader's choice
+(`audio_bar_surah`, on by default). The Surah bar shows the verse a drag would
+land on in a bubble over the thumb, and seeks only when let go: seeking on every
+step would scroll the reader through each verse passed over. Verse by verse
+there is no one file, so the bar is the verse's whichever is chosen. The verse
+sounding is the last one to have started. Verse ends are watched every
+animation frame while playing, not only on `timeupdate`, which fires four times
+a second and would let a repeat play a quarter-second of the next verse first.
+
+**What WebKitGTK made necessary.** Found with GStreamer's own logs
+(`GST_DEBUG=webkitwebsrc:6,baseparse:5`):
+
+- _HTTP/1.1._ libsoup multiplexes a host's requests over one HTTP/2 connection.
+  The stream's first download sits suspended once enough is buffered, and a
+  jump opens a second request beside it, which got one flow-control window —
+  about 64 KB, 3.4 s of audio — and then nothing, every time. `main.rs` sets
+  `SOUP_FORCE_HTTP1` before any webview exists. The host was never the problem:
+  it serves any range in ~0.1 s and keeps sending to a slow reader.
+- _`preload="metadata"`_, so a Surah is fetched as it plays rather than all of
+  it up front.
+- _Long forward jumps are slow, and this is not solved._ GStreamer's MP3 parser
+  only jumps straight to parts of the file it has already seen; a jump past
+  them is read up to from the furthest point seen, at download speed. Next and
+  jumps backwards or within what has played take ~0.1 s; a jump to the middle
+  of an unplayed al-Baqara takes several seconds, with the spinner up. A local
+  proxy that serves the file from a byte offset would avoid it.
+- A `play()` overtaken by a pause or a new jump rejects as aborted. That is not
+  an error and is not shown as one.
+
+**When it does not stream.** "Cached only" mode (streaming is the network), the
+browser reporting offline, a reciter with no `stream`, a timings fetch that
+fails or is refused, and a stream that errors mid-Surah. The last drops to the
+per-verse path at the verse it was on, so a Surah downloaded for offline
+listening still plays — verse by verse, from the cache. The download button
+keeps fetching per-Ayah files for that reason: a stream is never written to
+disk.
+
+**Privacy.** Two more hosts, named in Settings → Audio, contacted only when the
+reader presses Listen with downloads allowed. One plain request per Surah for
+timings, and the range requests of the stream itself.
+
+**Open.** The stream and the verse card come from different hosts, so a verse
+from the card and the same verse in the panel can sound slightly different. The
+slow long jump above. mp3quran's licensing terms are not yet read.
+
 # Phasing
 
 1. **Groundwork.** Migration 009, the compiled reciter catalogue, the fetcher

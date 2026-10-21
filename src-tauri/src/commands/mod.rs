@@ -566,6 +566,54 @@ fn resolve_audio(
     Ok(Some(path))
 }
 
+/// One Surah's whole recording and where each Ayah sits in it, for the listen
+/// panel to stream. See `audio::surah`.
+///
+/// `None` means "play this Surah verse by verse instead": the reciter has no
+/// whole-Surah source, or the timings were never fetched and downloads are off.
+/// A failed fetch is an error, which the panel also answers by falling back —
+/// it is reported rather than swallowed so the reason reaches the log.
+#[tauri::command]
+pub async fn surah_recitation(
+    app: tauri::AppHandle,
+    slug: String,
+    surah_id: u32,
+) -> Result<Option<audio::SurahRecitation>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let spec = audio::find(&slug).ok_or_else(|| format!("No such reciter: {slug}"))?;
+        let Some(source) = &spec.stream else {
+            return Ok(None);
+        };
+        let source_id = source.read;
+        let state = app.state::<AppDb>();
+        let reciter_id = reciter_id_for(&state, &slug)?;
+
+        let ayah_ids = {
+            let conn = db!(state);
+            if let Some(kept) =
+                audio::surah::cached(&conn, reciter_id, source_id, surah_id).map_err(e)?
+            {
+                return Ok(Some(kept));
+            }
+            audio::surah::ayah_ids(&conn, surah_id).map_err(e)?
+        };
+
+        if !downloads_allowed(&state)? {
+            return Ok(None);
+        }
+
+        // No lock held across this: it is the slow part.
+        let recitation = audio::surah::fetch_checked(source, surah_id, &ayah_ids)
+            .map_err(|err| err.to_string())?;
+
+        let conn = db!(state);
+        audio::surah::store(&conn, reciter_id, source_id, surah_id, &recitation).map_err(e)?;
+        Ok(Some(recitation))
+    })
+    .await
+    .map_err(|err| err.to_string())?
+}
+
 /// Which Ayahs of an inclusive range are already cached — what the download
 /// button counts before offering to fetch the rest.
 #[tauri::command]

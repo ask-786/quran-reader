@@ -138,6 +138,7 @@ pub fn run() {
             commands::ensure_ayah_audio,
             commands::read_ayah_audio,
             commands::prefetch_ayah_audio,
+            commands::surah_recitation,
             commands::cached_audio_in_range,
             commands::download_audio_range,
             commands::cancel_audio_download,

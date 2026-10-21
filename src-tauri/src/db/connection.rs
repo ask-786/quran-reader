@@ -12,7 +12,7 @@ const SCHEMA_SQL: &str = include_str!("../../../database/schema.sql");
 const SEED_DB: &[u8] = include_bytes!("../../../database/quran.db");
 
 /// Current schema version expected by this build.
-const CURRENT_VERSION: u32 = 11;
+const CURRENT_VERSION: u32 = 12;
 
 /// Open (or create) the SQLite database at the given path and ensure it is
 /// at the expected schema version. Returns a configured [`Connection`].
@@ -167,6 +167,12 @@ fn run_migrations(conn: &Connection, from_version: u32) -> DbResult<()> {
         log::info!("  → Applying migration 011: reading routines");
         conn.execute_batch(include_str!(
             "../../../database/migrations/011_routines.sql"
+        ))?;
+    }
+    if from_version < 12 {
+        log::info!("  → Applying migration 012: whole-Surah streaming");
+        conn.execute_batch(include_str!(
+            "../../../database/migrations/012_surah_stream.sql"
         ))?;
     }
 

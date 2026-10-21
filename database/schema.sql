@@ -391,6 +391,30 @@ CREATE TABLE IF NOT EXISTS recitation_segment (
     PRIMARY KEY (reciter_id, ayah_id, word_index)
 );
 
+-- Whole-Surah recordings the listen panel streams, and where each Ayah sits in
+-- one. Kept after the first fetch so a Surah's timings are asked for once; the
+-- audio itself is never stored. See migrations/012_surah_stream.sql.
+CREATE TABLE IF NOT EXISTS surah_recitation (
+    reciter_id  INTEGER NOT NULL REFERENCES reciter(id) ON DELETE CASCADE,
+    surah_id    INTEGER NOT NULL REFERENCES surah(id),
+    source_id   INTEGER NOT NULL,   -- the reciter's id on the timings API
+    audio_url   TEXT    NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    fetched_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+
+    PRIMARY KEY (reciter_id, surah_id)
+);
+
+-- Milliseconds into the Surah's file, not into the verse.
+CREATE TABLE IF NOT EXISTS surah_recitation_verse (
+    reciter_id  INTEGER NOT NULL REFERENCES reciter(id) ON DELETE CASCADE,
+    ayah_id     INTEGER NOT NULL REFERENCES ayah(id),
+    start_ms    INTEGER NOT NULL,
+    end_ms      INTEGER NOT NULL CHECK (end_ms >= start_ms),
+
+    PRIMARY KEY (reciter_id, ayah_id)
+);
+
 -- =============================================================================
 -- SETTINGS (Key-value store for all user preferences)
 -- =============================================================================
@@ -540,3 +564,4 @@ INSERT OR IGNORE INTO schema_version (version) VALUES (8);
 INSERT OR IGNORE INTO schema_version (version) VALUES (9);
 INSERT OR IGNORE INTO schema_version (version) VALUES (10);
 INSERT OR IGNORE INTO schema_version (version) VALUES (11);
+INSERT OR IGNORE INTO schema_version (version) VALUES (12);

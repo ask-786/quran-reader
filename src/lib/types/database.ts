@@ -194,6 +194,17 @@ export interface AudioBackend {
   install_command: string | null;
 }
 
+/**
+ * One Surah's whole recording, streamed by the listen panel, and where each Ayah
+ * sits in it. Times are milliseconds into the file, not into the verse.
+ */
+export interface SurahRecitation {
+  audio_url: string;
+  duration_ms: number;
+  /** In reading order, one per Ayah of the Surah. */
+  verses: { ayah_id: number; start_ms: number; end_ms: number }[];
+}
+
 /** Payload of `audio-download-progress`, emitted while fetching a range. */
 export interface AudioProgress {
   slug: string;
@@ -271,6 +282,9 @@ export interface Settings {
   /** The network switch. Off until the reader approves the first fetch; off
    *  again is "cached only" — downloaded verses still play, nothing goes out. */
   audio_downloads_allowed: boolean;
+  /** The listen panel's bar spans the whole Surah rather than the verse. Only
+   *  honoured while the Surah streams. */
+  audio_bar_surah: boolean;
 }
 
 // =============================================================================

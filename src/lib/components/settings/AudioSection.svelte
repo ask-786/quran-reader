@@ -84,7 +84,7 @@
 
 <SettingRow
   label="Reciter"
-  description="Recitation is fetched from cdn.islamic.network as you play it, one verse at a time. Choosing a reciter here turns that on; nothing is fetched until you do."
+  description="A verse is fetched from cdn.islamic.network as you play it. Listening to a whole Surah streams one recording from cdn.mp3quran.net, with verse timings from mp3quran.net. Choosing a reciter here turns that on; nothing is fetched until you do."
   stacked
 >
   {#snippet control()}
@@ -120,7 +120,7 @@
 
 <SettingRow
   label="Download recitation"
-  description="Off keeps everything already downloaded playable and stops the app contacting cdn.islamic.network at all."
+  description="Off keeps everything already downloaded playable and stops the app contacting any recitation host at all. A Surah then plays verse by verse from what is downloaded."
 >
   {#snippet control()}
     <Toggle
@@ -294,9 +294,9 @@
 </div>
 
 <p class="note">
-  Recitations are fetched from <code>cdn.islamic.network</code> one verse at a time, only while you play
-  them. They are copyrighted recordings streamed from their publisher — this app neither hosts nor redistributes
-  them.
+  Single verses are fetched from <code>cdn.islamic.network</code>, and whole Surahs streamed from
+  <code>cdn.mp3quran.net</code>, only while you play them. They are copyrighted recordings streamed
+  from their publisher — this app neither hosts nor redistributes them.
 </p>
 
 <style>

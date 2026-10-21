@@ -1246,6 +1246,10 @@ pub fn load_settings(conn: &Connection) -> DbResult<Settings> {
             .get("audio_downloads_allowed")
             .map(|v| v == "true")
             .unwrap_or(false),
+        audio_bar_surah: map
+            .get("audio_bar_surah")
+            .map(|v| v == "true")
+            .unwrap_or(true),
     };
 
     Ok(s)

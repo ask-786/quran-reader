@@ -18,6 +18,23 @@
  * Two elements, ping-ponged, so a range plays without a gap at each verse: while
  * one sounds, the other is loaded with the next.
  *
+ * # Why a whole Surah is streamed instead
+ *
+ * Gapless is not seamless. Each per-verse file is cut out of a longer recording,
+ * and the breath the reciter took between two verses is what the cut removes —
+ * no amount of preloading puts it back. So the listen panel plays a Surah from
+ * one recording, streamed straight from its host by a third element, and works
+ * out which verse is sounding from timings fetched with it (`audio::surah`). The
+ * element streams with range requests, so al-Baqara's 100-odd MB is never
+ * waited on, and nothing about the stream is written to disk.
+ *
+ * Everything else stays on per-verse files: the verse card's single verse, a
+ * reciter with no whole-Surah source, "cached only" mode, and a stream that
+ * fails — which drops to the verse it was on and carries on from the cache or
+ * the per-verse host. A Surah downloaded for offline listening is therefore
+ * still a Surah of per-verse files, played the old way when the network is not
+ * there to stream from.
+ *
  * # Why playing is asked for permission rather than attempted
  *
  * WebKitGTK plays through GStreamer, whose elements are system packages it does
@@ -37,10 +54,11 @@ import {
   listReciters,
   prefetchAyahAudio,
   readAyahAudio,
+  surahRecitation,
 } from '$lib/api/db';
 import { settingsStore } from './settings.svelte';
 import { surahsStore } from './surahs.svelte';
-import type { AudioBackend, Ayah, Reciter } from '$lib/types/database';
+import type { AudioBackend, Ayah, Reciter, SurahRecitation } from '$lib/types/database';
 
 /**
  * How far ahead of the playhead to pull verses into the cache, in range mode.
@@ -62,6 +80,48 @@ const PREFETCH_AHEAD = 5;
  * everything that distinguishes a player from a clarification hangs off this.
  */
 export type PlaybackMode = 'single' | 'range';
+
+/**
+ * A Surah's recording, ready to stream: where each verse starts and ends in the
+ * file, in seconds, indexed both ways.
+ */
+interface SurahStream {
+  /** The reciter it was fetched for. A stream outlives a change of reciter
+   *  otherwise, and would go on playing the old one. */
+  slug: string;
+  url: string;
+  ids: number[];
+  starts: number[];
+  ends: number[];
+  index: Map<number, number>;
+  /** The file's length in seconds, for a bar that spans the whole Surah. */
+  length: number;
+}
+
+function toStream(slug: string, rec: SurahRecitation): SurahStream {
+  return {
+    slug,
+    url: rec.audio_url,
+    ids: rec.verses.map((v) => v.ayah_id),
+    starts: rec.verses.map((v) => v.start_ms / 1000),
+    ends: rec.verses.map((v) => v.end_ms / 1000),
+    index: new Map(rec.verses.map((v, i) => [v.ayah_id, i])),
+    length: rec.duration_ms / 1000,
+  };
+}
+
+/** The verse sounding at `t`: the last one to have started, or the first when
+ *  `t` is before any of them. */
+function verseAt(stream: SurahStream, t: number): number {
+  let lo = 0;
+  let hi = stream.starts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (stream.starts[mid] <= t) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
 
 class PlaybackStore {
   /** The catalogue, loaded once. Empty until `init`. */
@@ -112,6 +172,14 @@ class PlaybackStore {
   currentTime = $state(0);
   duration = $state(0);
 
+  /**
+   * Position and length in the Surah's recording, while it streams. Zero
+   * length otherwise, which is how the listen panel knows a bar spanning the
+   * whole Surah has nothing to span: verse by verse there is no one file.
+   */
+  surahTime = $state(0);
+  surahLength = $state(0);
+
   /** Repeats still owed on the current verse, under `repeat: ayah`. */
   #repeatsLeft = 0;
 
@@ -130,6 +198,18 @@ class PlaybackStore {
    *  that the playhead has moved and give up rather than fetching verses the
    *  reader has already gone past. */
   #prefetchRun = 0;
+
+  /** The queued Surah's whole recording, when it can be streamed. Null plays
+   *  the queue verse by verse. */
+  #stream: SurahStream | null = null;
+  /** The element the stream plays through, separate from the ping-pong pair so
+   *  neither has to know which kind of source it holds. */
+  #streamEl: HTMLAudioElement | null = null;
+  /** Set once the current pass through a verse has reached its end and been
+   *  dealt with — repeated, paused after, or let run on — so a boundary checked
+   *  sixty times a second is acted on once. */
+  #boundaryHandled = false;
+  #frame: number | null = null;
 
   async init() {
     if (this.backend === null) {
@@ -205,6 +285,10 @@ class PlaybackStore {
     if (this.mode === 'range' && this.currentAyahId !== null && !ids.includes(this.currentAyahId)) {
       this.stop();
     }
+    if (this.#stream && !ids.includes(this.#stream.ids[0])) {
+      this.#releaseStream();
+      this.#stream = null;
+    }
   }
 
   /**
@@ -214,6 +298,9 @@ class PlaybackStore {
    * this is reached from can be a Surah that only *starts* inside a Juz, and
    * "listen to Al-Kahf" should mean Al-Kahf and not the part of it that shares
    * a page with something else.
+   *
+   * Streamed from one recording when the reciter has one; see the note at the
+   * top of this file.
    */
   async playSurah(surahId: number) {
     if (!this.enabled) return;
@@ -221,6 +308,7 @@ class PlaybackStore {
       const ayahs = await getAyahsForSurah(surahId);
       if (!ayahs.length) return;
       this.setQueue(ayahs);
+      await this.#openStream(surahId);
       await this.playRange(ayahs[0].id);
     } catch (err) {
       this.#fail(err);
@@ -271,6 +359,15 @@ class PlaybackStore {
     this.#clearPause();
     this.mode = 'range';
     this.#repeatsLeft = this.#repeatsFor();
+    // A stream fetched for another reciter: ask again for this one.
+    if (this.#stream && this.#stream.slug !== this.reciter?.slug) {
+      const surahId = this.#where.get(ayahId)?.surahId;
+      if (surahId !== undefined) await this.#openStream(surahId);
+    }
+    if (this.#streamFor(ayahId)) {
+      await this.#streamFrom(ayahId);
+      return;
+    }
     await this.#load(ayahId, true);
   }
 
@@ -295,13 +392,23 @@ class PlaybackStore {
 
   pause() {
     this.#clearPause();
-    this.#active?.pause();
+    (this.#streaming ? this.#streamEl : this.#active)?.pause();
     this.playing = false;
   }
 
   async resume() {
     if (this.currentAyahId === null) return;
     if (!this.#guard()) return;
+    if (this.#streaming) {
+      const el = this.#streamEl;
+      if (!el || !el.src) {
+        await this.#streamFrom(this.currentAyahId);
+        return;
+      }
+      this.#apply(el);
+      if (await this.#start(el)) this.#watch();
+      return;
+    }
     const el = this.#active;
     // No source yet means the last attempt never got a file — a fetch that
     // failed, or downloads turned off. Go through `#load` again rather than
@@ -323,6 +430,7 @@ class PlaybackStore {
     this.#clearPause();
     if (this.#a) this.#a.pause();
     if (this.#b) this.#b.pause();
+    this.#releaseStream();
     this.playing = false;
     this.loading = false;
     this.currentAyahId = null;
@@ -330,6 +438,8 @@ class PlaybackStore {
     this.error = null;
     this.currentTime = 0;
     this.duration = 0;
+    this.surahTime = 0;
+    this.surahLength = 0;
     this.#repeatsLeft = 0;
     this.#preloadedAyahId = null;
   }
@@ -367,18 +477,70 @@ class PlaybackStore {
    * said" is a question about one phrase in it.
    */
   seek(seconds: number) {
-    const el = this.#active;
-    if (!el || !Number.isFinite(this.duration) || this.duration <= 0) return;
+    if (!Number.isFinite(this.duration) || this.duration <= 0) return;
     const clamped = Math.min(Math.max(seconds, 0), this.duration);
-    el.currentTime = clamped;
+    // Streaming, the verse bar's position is an offset from where that verse
+    // starts in the Surah's file.
+    const stream = this.#streaming ? this.#stream : null;
+    const i =
+      stream && this.currentAyahId !== null ? stream.index.get(this.currentAyahId) : undefined;
+    const el = stream ? this.#streamEl : this.#active;
+    if (!el) return;
+    if (stream && i !== undefined) {
+      el.currentTime = stream.starts[i] + clamped;
+      this.#boundaryHandled = false;
+    } else {
+      el.currentTime = clamped;
+    }
     this.currentTime = clamped;
+  }
+
+  /**
+   * Jump to a point in the Surah's recording, for the bar that spans all of
+   * it. The verse is whichever one that point falls in, so the reader follows
+   * the jump as it would a verse the reciter ran on into.
+   */
+  seekSurah(seconds: number) {
+    const stream = this.#streaming ? this.#stream : null;
+    const el = this.#streamEl;
+    if (!stream || !el || !el.src || this.surahLength <= 0) return;
+    const t = Math.min(Math.max(seconds, 0), this.surahLength);
+    // A jump made in the silence between two verses is where the reader wants
+    // to be now, not after the silence has run out.
+    const waiting = this.#pauseTimer !== null;
+    this.#clearPause();
+    el.currentTime = t;
+    const id = stream.ids[verseAt(stream, t)];
+    if (id !== this.currentAyahId) {
+      this.currentAyahId = id;
+      this.#repeatsLeft = this.#repeatsFor();
+    }
+    this.#boundaryHandled = false;
+    this.#syncStreamClock();
+    if (waiting) void this.#start(el).then((ok) => ok && this.#watch());
+  }
+
+  /** The verse number at a point in the Surah's recording, for the bar to say
+   *  where a drag would land before it is let go. */
+  verseNumberAt(seconds: number): number | null {
+    const stream = this.#streaming ? this.#stream : null;
+    if (!stream) return null;
+    return this.#where.get(stream.ids[verseAt(stream, seconds)])?.ayahNumber ?? null;
   }
 
   /** Turn downloads on and pick up where the missing verse stopped playback. */
   async allowDownloadsAndRetry() {
     await settingsStore.setAudioDownloadsAllowed(true);
     this.needsPermission = false;
-    if (this.currentAyahId !== null) await this.#load(this.currentAyahId, true);
+    if (this.currentAyahId === null) return;
+    if (this.mode === 'range') {
+      // Turning downloads on is also what lets the Surah stream.
+      const surahId = this.#where.get(this.currentAyahId)?.surahId;
+      if (surahId !== undefined && !this.#stream) await this.#openStream(surahId);
+      await this.playRange(this.currentAyahId);
+      return;
+    }
+    await this.#load(this.currentAyahId, true);
   }
 
   // ===========================================================================
@@ -460,6 +622,10 @@ class PlaybackStore {
     if (!this.#guard()) return;
 
     this.#ensureElements();
+    // A verse from the card while the Surah streams, or a stream that failed
+    // over to this path: either way the stream is not what should be heard.
+    this.#streamEl?.pause();
+    this.surahLength = 0;
     this.currentAyahId = ayahId;
     this.error = null;
     this.needsPermission = false;
@@ -517,6 +683,9 @@ class PlaybackStore {
       this.playing = true;
       return true;
     } catch (err) {
+      // A play() overtaken by a pause or a new source is rejected as aborted.
+      // Nothing failed: whatever overtook it is what the reader asked for.
+      if (err instanceof DOMException && err.name === 'AbortError') return false;
       this.#fail(err);
       return false;
     }
@@ -609,6 +778,283 @@ class PlaybackStore {
 
     this.#repeatsLeft = this.#repeatsFor();
     this.#after(pause, () => this.#load(nextId, true));
+  }
+
+  // ===========================================================================
+  // STREAMING
+  // ===========================================================================
+
+  /** Whether the queue is playing from the Surah's recording right now. */
+  get #streaming(): boolean {
+    return this.mode === 'range' && this.#stream !== null;
+  }
+
+  /** The stream, if it can play this verse for the chosen reciter. */
+  #streamFor(ayahId: number): SurahStream | null {
+    const stream = this.#stream;
+    if (!stream || stream.slug !== this.reciter?.slug || !stream.index.has(ayahId)) return null;
+    return stream;
+  }
+
+  /**
+   * Ask for the Surah's recording, leaving `#stream` null when it cannot be
+   * streamed — which is never an error the reader sees, because the per-verse
+   * path plays the same Surah.
+   *
+   * Not attempted in "cached only" mode: streaming is the network by
+   * definition, and that switch is the reader's promise that there is none.
+   */
+  async #openStream(surahId: number) {
+    this.#releaseStream();
+    this.#stream = null;
+    const reciter = this.reciter;
+    if (!reciter || !settingsStore.current.audio_downloads_allowed) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    this.loading = true;
+    try {
+      const rec = await surahRecitation(reciter.slug, surahId);
+      if (rec && rec.verses.length && reciter.slug === this.reciter?.slug) {
+        this.#stream = toStream(reciter.slug, rec);
+      }
+    } catch (err) {
+      console.warn('No whole-Surah recording; playing verse by verse', err);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  #ensureStreamElement(): HTMLAudioElement | null {
+    if (typeof window === 'undefined') return null;
+    if (this.#streamEl) return this.#streamEl;
+    const el = new Audio();
+    // Fetched as it plays rather than all at once: al-Baqara is over 100 MB,
+    // and someone listening to its first page has not asked for the rest.
+    el.preload = 'metadata';
+    el.addEventListener('timeupdate', () => {
+      // Dropping the source on stop fires one last update at 0:00, which would
+      // otherwise put verse 1 back as the one sounding.
+      if (this.#streaming && el.src && this.currentAyahId !== null) this.#onStreamTime(true);
+    });
+    el.addEventListener('ended', () => void this.#onStreamEnded());
+    // WebKitGTK's MP3 seeking only jumps straight to parts of the file it has
+    // already seen; a jump past them is read up to, which on al-Baqara can
+    // take seconds. Without this it reads as a frozen bar.
+    el.addEventListener('waiting', () => {
+      if (this.#streaming) this.loading = true;
+    });
+    el.addEventListener('playing', () => {
+      if (this.#streaming) this.loading = false;
+    });
+    el.addEventListener('error', () => {
+      if (!this.#streaming || !el.src) return;
+      // Fall back rather than fail: the per-verse path is the same Surah, and
+      // it plays from the cache when the network is what went away.
+      console.warn('Streaming the Surah failed; playing verse by verse', el.error);
+      const at = this.currentAyahId;
+      this.#releaseStream();
+      this.#stream = null;
+      this.loading = false;
+      if (at !== null) void this.#load(at, true);
+    });
+    this.#streamEl = el;
+    return el;
+  }
+
+  /** Start or move the stream to the beginning of a verse. */
+  async #streamFrom(ayahId: number) {
+    const stream = this.#streamFor(ayahId);
+    if (!stream) return;
+    if (!this.#guard()) return;
+    const el = this.#ensureStreamElement();
+    if (!el) return;
+
+    // The pair may be mid-verse from the card, or holding a prefetch that the
+    // stream makes pointless; the bump abandons any prefetch run in flight.
+    this.#a?.pause();
+    this.#b?.pause();
+    this.#prefetchRun++;
+    this.#preloadedAyahId = null;
+
+    const i = stream.index.get(ayahId) ?? 0;
+    this.currentAyahId = ayahId;
+    this.error = null;
+    this.needsPermission = false;
+    this.#boundaryHandled = false;
+
+    if (el.src !== stream.url) {
+      el.src = stream.url;
+      this.loading = true;
+    }
+    // From the top of the file for the first verse: the recording opens with
+    // the isti'adha and basmala, which belong to the Surah though to no verse.
+    const from = i === 0 ? 0 : stream.starts[i];
+    await this.#seekStream(el, from);
+    if (!this.#stillStreaming(stream, el)) return;
+    this.#apply(el);
+    this.#syncStreamClock();
+    if (await this.#start(el)) this.#watch();
+  }
+
+  /**
+   * Whether a stream start that awaited a seek is still the one wanted. A
+   * failure while it waited has already fallen back to per-verse files, and
+   * pressing play on the emptied element would put an error over a fallback
+   * that is working.
+   */
+  #stillStreaming(stream: SurahStream, el: HTMLAudioElement): boolean {
+    return this.#stream === stream && this.#streaming && el.src === stream.url;
+  }
+
+  /**
+   * Seek, waiting for metadata first when the element has none yet: before it
+   * knows the file's length, a seek is not reliably honoured.
+   */
+  #seekStream(el: HTMLAudioElement, t: number): Promise<void> {
+    if (el.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      el.currentTime = t;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const done = () => {
+        el.removeEventListener('loadedmetadata', done);
+        el.removeEventListener('error', done);
+        if (!el.error) el.currentTime = t;
+        resolve();
+      };
+      el.addEventListener('loadedmetadata', done);
+      el.addEventListener('error', done);
+    });
+  }
+
+  /**
+   * Check the playhead against the verse it is in. Runs every frame while the
+   * stream plays, because `timeupdate` fires only about four times a second and
+   * a repeat that waited for it would play a quarter-second of the next verse
+   * first. The bar's clock is only touched from `timeupdate`: re-rendering it
+   * every frame buys nothing a reader could see.
+   */
+  #onStreamTime(updateClock: boolean) {
+    const stream = this.#stream;
+    const el = this.#streamEl;
+    if (!stream || !el || this.#pauseTimer !== null || el.seeking) return;
+    const t = el.currentTime;
+    const i = this.currentAyahId === null ? undefined : stream.index.get(this.currentAyahId);
+
+    if (i !== undefined && !this.#boundaryHandled && t >= stream.ends[i]) {
+      this.#boundaryHandled = true;
+      const { audio_repeat_mode: mode, audio_repeat_pause_ms: pause } = settingsStore.current;
+      const hasNext = i + 1 < stream.ids.length;
+
+      if (mode === 'ayah' && this.#repeatsLeft > 1) {
+        this.#repeatsLeft -= 1;
+        el.pause();
+        this.#after(pause, () => this.#restartStreamAt(i));
+        return;
+      }
+      if (pause > 0 && hasNext) {
+        el.pause();
+        this.#after(pause, () => {
+          this.#repeatsLeft = this.#repeatsFor();
+          return this.#restartStreamAt(i + 1);
+        });
+        return;
+      }
+    }
+
+    const at = verseAt(stream, t);
+    if (at !== i) {
+      // Run on into the next verse, or a seek landed in another one.
+      this.currentAyahId = stream.ids[at];
+      this.#repeatsLeft = this.#repeatsFor();
+      this.#boundaryHandled = false;
+      updateClock = true;
+    }
+    if (updateClock) this.#syncStreamClock();
+  }
+
+  /** `fromTop` takes in the lead-in before the first verse, for the whole
+   *  Surah coming round again rather than its first verse repeating. */
+  async #restartStreamAt(i: number, fromTop = false) {
+    const stream = this.#stream;
+    const el = this.#streamEl;
+    if (!stream || !el) return;
+    this.currentAyahId = stream.ids[i];
+    this.#boundaryHandled = false;
+    await this.#seekStream(el, fromTop ? 0 : stream.starts[i]);
+    if (!this.#stillStreaming(stream, el)) return;
+    this.#apply(el);
+    this.#syncStreamClock();
+    if (await this.#start(el)) this.#watch();
+  }
+
+  /** Both clocks: the verse's slice of the file, and the file as a whole. */
+  #syncStreamClock() {
+    const stream = this.#stream;
+    const el = this.#streamEl;
+    const i =
+      stream && this.currentAyahId !== null ? stream.index.get(this.currentAyahId) : undefined;
+    if (!stream || !el || i === undefined) return;
+    const length = stream.ends[i] - stream.starts[i];
+    this.duration = length;
+    this.currentTime = Math.min(Math.max(el.currentTime - stream.starts[i], 0), length);
+    // The timings end where the last verse does; the file runs a little past.
+    this.surahLength = Number.isFinite(el.duration)
+      ? Math.max(stream.length, el.duration)
+      : stream.length;
+    this.surahTime = Math.min(el.currentTime, this.surahLength);
+  }
+
+  /** The end of the file: the last verse's repeats, the whole Surah again, or
+   *  stop. The same three outcomes `#onEnded` gives the per-verse path. */
+  async #onStreamEnded() {
+    const stream = this.#stream;
+    if (!this.#streaming || !stream) return;
+    const { audio_repeat_mode: mode, audio_repeat_pause_ms: pause } = settingsStore.current;
+    const last = stream.ids.length - 1;
+
+    // The last verse's end can sit at or past the end of the file, so its
+    // boundary may never have been seen in `#onStreamTime`.
+    if (mode === 'ayah' && this.#repeatsLeft > 1 && !this.#boundaryHandled) {
+      this.#repeatsLeft -= 1;
+      this.#after(pause, () => this.#restartStreamAt(last));
+      return;
+    }
+    if (mode === 'range') {
+      this.#repeatsLeft = this.#repeatsFor();
+      this.#after(pause, () => this.#restartStreamAt(0, true));
+      return;
+    }
+    this.playing = false;
+  }
+
+  /** Watch the playhead every frame until playback stops. */
+  #watch() {
+    if (this.#frame !== null || typeof requestAnimationFrame === 'undefined') return;
+    const step = () => {
+      this.#frame = null;
+      if (!this.#streaming || !this.playing) return;
+      this.#onStreamTime(false);
+      this.#frame = requestAnimationFrame(step);
+    };
+    this.#frame = requestAnimationFrame(step);
+  }
+
+  /**
+   * Stop the stream and drop its source. Pausing alone would leave the element
+   * buffering a hundred megabytes nobody is listening to.
+   */
+  #releaseStream() {
+    if (this.#frame !== null) {
+      cancelAnimationFrame(this.#frame);
+      this.#frame = null;
+    }
+    this.surahTime = 0;
+    this.surahLength = 0;
+    const el = this.#streamEl;
+    if (!el || !el.src) return;
+    el.pause();
+    el.removeAttribute('src');
+    el.load();
   }
 
   /**

@@ -233,6 +233,10 @@ pub struct Settings {
     /// turning it back off is "cached only" — everything already downloaded
     /// still plays and nothing leaves the machine.
     pub audio_downloads_allowed: bool,
+    /// Whether the listen panel's bar spans the whole Surah rather than the
+    /// verse. Only honoured while the Surah streams: verse by verse there is no
+    /// one file to have a position in.
+    pub audio_bar_surah: bool,
 }
 
 impl Default for Settings {
@@ -268,6 +272,7 @@ impl Default for Settings {
             audio_follow: true,
             audio_volume: 1.0,
             audio_downloads_allowed: false,
+            audio_bar_surah: true,
         }
     }
 }

@@ -103,6 +103,7 @@ function defaultSettings(): Settings {
     audio_follow: true,
     audio_volume: 1,
     audio_downloads_allowed: false,
+    audio_bar_surah: true,
   };
 }
 
@@ -342,6 +343,11 @@ class SettingsStore {
   async setAudioDownloadsAllowed(allowed: boolean) {
     this.current.audio_downloads_allowed = allowed;
     await setSetting('audio_downloads_allowed', String(allowed));
+  }
+
+  async setAudioBarSurah(surah: boolean) {
+    this.current.audio_bar_surah = surah;
+    await setSetting('audio_bar_surah', String(surah));
   }
 }
 

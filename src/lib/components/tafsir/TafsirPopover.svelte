@@ -440,6 +440,7 @@
     <!-- The header is the drag handle. Mouse and touch only: the card is a
          dialog that keyboard users reach and leave through focus, and its
          position does not decide what they can read. -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <header
       class="head"
       class:dragging

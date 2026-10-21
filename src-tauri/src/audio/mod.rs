@@ -14,6 +14,10 @@
 //! small enough to fetch on a keypress, and they give Repeat Ayah and
 //! follow-highlighting without a single millisecond of timing data.
 //!
+//! That is still how the verse card plays one verse. The listen panel streams
+//! a whole Surah from a different host instead, with verse timings fetched
+//! alongside it — see [`surah`].
+//!
 //! # What is checked, and what cannot be
 //!
 //! `packs` hashes every downloaded byte against a SHA-256 compiled into the
@@ -37,8 +41,10 @@ use std::time::Duration;
 use thiserror::Error;
 
 mod backend;
+pub mod surah;
 
 pub use backend::{probe as probe_backend, AudioBackend};
+pub use surah::SurahRecitation;
 
 /// The only host this build will fetch from. Verse audio is addressed as
 /// `{HOST}/quran/audio/{bitrate}/{reciter}/{ayah_id}.mp3`, where `ayah_id` is
@@ -87,6 +93,11 @@ pub enum AudioError {
     /// captive portal's login screen saved under an `.mp3` name.
     #[error("The server did not return audio for this verse ({0})")]
     NotAudio(String),
+
+    /// A whole-Surah timings response that does not describe the Surah asked
+    /// for. The listen panel falls back to per-Ayah files on this.
+    #[error("Unusable verse timings: {0}")]
+    Timings(String),
 }
 
 pub type AudioResult<T> = Result<T, AudioError>;
@@ -115,9 +126,25 @@ pub struct ReciterSpec {
     pub source_url: &'static str,
     pub license: &'static str,
     pub sort_order: u32,
+    /// The same reciter's whole-Surah recording on mp3quran.net, which the
+    /// listen panel streams. `None` keeps the listen panel on per-Ayah files
+    /// for this reciter. Every one set here has had all 114 Surahs checked: a
+    /// file on the expected host, and one timing per Ayah in order.
+    pub stream: Option<StreamSource>,
 }
 
-/// Verified reachable at 64 kbps on 2026-08-31.
+/// Where one reciter's whole-Surah recordings are on mp3quran.net.
+pub struct StreamSource {
+    /// The recording's id on the timings API (`read`). Also what a kept
+    /// timing row is keyed by, so a change of recording discards it.
+    pub read: u32,
+    /// The recording's folder under `cdn.mp3quran.net/audio/`. The timings
+    /// response does not name the file, so the catalogue does.
+    pub folder: &'static str,
+}
+
+/// Verified reachable at 64 kbps on 2026-08-31. Whole-Surah streams verified
+/// for all 114 Surahs of each on 2026-10-21 (see docs/audio-plan.md).
 ///
 /// These are copyrighted recordings served by a third party. The app fetches
 /// them at the reader's request and never hosts, repackages or redistributes
@@ -133,6 +160,10 @@ pub const RECITERS: &[ReciterSpec] = &[
         source_url: "https://cdn.islamic.network/quran/audio",
         license: "© the reciter and publisher — streamed from the source, not redistributed",
         sort_order: 0,
+        stream: Some(StreamSource {
+            read: 123,
+            folder: "mishary-alafasy/r1",
+        }),
     },
     ReciterSpec {
         slug: "ar.husary",
@@ -143,6 +174,10 @@ pub const RECITERS: &[ReciterSpec] = &[
         source_url: "https://cdn.islamic.network/quran/audio",
         license: "© the reciter and publisher — streamed from the source, not redistributed",
         sort_order: 1,
+        stream: Some(StreamSource {
+            read: 118,
+            folder: "mahmoud-husary/r1",
+        }),
     },
     ReciterSpec {
         slug: "ar.abdulbasitmurattal",
@@ -153,6 +188,10 @@ pub const RECITERS: &[ReciterSpec] = &[
         source_url: "https://cdn.islamic.network/quran/audio",
         license: "© the reciter and publisher — streamed from the source, not redistributed",
         sort_order: 2,
+        stream: Some(StreamSource {
+            read: 53,
+            folder: "abdulbasit-abdulsamad/r3",
+        }),
     },
     ReciterSpec {
         slug: "ar.shaatree",
@@ -163,6 +202,10 @@ pub const RECITERS: &[ReciterSpec] = &[
         source_url: "https://cdn.islamic.network/quran/audio",
         license: "© the reciter and publisher — streamed from the source, not redistributed",
         sort_order: 3,
+        stream: Some(StreamSource {
+            read: 4,
+            folder: "abubakr-shatri/r1",
+        }),
     },
     ReciterSpec {
         slug: "ar.abdurrahmaansudais",
@@ -173,6 +216,10 @@ pub const RECITERS: &[ReciterSpec] = &[
         source_url: "https://cdn.islamic.network/quran/audio",
         license: "© the reciter and publisher — streamed from the source, not redistributed",
         sort_order: 4,
+        stream: Some(StreamSource {
+            read: 54,
+            folder: "abdulrahman-sudais/r1",
+        }),
     },
 ];
 

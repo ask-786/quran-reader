@@ -8,6 +8,7 @@ import type {
   AudioBackend,
   Reciter,
   ReciterUsage,
+  SurahRecitation,
   Surah,
   Ayah,
   Translation,
@@ -318,6 +319,15 @@ export function cachedAudioInRange(
   lastAyahId: number,
 ): Promise<number[]> {
   return invoke('cached_audio_in_range', { slug, bitrate, firstAyahId, lastAyahId });
+}
+
+/**
+ * A Surah's whole recording and its verse timings, for the listen panel to
+ * stream. Null means play it verse by verse instead: the reciter has no
+ * whole-Surah source, or its timings were never fetched and downloads are off.
+ */
+export function surahRecitation(slug: string, surahId: number): Promise<SurahRecitation | null> {
+  return invoke('surah_recitation', { slug, surahId });
 }
 
 /**

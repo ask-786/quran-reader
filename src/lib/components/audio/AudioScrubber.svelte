@@ -8,6 +8,8 @@
 
   Used by the tafsir card (popover and panel), where it plays one verse and
   stops, and by the listen panel, where the same controls sit over a queue.
+  There the bar can instead span the whole Surah, while it streams as one
+  recording.
 -->
 <script lang="ts">
   import { Loader, Pause, Play } from 'lucide-svelte';
@@ -19,7 +21,11 @@
     /** Range mode plays on through the queue; the default plays this verse and
      *  stops, which is what a clarification is. */
     range = false,
-  }: { ayahId: number; range?: boolean } = $props();
+    /** Span the Surah's recording rather than the verse. Falls back to the
+     *  verse whenever the Surah is not streaming, since then there is no one
+     *  file to have a position in. */
+    surah = false,
+  }: { ayahId: number; range?: boolean; surah?: boolean } = $props();
 
   const isCurrent = $derived(playbackStore.isCurrent(ayahId));
   const playing = $derived(playbackStore.isPlaying(ayahId));
@@ -30,9 +36,40 @@
 
   /** The track is dead until this verse is the loaded one with a known length —
    *  a slider that cannot move is worse than one that is visibly not ready. */
-  const seekable = $derived(isCurrent && playbackStore.duration > 0);
-  const position = $derived(isCurrent ? playbackStore.currentTime : 0);
-  const length = $derived(isCurrent ? playbackStore.duration : 0);
+  const whole = $derived(surah && playbackStore.surahLength > 0);
+  const seekable = $derived(whole || (isCurrent && playbackStore.duration > 0));
+  const position = $derived(
+    whole ? playbackStore.surahTime : isCurrent ? playbackStore.currentTime : 0,
+  );
+  const length = $derived(
+    whole ? playbackStore.surahLength : isCurrent ? playbackStore.duration : 0,
+  );
+
+  /**
+   * Where a drag along the whole-Surah bar is, before it is let go. Seeking on
+   * every step would scroll the reader through each verse passed over on the
+   * way, and ask the host for a new piece of the file each time; one verse's
+   * bar seeks as it goes, because there the audio is already in memory and
+   * hearing it move is the point.
+   */
+  let scrub = $state<number | null>(null);
+  // Only the Surah bar reads it. A drag whose release went unseen would
+  // otherwise leave the verse bar showing that drag's position for good,
+  // while its seeks went through underneath.
+  const shown = $derived(whole && scrub !== null ? scrub : position);
+  /** How far along the bar is shown, for placing the landing verse over it. */
+  const fraction = $derived(length > 0 ? Math.min(Math.max(shown / length, 0), 1) : 0);
+  const landing = $derived(whole && scrub !== null ? playbackStore.verseNumberAt(scrub) : null);
+
+  function onInput(value: number) {
+    if (whole) scrub = value;
+    else playbackStore.seek(value);
+  }
+
+  function onChange(value: number) {
+    scrub = null;
+    if (whole) playbackStore.seekSurah(value);
+  }
 
   function toggle() {
     if (playing) {
@@ -71,19 +108,39 @@
     {/if}
   </button>
 
-  <input
-    class="track"
-    type="range"
-    min="0"
-    max={length || 1}
-    step="1"
-    value={position}
-    disabled={!seekable || unplayable}
-    aria-label="Position in this verse"
-    oninput={(e) => playbackStore.seek(Number(e.currentTarget.value))}
-  />
+  <!-- The landing verse floats over the track rather than sitting beside it:
+       beside it, it took its width from the bar mid-drag, and the bar shrank
+       under the pointer that was dragging it. -->
+  <div class="track-wrap">
+    <input
+      class="track"
+      type="range"
+      min="0"
+      max={length || 1}
+      step="1"
+      value={shown}
+      disabled={!seekable || unplayable}
+      aria-label={whole ? 'Position in this Surah' : 'Position in this verse'}
+      oninput={(e) => onInput(Number(e.currentTarget.value))}
+      onchange={(e) => onChange(Number(e.currentTarget.value))}
+    />
+    {#if landing !== null}
+      <span
+        class="landing"
+        style:left="{fraction * 100}%"
+        style:translate="{fraction * -100}% 0"
+        aria-hidden="true"
+      >
+        Verse {landing}
+      </span>
+    {/if}
+  </div>
 
-  <span class="time">{clock(position)} / {clock(length)}</span>
+  <!-- Wide enough for the longest it can read, so the bar does not twitch as
+       9:59 becomes 10:00. -->
+  <span class="time" style:min-width="{clock(length).length * 2 + 3}ch">
+    {clock(shown)} / {clock(length)}
+  </span>
 </div>
 
 {#if unplayable}
@@ -130,10 +187,17 @@
     color: var(--color-accent);
   }
 
-  .track {
+  .track-wrap {
+    position: relative;
     flex: 1;
     min-width: 40px;
     margin: 0 6px;
+  }
+
+  .track {
+    display: block;
+    width: 100%;
+    margin: 0;
     accent-color: var(--color-accent);
     cursor: pointer;
   }
@@ -143,8 +207,25 @@
     cursor: default;
   }
 
+  /* Above the thumb. Shifted back by as much of its own width as the thumb is
+     along the track, so it is never clipped at either end of the card. */
+  .landing {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    padding: 2px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-elevated);
+    color: var(--color-accent);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
   .time {
     flex-shrink: 0;
+    text-align: right;
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
