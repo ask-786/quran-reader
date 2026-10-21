@@ -50,8 +50,37 @@ jobs:
           fi
           exit $fail
 
+  # Written once here rather than in each bundle job: whichever of those
+  # finishes first creates the release, so they all have to hand tauri-action
+  # the same body.
+  notes:
+    name: Write release notes
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      # Full history and tags: the notes cover every commit since the
+      # previous v* tag.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - id: notes
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          scripts/release-notes.sh "$tag" > notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+          delimiter="notes_$(openssl rand -hex 8)"
+          {
+            echo "body<<$delimiter"
+            cat notes.md
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
   release:
-    needs: verify-version
+    needs: [verify-version, notes]
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -123,7 +152,7 @@ jobs:
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: 'Quran Reader ${{ github.event.inputs.tag || github.ref_name }}'
-          releaseBody: 'See the assets below to download and install this version.'
+          releaseBody: ${{ needs.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

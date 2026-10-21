@@ -11,15 +11,17 @@ The chain has one manual link in the middle: the build leaves a **draft**, and n
 
 1. **Start from a clean, current `master`.** `git status` clean, then `git pull --ff-only`.
 
-2. **Bump.** `scripts/bump-version.sh patch|minor|major|X.Y.Z` writes the four files that have to agree — `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` — and refuses to run if they have already drifted. `--commit` also makes the `chore(release): vX.Y.Z` commit and the tag. Leave `packaging/aur/*` alone; step 6 rewrites it.
+2. **Read the notes.** `scripts/release-notes.sh` prints what the release body will say: `feat`, `fix` and `perf` commits since the last `v*` tag, with dependency bumps collapsed. The workflow runs the same script, so a badly worded subject shows up here before it ships. If nothing user-facing landed, it says so. Decide whether that is worth a release.
 
-3. **Push the branch, then the tag.** `git push origin master && git push origin vX.Y.Z`. The tag push is the trigger — pushing the branch alone releases nothing.
+3. **Bump.** `scripts/bump-version.sh patch|minor|major|X.Y.Z` writes the four files that have to agree — `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` — and refuses to run if they have already drifted. `--commit` also makes the `chore(release): vX.Y.Z` commit and the tag. Leave `packaging/aur/*` alone; step 7 rewrites it.
 
-4. **Watch the build.** The Release workflow's `verify-version` job fails fast when the tag and the manifests disagree; after that the three bundle jobs run and they dominate the wall time.
+4. **Push the branch, then the tag.** `git push origin master && git push origin vX.Y.Z`. The tag push is the trigger — pushing the branch alone releases nothing.
 
-5. **Publish the draft.** Confirm the assets are all attached first — Linux `.deb`/`.rpm`/AppImage, macOS `.dmg`, Windows `.msi`/`.exe` — then `gh release edit vX.Y.Z --draft=false`. Draft assets 404 for everyone but the repo owner, so nothing can consume the release until this runs.
+5. **Watch the build.** The Release workflow's `verify-version` job fails fast when the tag and the manifests disagree; after that the three bundle jobs run and they dominate the wall time.
 
-6. **Confirm AUR landed.** Publishing starts the Publish to AUR run, which rewrites `pkgver` and the `.deb` checksum and commits back to `master`. `git pull` when it is green.
+6. **Publish the draft.** Confirm the assets are all attached first — Linux `.deb`/`.rpm`/AppImage, macOS `.dmg`, Windows `.msi`/`.exe` — then `gh release edit vX.Y.Z --draft=false`. Draft assets 404 for everyone but the repo owner, so nothing can consume the release until this runs.
+
+7. **Confirm AUR landed.** Publishing starts the Publish to AUR run, which rewrites `pkgver` and the `.deb` checksum and commits back to `master`. `git pull` when it is green.
 
 Done when the release is published, the AUR run is green, and local `master` carries its commit.
 
