@@ -1,5 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isMac } from '$lib/utils/platform';
+import { uiStore } from './ui.svelte';
 
 /**
  * macOS gets the native title bar, laid over the top of the webview
@@ -24,11 +25,26 @@ class WindowChromeStore {
     return isMac && !this.fullscreen;
   }
 
+  /**
+   * Whether focus mode is what took the window full screen, and so whether
+   * leaving it should bring the window back. A window that was already full
+   * screen stays that way.
+   */
+  #fullscreenForFocus = false;
+
   /** Track full screen. Returns the cleanup. */
   init(): () => void {
     const appWindow = getCurrentWindow();
     const sync = async () => {
+      const was = this.fullscreen;
       this.fullscreen = await appWindow.isFullscreen();
+      // Left by the green button or ⌃⌘F rather than by leaving focus mode,
+      // which clears the flag first. Focus mode can't stay on without full
+      // screen, or the traffic lights land over the reader.
+      if (was && !this.fullscreen && this.#fullscreenForFocus) {
+        this.#fullscreenForFocus = false;
+        uiStore.exitFocusMode();
+      }
     };
     void sync();
     // Entering and leaving full screen both resize the window, so this is the
@@ -47,6 +63,22 @@ class WindowChromeStore {
   async toggleFullscreen() {
     if (isMac) return;
     await getCurrentWindow().setFullscreen(!this.fullscreen);
+  }
+
+  /**
+   * On macOS focus mode is full screen too. It hides the toolbar and sidebar,
+   * the two things that make room for the traffic lights, and full screen is
+   * the one place macOS takes them away.
+   */
+  async followFocusMode(on: boolean) {
+    if (!isMac) return;
+    if (on && !this.fullscreen) {
+      this.#fullscreenForFocus = true;
+      await getCurrentWindow().setFullscreen(true);
+    } else if (!on && this.#fullscreenForFocus) {
+      this.#fullscreenForFocus = false;
+      await getCurrentWindow().setFullscreen(false);
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import '../app.css';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -128,6 +128,13 @@
     if (KEYED_MENU_ITEMS.has(id) && performance.now() - modifierKeydownAt < 500) return;
     MENU_ITEMS[id]?.();
   }
+
+  // Only focus mode is the trigger; the full-screen state the call reads is
+  // not, or the window coming out of full screen would re-run it.
+  $effect(() => {
+    const on = uiStore.focusMode;
+    untrack(() => void windowChrome.followFocusMode(on));
+  });
 
   onMount(() => {
     // Tafsir state (chosen edition, panel width, whether it is open) lives in
