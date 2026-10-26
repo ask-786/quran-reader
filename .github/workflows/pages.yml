@@ -1,0 +1,45 @@
+name: Website
+
+# Publishes site/ to GitHub Pages at https://ask-786.github.io/quran-reader/.
+# Needs Settings → Pages → Source set to "GitHub Actions" once.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'site/**'
+      - 'packaging/flatpak/screenshots/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/configure-pages@v6
+
+      # The same screenshots Flathub shows, kept in one place.
+      - name: Add screenshots
+        run: cp -r packaging/flatpak/screenshots site/screenshots
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v5

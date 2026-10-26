@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Quran Reader for Mac — Free Offline Quran App for macOS</title>
+    <meta
+      name="description"
+      content="Download Quran Reader for macOS, on Apple Silicon and Intel Macs: a free, open-source Quran app that works offline, with distraction-free reading, recitation, tafsir and daily routines."
+    />
+    <link rel="canonical" href="https://ask-786.github.io/quran-reader/macos/" />
+
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)" />
+
+    <link rel="icon" href="../icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="../favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Quran Reader" />
+    <meta property="og:url" content="https://ask-786.github.io/quran-reader/macos/" />
+    <meta property="og:title" content="Quran Reader for Mac — free, offline Quran app" />
+    <meta
+      property="og:description"
+      content="Read the Quran offline on your Mac, with recitation, tafsir and daily routines."
+    />
+    <meta property="og:image" content="https://ask-786.github.io/quran-reader/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preload" href="../fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="../style.css" />
+    <script src="../main.js" defer></script>
+  </head>
+
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="../" aria-label="Quran Reader home">
+          <img src="../icon.svg" alt="" width="32" height="32" />
+          <span>Quran Reader</span>
+        </a>
+        <nav aria-label="Main">
+          <a href="../#features">Features</a>
+          <a class="nav-keep" href="../#download">Download</a>
+          <a href="../#faq">FAQ</a>
+          <a href="https://github.com/ask-786/quran-reader">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <div class="wrap narrow">
+          <p class="eyebrow">Install guide</p>
+          <h1>Quran Reader for Mac</h1>
+          <p class="lede-left">
+            A free Quran app for macOS that works without internet, on Apple Silicon and Intel Macs
+            alike. Read the Madani Mushaf page by page or a whole Surah at once, with recitation,
+            Tafsīr Ibn Kathīr and al-Jalālayn, and daily reading routines.
+          </p>
+          <div class="cta">
+            <a
+              class="button primary"
+              data-asset="dmg"
+              href="https://github.com/ask-786/quran-reader/releases/latest"
+              >Download for Mac (.dmg)</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section class="guide">
+        <div class="wrap narrow">
+          <h2>Install</h2>
+          <ol class="steps">
+            <li>Download the disk image (<code>.dmg</code>) above and open it.</li>
+            <li>
+              Drag <strong>Quran Reader</strong> into your <strong>Applications</strong> folder.
+            </li>
+            <li>
+              Open Quran Reader from Applications. macOS will say it can't verify the developer.
+              Close that message. This happens because the app isn't code-signed yet.
+            </li>
+            <li>
+              Open <strong>System Settings → Privacy &amp; Security</strong>, scroll down to the
+              Security section and click <strong>Open Anyway</strong> next to the Quran Reader
+              message. Confirm with your password.
+            </li>
+          </ol>
+          <p>You only need to do this once. After that, Quran Reader opens like any other app.</p>
+          <p>If you're comfortable with Terminal, this does the same as steps 3 and 4:</p>
+          <pre><code>xattr -dr com.apple.quarantine "/Applications/Quran Reader.app"</code></pre>
+
+          <h2>Update</h2>
+          <p>
+            Download the newest disk image and drag Quran Reader into Applications again, replacing
+            the old copy. Your reading position, history, bookmarks and routines are kept.
+          </p>
+
+          <h2>Uninstall</h2>
+          <p>Drag Quran Reader from Applications to the Bin.</p>
+
+          <h2>What you get</h2>
+          <p>
+            The full Quran text and all 604 Mushaf pages built in, so it reads with no connection.
+            Focus mode goes full screen to leave only the text, alongside auto-scroll at your own
+            pace, your reading history, recitation from five reciters, Tafsīr Ibn Kathīr and
+            al-Jalālayn in Arabic and English, and daily routines.
+            <a href="../#features">See all features</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <p>
+          <a href="../windows/">Windows</a> · <a href="../macos/">macOS</a> ·
+          <a href="../linux/">Linux</a> ·
+          <a href="https://github.com/ask-786/quran-reader">Source code</a> ·
+          <a href="https://github.com/ask-786/quran-reader/issues">Report a problem</a>
+        </p>
+        <p>
+          Quran Reader is open source under the
+          <a href="https://github.com/ask-786/quran-reader/blob/master/LICENSE">MIT license</a>. The
+          Quran text, fonts and tafsir are third-party works under their own terms. See the
+          <a href="https://github.com/ask-786/quran-reader/blob/master/THIRD-PARTY-NOTICES.md"
+            >third-party notices</a
+          >.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

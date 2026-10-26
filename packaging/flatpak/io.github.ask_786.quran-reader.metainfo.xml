@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.ask_786.quran-reader</id>
+  <name>Quran Reader</name>
+  <summary>Read the Quran offline, without distraction</summary>
+  <developer id="io.github.ask_786">
+    <name>Ahmad Bin Marakkar</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT AND OFL-1.1 AND LicenseRef-proprietary=https://github.com/ask-786/quran-reader/blob/master/THIRD-PARTY-NOTICES.md</project_license>
+
+  <launchable type="desktop-id">io.github.ask_786.quran-reader.desktop</launchable>
+
+  <description>
+    <p>
+      A Quran reader that keeps everything you need on your computer. The complete text and all
+      604 pages of the Madani Mushaf are built in, so it works from the
+      first launch with no connection, no account and no tracking.
+    </p>
+    <ul>
+      <li>Distraction-free reading: focus mode hides everything but the verses, and full screen is one key away</li>
+      <li>Auto-scroll at a pace you set, with a drag-to-adjust speed handle</li>
+      <li>Reading history: every Surah, Juz, Hizb and page remembers your place, and the Recent list keeps each sitting</li>
+      <li>Recitation from five reciters, all Ḥafṣ ʿan ʿĀṣim: hear one verse, repeat it to memorise, or listen to a whole Surah</li>
+      <li>Tafsīr Ibn Kathīr and Tafsīr al-Jalālayn, in Arabic and in English, beside the verse you are reading</li>
+      <li>Daily routines: read a set of Surahs such as Yā-Sīn, Al-Wāqiʿah and Al-Mulk as one, with today's progress</li>
+      <li>Mushaf page view with the printed line breaks, in the official KFGQPC fonts</li>
+      <li>Jump to any verse from the keyboard: 255, 2:255 or p255</li>
+    </ul>
+    <p>
+      Recitation and tafsir are downloaded the first time you ask for them and kept for
+      offline use.
+    </p>
+  </description>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/ask-786/quran-reader/master/packaging/flatpak/screenshots/mushaf.png</image>
+      <caption>The Mushaf page view</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/ask-786/quran-reader/master/packaging/flatpak/screenshots/tafsir.png</image>
+      <caption>A verse with its tafsir beside it</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/ask-786/quran-reader/master/packaging/flatpak/screenshots/focus.png</image>
+      <caption>Focus mode: nothing but the text</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/ask-786/quran-reader/master/packaging/flatpak/screenshots/recitation.png</image>
+      <caption>Hearing a verse recited from its verse card</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/ask-786/quran-reader/master/packaging/flatpak/screenshots/routines.png</image>
+      <caption>A daily reading routine and today's progress</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/ask-786/quran-reader/master/packaging/flatpak/screenshots/settings.png</image>
+      <caption>Settings: dark, light and sepia themes, and app zoom</caption>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://ask-786.github.io/quran-reader/</url>
+  <url type="bugtracker">https://github.com/ask-786/quran-reader/issues</url>
+  <url type="vcs-browser">https://github.com/ask-786/quran-reader</url>
+
+  <content_rating type="oars-1.1" />
+
+  <branding>
+    <color type="primary" scheme_preference="light">#f4ecd8</color>
+    <color type="primary" scheme_preference="dark">#16181d</color>
+  </branding>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+
+  <keywords>
+    <keyword>Quran</keyword>
+    <keyword>Koran</keyword>
+    <keyword>Islam</keyword>
+    <keyword>Mushaf</keyword>
+    <keyword>Tafsir</keyword>
+    <keyword>Recitation</keyword>
+  </keywords>
+
+  <releases>
+    <release version="0.2.12" date="2026-10-22">
+      <description>
+        <p>Whole Surahs stream in the listen panel, and on macOS the app gets native window controls, a menu bar and full screen.</p>
+      </description>
+    </release>
+    <release version="0.2.11" date="2026-10-20" />
+    <release version="0.2.10" date="2026-10-13">
+      <description>
+        <p>Daily reading routines, and the Basmala now renders correctly on Windows.</p>
+      </description>
+    </release>
+  </releases>
+</component>

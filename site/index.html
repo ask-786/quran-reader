@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Quran Reader — Free Offline Quran App for Windows, macOS &amp; Linux</title>
+    <meta
+      name="description"
+      content="A free, open-source Quran app that works fully offline on Windows, macOS and Linux. Distraction-free reading, auto-scroll, recitation, Tafsīr Ibn Kathīr and al-Jalālayn, and daily reading routines."
+    />
+    <link rel="canonical" href="https://ask-786.github.io/quran-reader/" />
+
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)" />
+
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+    <!-- Link previews (WhatsApp, X, Discord, Slack, Facebook...) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Quran Reader" />
+    <meta property="og:url" content="https://ask-786.github.io/quran-reader/" />
+    <meta property="og:title" content="Quran Reader — a free, offline Quran app for desktop" />
+    <meta
+      property="og:description"
+      content="Read the Quran offline and without distraction, with recitation, tafsir and daily routines. Windows, macOS and Linux."
+    />
+    <meta property="og:image" content="https://ask-786.github.io/quran-reader/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Quran Reader app icon: an open mushaf in gold" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Quran Reader",
+        "description": "A free, open-source, offline-first Quran reader for Windows, macOS and Linux, with distraction-free reading, auto-scroll, recitation, Tafsīr Ibn Kathīr and al-Jalālayn, and daily reading routines.",
+        "url": "https://ask-786.github.io/quran-reader/",
+        "downloadUrl": "https://github.com/ask-786/quran-reader/releases/latest",
+        "image": "https://ask-786.github.io/quran-reader/og-image.png",
+        "applicationCategory": "ReferenceApplication",
+        "operatingSystem": "Windows, macOS, Linux",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "codeRepository": "https://github.com/ask-786/quran-reader"
+      }
+    </script>
+
+    <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="style.css" />
+    <script src="main.js" defer></script>
+  </head>
+
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="./" aria-label="Quran Reader home">
+          <img src="icon.svg" alt="" width="32" height="32" />
+          <span>Quran Reader</span>
+        </a>
+        <nav aria-label="Main">
+          <a href="#features">Features</a>
+          <a class="nav-keep" href="#download">Download</a>
+          <a href="#faq">FAQ</a>
+          <a href="https://github.com/ask-786/quran-reader">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap hero-inner">
+          <p class="verse" lang="ar" dir="rtl">ٱقْرَأْ بِٱسْمِ رَبِّكَ ٱلَّذِى خَلَقَ</p>
+          <p class="verse-ref">Al-ʿAlaq · 96:1</p>
+
+          <h1>Read the Quran offline, without distraction</h1>
+          <p class="lede">
+            A free Quran reader for Windows, macOS and Linux. Everything you need to read is already
+            inside the app, so it works with no internet, no account and nothing in the way of the
+            text.
+          </p>
+
+          <div class="cta">
+            <a class="button primary" id="primary-download" href="#download">Download</a>
+            <a class="button" href="#download" id="other-platforms">All platforms</a>
+          </div>
+          <p class="release-line" id="release-line" aria-live="polite"></p>
+        </div>
+        <div class="wrap">
+          <img
+            class="shot hero-shot"
+            src="screenshots/mushaf.png"
+            width="1280"
+            height="800"
+            alt="Quran Reader showing Surah Al-ʿAlaq in the Mushaf page view, with the list of Surahs in the sidebar"
+          />
+        </div>
+      </section>
+
+      <section class="offline" aria-labelledby="offline-title">
+        <div class="wrap offline-inner">
+          <div>
+            <p class="eyebrow">Offline first</p>
+            <h2 id="offline-title">Your Quran doesn't need the internet</h2>
+            <p>
+              Most Quran apps load the text from a server, which means they stop working when your
+              connection does. Quran Reader carries the complete text and all 604 Mushaf pages
+              inside the app, so it opens and reads the same on a plane, in a masjid with no signal
+              or on a computer that never goes online.
+            </p>
+          </div>
+          <ul class="checks">
+            <li>
+              <strong>Works from the first launch.</strong> No sign-up, no setup, no “downloading
+              data” screen.
+            </li>
+            <li>
+              <strong>Downloads only when you ask.</strong> Recitation and tafsir are downloaded the
+              first time you ask for them, then kept for offline use.
+            </li>
+            <li>
+              <strong>You decide what's kept.</strong> Settings shows how much space audio takes,
+              per reciter, and clears it in one click.
+            </li>
+            <li>
+              <strong>Nothing leaves your computer.</strong> No account, no analytics, no tracking.
+              Your reading history stays on your computer.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="features" class="features" aria-labelledby="features-title">
+        <div class="wrap">
+          <h2 id="features-title">Made for reading</h2>
+          <p class="section-lede">
+            Everything here exists to keep you with the text, and out of menus.
+          </p>
+
+          <div class="feature-list">
+            <article class="feature">
+              <h3>Distraction-free reading</h3>
+              <p>
+                Press <kbd>f</kbd> for focus mode: the toolbar and sidebar disappear and only the
+                verses remain. Go full screen with <kbd>F11</kbd> (on a Mac, focus mode does it for
+                you). Pick a dark, light or sepia theme that suits the room.
+              </p>
+            </article>
+
+            <article class="feature">
+              <h3>Auto-scroll</h3>
+              <p>
+                Press <kbd>a</kbd> and the page moves on by itself, so your hands can rest. Drag the
+                speed handle, or use <kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd>, until it matches
+                your pace. <kbd>Space</kbd> pauses.
+              </p>
+            </article>
+
+            <article class="feature">
+              <h3>Reading history</h3>
+              <p>
+                The app opens where you stopped. Every Surah, Juz, Hizb and page remembers your
+                place on its own, and the Recent list keeps each sitting with the verses it covered,
+                so you can go back to any of them.
+              </p>
+            </article>
+
+            <article class="feature">
+              <h3>Recitation</h3>
+              <p>
+                Five reciters, all Ḥafṣ ʿan ʿĀṣim. Hear a single verse when a word doesn't sit
+                right, repeat it a set number of times with a pause to say it back, or listen to a
+                whole Surah. Save a Surah's audio to play offline.
+              </p>
+            </article>
+
+            <article class="feature">
+              <h3>Tafsir</h3>
+              <p>
+                Tafsīr Ibn Kathīr and Tafsīr al-Jalālayn, each in Arabic and in English. Download an
+                edition once and it sits beside the verse you are reading, offline, following you as
+                you go. Each is labelled with its school of fiqh and its creed, so you know how it
+                reads the verses.
+              </p>
+            </article>
+
+            <article class="feature">
+              <h3>Daily routines</h3>
+              <p>
+                Make a routine like “Morning: Yā-Sīn, Al-Wāqiʿah, Al-Mulk” and read it as one set.
+                The end of each Surah leads to the next in your routine, the toolbar shows how far
+                along you are today, and every routine starts fresh the next day.
+              </p>
+            </article>
+          </div>
+
+          <div class="gallery">
+            <figure>
+              <img
+                class="shot"
+                src="screenshots/focus.png"
+                width="1280"
+                height="800"
+                loading="lazy"
+                alt="Focus mode: only the verses of Al-ʿAlaq on a dark page"
+              />
+              <figcaption>Focus mode: nothing but the text</figcaption>
+            </figure>
+            <figure>
+              <img
+                class="shot"
+                src="screenshots/tafsir.png"
+                width="1280"
+                height="800"
+                loading="lazy"
+                alt="The tafsir card open under a verse, labelled Shāfiʿī and Ashʿarī"
+              />
+              <figcaption>Tafsir beside the verse you are reading</figcaption>
+            </figure>
+            <figure>
+              <img
+                class="shot"
+                src="screenshots/recitation.png"
+                width="1280"
+                height="800"
+                loading="lazy"
+                alt="A verse playing from its verse card, with the playback bar above the commentary"
+              />
+              <figcaption>Hear a verse from its verse card</figcaption>
+            </figure>
+            <figure>
+              <img
+                class="shot"
+                src="screenshots/routines.png"
+                width="1280"
+                height="800"
+                loading="lazy"
+                alt="The Routines menu showing a routine called Daily at 1 of 6 today"
+              />
+              <figcaption>A daily routine and today's progress</figcaption>
+            </figure>
+          </div>
+
+          <h3 class="also-title">Also in the app</h3>
+          <ul class="also">
+            <li>
+              <strong>Mushaf page view:</strong> all 604 Madani Mushaf pages with the printed line
+              breaks, in the official KFGQPC fonts
+            </li>
+            <li>
+              <strong>Scrolling reader:</strong> a whole Surah in one view, with page and juz
+              markers
+            </li>
+            <li>
+              <strong>Jump anywhere:</strong> <kbd>Ctrl</kbd>+<kbd>K</kbd>, then type
+              <code>255</code>, <code>2:255</code> or <code>p255</code>
+            </li>
+            <li><strong>Browse</strong> by Surah, Juz, Hizb or page</li>
+            <li><strong>Bookmark and copy</strong> any verse</li>
+            <li><strong>Duʿāʾ Khatm al-Qurʾān</strong> after An-Nās</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="download" class="download" aria-labelledby="download-title">
+        <div class="wrap">
+          <h2 id="download-title">Download</h2>
+          <p class="section-lede" id="download-lede">
+            Free on all three platforms. Every installer is also on the
+            <a href="https://github.com/ask-786/quran-reader/releases/latest">releases page</a>.
+          </p>
+          <p class="mobile-note" id="mobile-note" hidden>
+            Quran Reader is a desktop app. Open this page on your Windows, Mac or Linux computer to
+            download it.
+          </p>
+
+          <div class="grid platforms">
+            <article class="card platform" data-os="windows">
+              <h3>Windows</h3>
+              <p class="meta">Windows 10 and 11, 64-bit</p>
+              <ul class="files">
+                <li>
+                  <a data-asset="exe" href="https://github.com/ask-786/quran-reader/releases/latest"
+                    >Installer (.exe)</a
+                  >
+                </li>
+                <li>
+                  <a data-asset="msi" href="https://github.com/ask-786/quran-reader/releases/latest"
+                    >MSI package (.msi)</a
+                  >
+                </li>
+              </ul>
+              <a class="guide-link" href="windows/">Install guide for Windows →</a>
+            </article>
+            <article class="card platform" data-os="mac">
+              <h3>macOS</h3>
+              <p class="meta">Apple Silicon and Intel</p>
+              <ul class="files">
+                <li>
+                  <a data-asset="dmg" href="https://github.com/ask-786/quran-reader/releases/latest"
+                    >Disk image (.dmg)</a
+                  >
+                </li>
+              </ul>
+              <a class="guide-link" href="macos/">Install guide for macOS →</a>
+            </article>
+            <article class="card platform" data-os="linux">
+              <h3>Linux</h3>
+              <p class="meta">64-bit, glibc 2.35 or newer</p>
+              <ul class="files">
+                <li>
+                  <a
+                    data-asset="appimage"
+                    href="https://github.com/ask-786/quran-reader/releases/latest"
+                    >AppImage</a
+                  >
+                </li>
+                <li>
+                  <a data-asset="deb" href="https://github.com/ask-786/quran-reader/releases/latest"
+                    >Debian / Ubuntu (.deb)</a
+                  >
+                </li>
+                <li>
+                  <a data-asset="rpm" href="https://github.com/ask-786/quran-reader/releases/latest"
+                    >Fedora / openSUSE (.rpm)</a
+                  >
+                </li>
+              </ul>
+              <a class="guide-link" href="linux/">Install guide for Linux →</a>
+            </article>
+          </div>
+
+          <p class="note">
+            The installers aren't code-signed yet, so Windows and macOS will warn you the first time
+            you open the app. Each install guide shows how to get past the warning.
+          </p>
+        </div>
+      </section>
+
+      <section id="faq" class="faq" aria-labelledby="faq-title">
+        <div class="wrap narrow">
+          <h2 id="faq-title">Questions</h2>
+
+          <details>
+            <summary>Is Quran Reader free?</summary>
+            <p>
+              Yes. It is open source under the MIT license, with no ads, no account and no paid
+              tier. The source code is on
+              <a href="https://github.com/ask-786/quran-reader">GitHub</a>.
+            </p>
+          </details>
+
+          <details>
+            <summary>Does it really work without internet?</summary>
+            <p>
+              Yes. The Quran text and the Mushaf fonts come with the app, so reading never needs a
+              connection. Recitation and tafsir are downloaded once, the first time you ask for
+              them, and work offline after that.
+            </p>
+          </details>
+
+          <details>
+            <summary>Why does Windows or macOS warn me when I open it?</summary>
+            <p>
+              The builds aren't code-signed yet. Signing certificates cost money every year, and
+              until the project has them your system can't confirm who made the installer. The
+              <a href="windows/">Windows</a> and <a href="macos/">macOS</a> install guides show how
+              to open it anyway.
+            </p>
+          </details>
+
+          <details>
+            <summary>Which Mushaf and text does it use?</summary>
+            <p>
+              The page view follows the Madani Mushaf (604 pages) in the King Fahd Complex (KFGQPC)
+              QCF v4 fonts. The scrolling reader uses the Uthmani text from the
+              <a href="https://tanzil.net">Tanzil Project</a>.
+            </p>
+          </details>
+
+          <details>
+            <summary>Is there a phone or tablet version?</summary>
+            <p>Not at the moment. Quran Reader runs on Windows, macOS and Linux.</p>
+          </details>
+
+          <details>
+            <summary>Can I search the Quran or read a translation?</summary>
+            <p>
+              Not yet. Search and translations are planned. You can follow progress or suggest
+              features on <a href="https://github.com/ask-786/quran-reader/issues">GitHub</a>.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <p>
+          <a href="windows/">Windows</a> · <a href="macos/">macOS</a> · <a href="linux/">Linux</a> ·
+          <a href="https://github.com/ask-786/quran-reader">Source code</a> ·
+          <a href="https://github.com/ask-786/quran-reader/issues">Report a problem</a>
+        </p>
+        <p>
+          Quran Reader is open source under the
+          <a href="https://github.com/ask-786/quran-reader/blob/master/LICENSE">MIT license</a>. The
+          Quran text, fonts and tafsir are third-party works under their own terms. See the
+          <a href="https://github.com/ask-786/quran-reader/blob/master/THIRD-PARTY-NOTICES.md"
+            >third-party notices</a
+          >.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

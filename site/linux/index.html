@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Quran Reader for Linux — Free Offline Quran App</title>
+    <meta
+      name="description"
+      content="Install Quran Reader on Ubuntu, Debian, Fedora, Arch or any distro: a free, open-source Quran app for Linux that works offline, with recitation, tafsir and daily routines."
+    />
+    <link rel="canonical" href="https://ask-786.github.io/quran-reader/linux/" />
+
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)" />
+
+    <link rel="icon" href="../icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="../favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Quran Reader" />
+    <meta property="og:url" content="https://ask-786.github.io/quran-reader/linux/" />
+    <meta property="og:title" content="Quran Reader for Linux — free, offline Quran app" />
+    <meta
+      property="og:description"
+      content="Read the Quran offline on Linux, with recitation, tafsir and daily routines. .deb, .rpm, AppImage and AUR."
+    />
+    <meta property="og:image" content="https://ask-786.github.io/quran-reader/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preload" href="../fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="../style.css" />
+    <script src="../main.js" defer></script>
+  </head>
+
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="../" aria-label="Quran Reader home">
+          <img src="../icon.svg" alt="" width="32" height="32" />
+          <span>Quran Reader</span>
+        </a>
+        <nav aria-label="Main">
+          <a href="../#features">Features</a>
+          <a class="nav-keep" href="../#download">Download</a>
+          <a href="../#faq">FAQ</a>
+          <a href="https://github.com/ask-786/quran-reader">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <div class="wrap narrow">
+          <p class="eyebrow">Install guide</p>
+          <h1>Quran Reader for Linux</h1>
+          <p class="lede-left">
+            A free Quran app for Linux that works without internet. Read the Madani Mushaf page by
+            page or a whole Surah at once, with recitation, Tafsīr Ibn Kathīr and al-Jalālayn, and
+            daily reading routines. Packaged for Debian, Ubuntu, Fedora, openSUSE and Arch, and as
+            an AppImage for everything else.
+          </p>
+          <div class="cta">
+            <a
+              class="button primary"
+              data-asset="deb"
+              href="https://github.com/ask-786/quran-reader/releases/latest"
+              >.deb</a
+            >
+            <a
+              class="button"
+              data-asset="rpm"
+              href="https://github.com/ask-786/quran-reader/releases/latest"
+              >.rpm</a
+            >
+            <a
+              class="button"
+              data-asset="appimage"
+              href="https://github.com/ask-786/quran-reader/releases/latest"
+              >AppImage</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section class="guide">
+        <div class="wrap narrow">
+          <p>
+            Needs a 64-bit (x86_64) system with glibc 2.35 or newer: Ubuntu 22.04, Debian 12, Fedora
+            36, Linux Mint 21 or anything newer.
+          </p>
+
+          <h2>Ubuntu, Debian, Linux Mint, Pop!_OS</h2>
+          <p>Download the <code>.deb</code> above, then from the folder you saved it in:</p>
+          <pre><code>sudo apt install ./Quran.Reader_*_amd64.deb</code></pre>
+
+          <h2>Fedora, openSUSE</h2>
+          <p>Download the <code>.rpm</code> above, then:</p>
+          <pre><code>sudo dnf install ./Quran.Reader-*.x86_64.rpm      # Fedora
+sudo zypper install ./Quran.Reader-*.x86_64.rpm   # openSUSE</code></pre>
+
+          <h2>Arch, Manjaro, EndeavourOS, CachyOS</h2>
+          <p>
+            Install
+            <a href="https://aur.archlinux.org/packages/quran-reader-bin">quran-reader-bin</a>
+            from the AUR with your helper of choice:
+          </p>
+          <pre><code>yay -S quran-reader-bin</code></pre>
+          <p>It updates with the rest of your system.</p>
+
+          <h2>Any other distribution: AppImage</h2>
+          <p>Download the AppImage above, make it executable and run it:</p>
+          <pre><code>chmod +x Quran.Reader_*_amd64.AppImage
+./Quran.Reader_*_amd64.AppImage</code></pre>
+          <p>
+            If it won't start on Ubuntu 22.04 or newer, install FUSE 2 first:
+            <code>sudo apt install libfuse2</code> (on 24.04, <code>libfuse2t64</code>).
+          </p>
+
+          <h2>Update</h2>
+          <p>
+            On Arch, updates come through the AUR. Otherwise, install the newest
+            <code>.deb</code>, <code>.rpm</code> or AppImage the same way. Your reading position,
+            history, bookmarks and routines are kept.
+          </p>
+
+          <h2>What you get</h2>
+          <p>
+            The full Quran text and all 604 Mushaf pages built in, so it reads with no connection.
+            Focus mode and full screen (<kbd>F11</kbd>) for reading without distraction, auto-scroll
+            at your own pace, your reading history, recitation from five reciters, Tafsīr Ibn Kathīr
+            and al-Jalālayn in Arabic and English, and daily routines.
+            <a href="../#features">See all features</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <p>
+          <a href="../windows/">Windows</a> · <a href="../macos/">macOS</a> ·
+          <a href="../linux/">Linux</a> ·
+          <a href="https://github.com/ask-786/quran-reader">Source code</a> ·
+          <a href="https://github.com/ask-786/quran-reader/issues">Report a problem</a>
+        </p>
+        <p>
+          Quran Reader is open source under the
+          <a href="https://github.com/ask-786/quran-reader/blob/master/LICENSE">MIT license</a>. The
+          Quran text, fonts and tafsir are third-party works under their own terms. See the
+          <a href="https://github.com/ask-786/quran-reader/blob/master/THIRD-PARTY-NOTICES.md"
+            >third-party notices</a
+          >.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Quran Reader
+Comment=Read the Quran offline, without distraction
+Exec=quran-reader
+Icon=io.github.ask_786.quran-reader
+Terminal=false
+Categories=Education;Literature;
+Keywords=quran;koran;islam;mushaf;tafsir;recitation;arabic;
+StartupWMClass=quran-reader
