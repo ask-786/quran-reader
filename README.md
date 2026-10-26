@@ -107,6 +107,7 @@ fetched only when you ask for them, and kept for offline use after that.
 ## Install
 
 Download the installer for your platform from the
+[website](https://ask-786.github.io/quran-reader/) or the
 [Releases](https://github.com/ask-786/quran-reader/releases) page.
 
 | Platform | Format                                       |

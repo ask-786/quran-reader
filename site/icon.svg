@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Quran Reader app icon — master source.
+
+    An open mushaf: two facing pages in gold, with the lines of text cut out
+    of them so the ground shows through rather than being painted over. The
+    last line of each page is short, the way a closing line of a paragraph
+    actually sits.
+
+    The page is built from one curve. The top edge runs spine -> outer as
+    the cubic (492,392) (392,348) (300,316) (212,330); the bottom edge is
+    that same curve translated down by 306, and every text line is another
+    translate of it (74, 138 and 202 down, 30 tall). So the lines sit
+    parallel to the page edges and bow with them instead of cutting across
+    as flat bars. The right page is the left one mirrored about x=512.
+
+    Deliberately a solid silhouette rather than an outline — the page masses
+    are what keep it legible once it is scaled to the 16px entry inside
+    icon.ico.
+
+    Colours are the app's own dark theme tokens from src/app.css: the
+    #c9a15a accent on a #16181d ground, so the dock/taskbar icon and the
+    running app read as one product.
+
+    Regenerate every raster size from this file with scripts/generate-icons.sh.
+  -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20242c"/>
+      <stop offset="1" stop-color="#131519"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6c88c"/>
+      <stop offset="0.55" stop-color="#c9a15a"/>
+      <stop offset="1" stop-color="#a27932"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Ground -->
+  <rect width="1024" height="1024" rx="224" fill="url(#ground)"/>
+  <!-- Rim light, keeps the tile from dissolving into a dark dock -->
+  <rect x="7" y="7" width="1010" height="1010" rx="217"
+        fill="none" stroke="#c9a15a" stroke-opacity="0.18" stroke-width="14"/>
+
+  <g fill="url(#gold)" fill-rule="evenodd">
+    <!-- Left page -->
+    <path d="M 492 392 C 392 348, 300 316, 212 330
+             Q 188 334, 188 358 L 188 612 Q 188 636, 212 636
+             C 300 622, 392 654, 492 698 Z
+             M 244 400.9 C 307.3 398.5, 372.8 417.2, 442 444.9
+             L 442 474.9 C 372.8 447.2, 307.3 428.5, 244 430.9 Z
+             M 244 464.9 C 307.3 462.5, 372.8 481.2, 442 508.9
+             L 442 538.9 C 372.8 511.2, 307.3 492.5, 244 494.9 Z
+             M 244 528.9 C 290 527.1, 337.1 536.5, 386 552.4
+             L 386 582.4 C 337.1 566.5, 290 557.1, 244 558.9 Z"/>
+    <!-- Right page, mirrored about x=512 -->
+    <path d="M 532 392 C 632 348, 724 316, 812 330
+             Q 836 334, 836 358 L 836 612 Q 836 636, 812 636
+             C 724 622, 632 654, 532 698 Z
+             M 780 400.9 C 716.7 398.5, 651.2 417.2, 582 444.9
+             L 582 474.9 C 651.2 447.2, 716.7 428.5, 780 430.9 Z
+             M 780 464.9 C 716.7 462.5, 651.2 481.2, 582 508.9
+             L 582 538.9 C 651.2 511.2, 716.7 492.5, 780 494.9 Z
+             M 780 528.9 C 734 527.1, 686.9 536.5, 638 552.4
+             L 638 582.4 C 686.9 566.5, 734 557.1, 780 558.9 Z"/>
+  </g>
+</svg>
