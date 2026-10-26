@@ -90,6 +90,11 @@
   </keywords>
 
   <releases>
+    <release version="0.2.13" date="2026-10-26">
+      <description>
+        <p>Maintenance release: no user-facing changes.</p>
+      </description>
+    </release>
     <release version="0.2.12" date="2026-10-22">
       <description>
         <p>Whole Surahs stream in the listen panel, and on macOS the app gets native window controls, a menu bar and full screen.</p>
