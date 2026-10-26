@@ -1,0 +1,172 @@
+name: Publish to Flathub
+
+# Flathub builds from its own repo, flathub/io.github.ask_786.quran-reader, and
+# publishes when a change merges there. This opens that change as a PR: the
+# manifest pointed at the new tag, plus fresh cargo/node source lists, since a
+# Flathub build has no network and every dependency must be listed up front.
+# Flathub's bot test-builds the PR; merging it is the one manual step, the same
+# way publishing the draft release is for the AUR.
+#
+# Triggered by publishing, like aur.yml, so a draft that never ships never
+# reaches Flathub.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g. v0.1.0)'
+        required: true
+
+concurrency:
+  group: flathub
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  APP_ID: io.github.ask_786.quran-reader
+  # flatpak-builder-tools, pinned: its generators write the source lists Flathub
+  # builds from, so a change upstream should arrive in review, not mid-release.
+  BUILDER_TOOLS: 9d86d336a39b9af38b86f114b6ce5820fe260f91
+
+jobs:
+  # Secrets can't be read in a job-level `if`, so a job of its own decides.
+  # Until the app is accepted there is no Flathub repo and no token, and this
+  # skips with a notice rather than failing every release.
+  check:
+    name: Check for a Flathub token
+    # Only app releases; packs-v* tags are tafsir content (see aur.yml).
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.token.outputs.ready }}
+    steps:
+      - id: token
+        env:
+          FLATHUB_TOKEN: ${{ secrets.FLATHUB_TOKEN }}
+        run: |
+          if [ -n "$FLATHUB_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::FLATHUB_TOKEN is not set, so nothing goes to Flathub. See packaging/flatpak/README.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    name: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # Same guard as aur.yml: read through env so the input can't inject shell,
+      # and every later step interpolates the tag only because of this pattern.
+      - name: Validate the tag
+        env:
+          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH (e.g. v0.1.7)."
+            exit 1
+          fi
+
+      # The default branch, so the last step commits back as a fast-forward;
+      # full history so the tag itself can be checked out alongside it.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v10.3.2
+
+      # From the tag's lockfiles, not the default branch's: these lists have to
+      # match exactly the source Flathub will build.
+      - name: Generate the source lists
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          git worktree add --detach /tmp/release "$tag"
+
+          uvx --from "git+https://github.com/flatpak/flatpak-builder-tools.git@$BUILDER_TOOLS#subdirectory=node" \
+            flatpak-node-generator pnpm /tmp/release/pnpm-lock.yaml \
+            -o packaging/flatpak/node-sources.json
+
+          # The cargo generator is a lone script with no entry point to install.
+          curl -fsSL -o /tmp/flatpak-cargo-generator.py \
+            "https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/$BUILDER_TOOLS/cargo/flatpak-cargo-generator.py"
+          uv run --no-project --with aiohttp --with tomlkit --with pyyaml \
+            python /tmp/flatpak-cargo-generator.py /tmp/release/src-tauri/Cargo.lock \
+            -o packaging/flatpak/cargo-sources.json
+
+      - name: Point the manifest at the tag
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          version="${tag#v}"
+          commit="$(git rev-list -n1 "$tag")"
+          manifest="packaging/flatpak/$APP_ID.yml"
+
+          # The git source is the only one with tag/commit keys.
+          sed -i -E "s/^(        tag: ).*/\1$tag/; s/^(        commit: ).*/\1$commit/" "$manifest"
+          grep -q "^        tag: $tag$" "$manifest" && grep -q "^        commit: $commit$" "$manifest" \
+            || { echo "::error::$manifest has no git source tag/commit to update"; exit 1; }
+
+          # Flathub reads the metainfo from the tag. bump-version.sh adds the
+          # entry; a tag cut without it ships with last release's changelog.
+          if ! git show "$tag:packaging/flatpak/$APP_ID.metainfo.xml" | grep -q "<release version=\"$version\""; then
+            echo "::warning::The metainfo at $tag has no <release> for $version, so Flathub will show the previous changelog."
+          fi
+
+      - name: Open the update on Flathub
+        env:
+          GH_TOKEN: ${{ secrets.FLATHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          version="${tag#v}"
+          branch="update-$version"
+          repo="flathub/$APP_ID"
+
+          git clone "https://x-access-token:$GH_TOKEN@github.com/$repo.git" /tmp/flathub
+          cp "packaging/flatpak/$APP_ID.yml" packaging/flatpak/cargo-sources.json \
+             packaging/flatpak/node-sources.json /tmp/flathub/
+
+          cd /tmp/flathub
+          git config user.name 'Ahmad bin Marakkar'
+          git config user.email 'ahmadshabeerk786@gmail.com'
+          git checkout -b "$branch"
+          git add "$APP_ID.yml" cargo-sources.json node-sources.json
+          if git diff --cached --quiet; then
+            echo "Flathub already builds $tag"
+            exit 0
+          fi
+          git commit -m "Update to $version"
+          # Forced so a re-run for the same tag replaces its own branch.
+          git push --force origin "$branch"
+
+          if [ "$(gh pr list -R "$repo" --head "$branch" --json number -q length)" = 0 ]; then
+            gh pr create -R "$repo" --base master --head "$branch" \
+              --title "Update to $version" \
+              --body "Release notes: https://github.com/${{ github.repository }}/releases/tag/$tag"
+          fi
+          echo "Opened https://github.com/$repo/pulls — merge it once the test build passes." >> "$GITHUB_STEP_SUMMARY"
+
+      # Last, as in aur.yml: Flathub is the deliverable, and this only keeps the
+      # in-repo copy matching what was sent.
+      - name: Commit the updated manifest back
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          version="${tag#v}"
+
+          git config user.name 'Ahmad bin Marakkar'
+          git config user.email 'ahmadshabeerk786@gmail.com'
+          git add packaging/flatpak/
+          if git diff --cached --quiet; then
+            echo "packaging/flatpak already matches"
+            exit 0
+          fi
+          git commit -m "chore(flatpak): update manifest for $version"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"

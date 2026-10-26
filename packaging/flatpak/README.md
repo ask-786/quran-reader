@@ -24,22 +24,21 @@ be listed in the manifest with a checksum, so flatpak-builder can fetch it first
 The two JSON files are those lists, generated from the lockfiles, and they go
 stale whenever a lockfile changes.
 
-Regenerate both after any dependency change, before a release that Flathub will
-build:
+`.github/workflows/flathub.yml` regenerates both from the tag's lockfiles on
+every release, so they only need regenerating by hand for a local build after a
+dependency change. Use the same pinned generators the workflow does:
 
 ```sh
-# once
-uv tool install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
-curl -LO https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
-
-# every time
-flatpak-node-generator pnpm pnpm-lock.yaml -o packaging/flatpak/node-sources.json
+tools=9d86d336a39b9af38b86f114b6ce5820fe260f91   # BUILDER_TOOLS in flathub.yml
+uvx --from "git+https://github.com/flatpak/flatpak-builder-tools.git@$tools#subdirectory=node" \
+  flatpak-node-generator pnpm pnpm-lock.yaml -o packaging/flatpak/node-sources.json
+curl -fsSLO "https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/$tools/cargo/flatpak-cargo-generator.py"
 uv run --no-project --with aiohttp --with tomlkit --with pyyaml \
   python flatpak-cargo-generator.py src-tauri/Cargo.lock -o packaging/flatpak/cargo-sources.json
 ```
 
 The cargo generator ships as a single script with no entry point, which is why
-it runs through `uv run` rather than `uv tool install`.
+it runs through `uv run` rather than as an installed tool.
 
 ## Building locally
 
@@ -48,24 +47,49 @@ flatpak install --user flathub org.flatpak.Builder org.gnome.Sdk//51 \
   org.freedesktop.Sdk.Extension.rust-stable//26.08 org.freedesktop.Sdk.Extension.node22//26.08
 
 flatpak run org.flatpak.Builder --user --install --force-clean \
+  --mirror-screenshots-url=https://dl.flathub.org/media/ --repo=repo \
   build-dir packaging/flatpak/io.github.ask_786.quran-reader.yml
 flatpak run io.github.ask_786.quran-reader
+
+# what Flathub's bot checks
+flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest packaging/flatpak/io.github.ask_786.quran-reader.yml
+flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
 ```
+
+`--mirror-screenshots-url` does what Flathub's build does: it points the
+catalogue's screenshots and icons at `dl.flathub.org/media` and stores copies in
+the local repo. Only Flathub's build uploads them there, so a local lint always
+reports `appstream-external-screenshot-url` and
+`appstream-remote-icon-not-mirrored`; any other error is real.
 
 The manifest builds the git tag it names, so a local build of uncommitted work
 needs a copy of the manifest whose `type: git` source is swapped for
 `type: dir` pointing at the checkout (skip `node_modules`, `src-tauri/target`,
 `build` and `.svelte-kit`, or the copy takes minutes).
 
-## Releasing to Flathub
+## How a release reaches Flathub
 
 After the first submission, Flathub keeps the manifest in its own repo,
-`flathub/io.github.ask_786.quran-reader`. For each release:
+`flathub/io.github.ask_786.quran-reader`, and publishes whatever merges there.
 
-1. Add a `<release>` entry to the metainfo and regenerate the source lists, on
-   `master`, before tagging. The tag is what Flathub builds.
-2. In the Flathub repo, bump `tag` and `commit` in the manifest, copy in the
-   two JSON files, and open a PR. Flathub's bot builds it, and merging publishes.
+1. `scripts/bump-version.sh` adds the `<release>` entry to the metainfo, from
+   the commits since the last tag. It has to be in the tag, because the tag is
+   what Flathub builds.
+2. Publishing the GitHub release triggers `flathub.yml`. It regenerates the
+   source lists from the tag's lockfiles, points the manifest at the tag, and
+   opens an `update-X.Y.Z` PR in the Flathub repo. It then commits the updated
+   files back to `master`, as `aur.yml` does.
+3. Flathub's bot test-builds the PR. **Merging it is the one manual step**;
+   Flathub publishes within a few hours.
+
+To re-run it for a tag: Actions → Publish to Flathub → Run workflow.
+
+### One-time setup, after Flathub accepts the app
+
+Add a `FLATHUB_TOKEN` secret (Settings → Secrets and variables → Actions): a
+token that can push to the Flathub repo. A classic personal access token with
+the `public_repo` scope works. Until the secret exists, the workflow skips with
+a notice instead of failing.
 
 ## First submission
 
