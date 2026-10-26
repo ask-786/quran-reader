@@ -12,9 +12,15 @@
 # labelled 0.1.0 forever), so a mismatch here costs a whole build cycle. This
 # script keeps them in step, and refuses to run if they have already drifted.
 #
+# It also adds a <release> entry to the Flatpak metainfo, written by
+# scripts/release-notes.sh from the commits since the last tag. Flathub shows
+# it as the changelog, and builds the tag, so it has to be in the release
+# commit rather than added afterwards.
+#
 # packaging/aur/{PKGBUILD,.SRCINFO} are deliberately NOT touched: the AUR
 # workflow rewrites pkgver and the .deb checksum after the GitHub release is
-# published, and commits that back itself.
+# published, and commits that back itself. The same goes for the Flatpak
+# manifest's tag and source lists, which .github/workflows/flathub.yml updates.
 #
 # Usage:
 #   scripts/bump-version.sh patch|minor|major   bump the current version
@@ -130,9 +136,20 @@ for check in \
   echo "    $file"
 done
 
+metainfo=packaging/flatpak/io.github.ask_786.quran-reader.metainfo.xml
+if grep -q "<release version=\"$new\"" "$metainfo"; then
+  echo "    $metainfo already has a <release> for $new"
+else
+  entry="$(scripts/release-notes.sh --appstream "$new")"
+  awk -v entry="$entry" '{ print } /^  <releases>$/ { print entry }' "$metainfo" >"$metainfo.tmp"
+  mv "$metainfo.tmp" "$metainfo"
+  grep -q "<release version=\"$new\"" "$metainfo" || { echo "$metainfo: <releases> not found, no entry added" >&2; exit 1; }
+  echo "    $metainfo"
+fi
+
 if [ "$commit" -eq 1 ]; then
   echo "==> committing and tagging v$new"
-  git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+  git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock "$metainfo"
   git commit -m "chore(release): v$new"
   git tag "v$new"
   echo
