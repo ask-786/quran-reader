@@ -2,8 +2,8 @@
 
 An offline-first Quran reader for desktop, built with [Tauri 2](https://tauri.app),
 SvelteKit and Rust. No account, no telemetry, and no network request while you
-read — the Quran data ships inside the binary. Recitation and extra tafsir
-editions are fetched only when you ask for them.
+read — the Quran data ships inside the binary. Recitation and tafsir are
+fetched only when you ask for them, and kept for offline use after that.
 
 > **Status: early.** Reading, navigation, the Mushaf page view and tafsir
 > (Arabic + English) work and are used daily. Audio has just landed and has not
@@ -24,13 +24,19 @@ editions are fetched only when you ask for them.
 
 **Tafsir**
 
-- **Tafsīr al-Jalālayn** is bundled in both the **Arabic original** and
-  **English** (tr. Feras Hamza) — a side panel that follows the verse you are
-  reading, in both views (`t`), with a picker to switch between them
-- Editions are Shāfiʿī in fiqh and Ashʿarī in creed, and each is labelled with
-  both. A commentary's school decides how it reads the legal verses and its
-  creed decides how it reads the attribute verses; neither is visible in the
-  text, so the reader is told rather than left to guess
+- **Tafsīr Ibn Kathīr** — the **Arabic original** and the abridged
+  **English** (Darussalam)
+- **Tafsīr al-Jalālayn** — the **Arabic original** and **English**
+  (tr. Feras Hamza)
+- A side panel that follows the verse you are reading, in both views (`t`),
+  with a picker to switch between editions
+- Each edition is a content pack you download once from the editions list,
+  then read offline from then on. None is bundled with the app
+- Each edition is labelled with its school of fiqh and its creed: both are
+  Shāfiʿī, al-Jalālayn is Ashʿarī and Ibn Kathīr Atharī. A commentary's school
+  decides how it reads the legal verses and its creed decides how it reads the
+  attribute verses; neither is visible in the text, so the reader is told
+  rather than left to guess
 
 **Recitation**
 
@@ -251,6 +257,7 @@ docs/             Research and design notes
 | [spa5k/quran_data](https://github.com/spa5k/quran_data)                       | Surah metadata                        | Open                                                                       |
 | [MohamadHajjRabee/quran-qcf4](https://github.com/MohamadHajjRabee/quran-qcf4) | Mushaf page line layout + glyph fonts | JSON: MIT · fonts: Restricted (KFGQPC) — see below                         |
 | [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api)                       | Tafsīr al-Jalālayn (Arabic + English) | Arabic: public domain · English: © Royal Aal al-Bayt Institute — see below |
+| [spa5k/tafsir_api](https://github.com/spa5k/tafsir_api)                       | Tafsīr Ibn Kathīr (Arabic + English)  | Arabic: public domain · English (abridged): © Darussalam — see below       |
 | [aliftype/amiri](https://github.com/aliftype/amiri)                           | Amiri (Arabic prose)                  | SIL OFL 1.1                                                                |
 
 ---
