@@ -1,0 +1,59 @@
+# Flatpak manifest for Flathub. Builds the app from source, offline: every
+# crate and npm package is pinned in cargo-sources.json / node-sources.json,
+# generated from Cargo.lock and pnpm-lock.yaml (see README.md).
+id: io.github.ask_786.quran-reader
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node22
+command: quran-reader
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Recitation plays through GStreamer.
+  - --socket=pulseaudio
+  # Recitation and tafsir packs are downloaded when the reader asks for them.
+  - --share=network
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin:/run/build/quran-reader/bin
+
+modules:
+  - name: quran-reader
+    buildsystem: simple
+    build-options:
+      env:
+        CARGO_HOME: /run/build/quran-reader/cargo
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      # pnpm itself, from the npm tarball below, at the version package.json pins.
+      - mkdir -p bin
+      - printf '#!/bin/sh\nexec node /run/build/quran-reader/pnpm-dist/bin/pnpm.cjs "$@"\n' > bin/pnpm
+      - chmod +x bin/pnpm
+      - pnpm install --offline --frozen-lockfile
+      # Runs `pnpm build` (beforeBuildCommand) and then the release cargo build.
+      - pnpm tauri build --no-bundle
+
+      - install -Dm755 src-tauri/target/release/quran-reader /app/bin/quran-reader
+      - install -Dm644 packaging/flatpak/io.github.ask_786.quran-reader.desktop -t /app/share/applications
+      - install -Dm644 packaging/flatpak/io.github.ask_786.quran-reader.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 src-tauri/icons/icon.svg /app/share/icons/hicolor/scalable/apps/io.github.ask_786.quran-reader.svg
+      - install -Dm644 src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/io.github.ask_786.quran-reader.png
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.ask_786.quran-reader.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.ask_786.quran-reader.png
+    sources:
+      - type: git
+        url: https://github.com/ask-786/quran-reader.git
+        tag: v0.2.12
+        commit: 7ca7f0bdbd897fe9dec02ecd4e8e2a1e3218722c
+      - type: archive
+        url: https://registry.npmjs.org/pnpm/-/pnpm-10.28.2.tgz
+        sha512: 41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264
+        dest: pnpm-dist
+      - cargo-sources.json
+      - node-sources.json
