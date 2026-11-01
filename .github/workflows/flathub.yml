@@ -79,7 +79,7 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@v10.3.3
 
       # From the tag's lockfiles, not the default branch's: these lists have to
       # match exactly the source Flathub will build.
